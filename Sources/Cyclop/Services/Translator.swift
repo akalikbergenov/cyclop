@@ -8,7 +8,7 @@ import Translation
 /// holding the result. `TranslatePane` supplies the session.
 @MainActor
 final class Translator: ObservableObject {
-    static let russian = Locale.Language(identifier: "ru")
+    static let ukrainian = Locale.Language(identifier: "uk")
     static let english = Locale.Language(identifier: "en")
 
     /// Both ends are always named. Leaving the source to the framework looks
@@ -40,16 +40,11 @@ final class Translator: ObservableObject {
     var trimmed: String { input.trimmingCharacters(in: .whitespacesAndNewlines) }
     var route: Route { Self.route(for: trimmed) }
 
-    /// Russian goes out to English, everything else comes in to Russian.
-    ///
-    /// Decided by script rather than by language detection: a single word is
-    /// far too short to identify reliably, and "привет" comes back as Bulgarian
-    /// often enough to matter.
+    /// The pane is intentionally one-way: Ukrainian text in, English text out.
+    /// Naming both ends avoids language detection, which is unreliable for
+    /// short snippets and requires a separate macOS language asset.
     static func route(for text: String) -> Route {
-        let cyrillic = text.unicodeScalars.contains { (0x0400...0x04FF).contains($0.value) }
-        return cyrillic
-            ? Route(source: russian, target: english)
-            : Route(source: english, target: russian)
+        Route(source: ukrainian, target: english)
     }
 
     func retry() {
@@ -108,7 +103,7 @@ final class Translator: ObservableObject {
         pasteboard.setString(output, forType: .string)
     }
 
-    /// "Русский", "English" — for the column headers. Named in the language the
+    /// "Українська", "English" — for the column headers. Named in the language the
     /// panel itself is in, not in the system's: those two can differ, and a
     /// column headed in one language above a button worded in another reads as
     /// a mistake.
