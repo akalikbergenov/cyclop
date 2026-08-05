@@ -1,10 +1,14 @@
 import SwiftUI
 
 struct NotchContentView: View {
+    /// Shared across every screen: the tab and the services.
     @ObservedObject var vm: NotchViewModel
+    /// This screen's own: whether its notch is open, dragged onto, or holding
+    /// the keyboard.
+    @ObservedObject var panel: PanelState
 
-    private var isOpen: Bool { vm.isOpen || vm.isDropTargeted }
-    private var size: CGSize { vm.bodySize }
+    private var isOpen: Bool { panel.isOpen || panel.isDropTargeted }
+    private var size: CGSize { panel.bodySize }
     private var topRadius: CGFloat { isOpen ? Theme.openTopRadius : Theme.collapsedTopRadius }
 
     var body: some View {
@@ -33,6 +37,12 @@ struct NotchContentView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .animation(Theme.openAnimation, value: isOpen)
         .animation(Theme.paneAnimation, value: vm.tab)
+        // The shared tab can change because of what happened on a different
+        // screen. Leaving a tab that types gives this screen's keyboard claim
+        // back either way — it is this screen's to give, not the tab's.
+        .onChange(of: vm.tab) { _, newTab in
+            if !newTab.needsKeyboard { panel.wantsKeyboard = false }
+        }
     }
 
     // MARK: - Header
@@ -55,7 +65,7 @@ struct NotchContentView: View {
                     .transition(.opacity)
             }
             Spacer(minLength: 0)
-            Color.clear.frame(width: vm.geometry.notchSize.width, height: 1)
+            Color.clear.frame(width: panel.geometry.notchSize.width, height: 1)
             Spacer(minLength: 0)
             if isOpen {
                 trailing
@@ -63,7 +73,7 @@ struct NotchContentView: View {
                     .transition(.opacity)
             }
         }
-        .frame(height: vm.geometry.notchSize.height)
+        .frame(height: panel.geometry.notchSize.height)
     }
 
     @ViewBuilder
@@ -127,8 +137,18 @@ struct NotchContentView: View {
     private func rail(for tabs: [NotchViewModel.Tab]) -> some View {
         let visible = tabs.filter(vm.enabledTabs.contains)
         if !visible.isEmpty {
-            Rail(vm: vm, tabs: visible)
+            Rail(tabs: visible, current: vm.tab, onSelect: select)
         }
+    }
+
+    /// Hover and click both land here. A tab that types takes the keyboard on
+    /// *this* screen either way: showing a field one cannot type into is
+    /// worse than briefly dimming the caret of the window underneath, and the
+    /// dwell threshold on the rail already keeps a passing pointer from
+    /// arriving here at all.
+    private func select(_ tab: NotchViewModel.Tab) {
+        vm.select(tab)
+        if tab.needsKeyboard { panel.wantsKeyboard = true }
     }
 
     private var panes: some View {
@@ -156,17 +176,17 @@ struct NotchContentView: View {
         case .media:
             MediaPane(media: vm.media)
         case .shelf:
-            ShelfPane(shelf: vm.shelf, isTargeted: vm.isDropTargeted)
+            ShelfPane(shelf: vm.shelf, isTargeted: panel.isDropTargeted)
         case .clipboard:
             ClipboardPane(clipboard: vm.clipboard)
         case .calendar:
             CalendarPane(calendar: vm.calendar)
         case .snippets:
-            SnippetsPane(snippets: vm.snippets, wantsKeyboard: $vm.wantsKeyboard)
+            SnippetsPane(snippets: vm.snippets, wantsKeyboard: $panel.wantsKeyboard)
         case .translate:
-            TranslatePane(translator: vm.translator, wantsKeyboard: $vm.wantsKeyboard)
+            TranslatePane(translator: vm.translator, wantsKeyboard: $panel.wantsKeyboard)
         case .notes:
-            NotesPane(notes: vm.notes, wantsKeyboard: $vm.wantsKeyboard)
+            NotesPane(notes: vm.notes, wantsKeyboard: $panel.wantsKeyboard)
         }
     }
 }
@@ -195,9 +215,12 @@ private struct NotesCounter: View {
 /// threshold is what separates "the mouse was flung across the top of the
 /// screen" from "the mouse came to the notch" in `PointerWatcher`.
 private struct Rail: View {
-    @ObservedObject var vm: NotchViewModel
     /// Which icons this rail carries — there are two rails now, one per side.
     let tabs: [NotchViewModel.Tab]
+    /// The shared tab, read here as a plain value: this screen's rail only
+    /// needs to know which icon to highlight, not to own the selection.
+    let current: NotchViewModel.Tab
+    let onSelect: (NotchViewModel.Tab) -> Void
 
     @State private var hovered: NotchViewModel.Tab?
 
@@ -209,7 +232,7 @@ private struct Rail: View {
         VStack(spacing: 4) {
             ForEach(tabs) { tab in
                 Button {
-                    vm.select(tab)
+                    onSelect(tab)
                 } label: {
                     Image(systemName: tab.symbol)
                         .font(.system(size: 12, weight: .medium))
@@ -218,7 +241,7 @@ private struct Rail: View {
                             RoundedRectangle(cornerRadius: 7, style: .continuous)
                                 .fill(fill(for: tab))
                         )
-                        .foregroundStyle(vm.tab == tab ? Color.white : Theme.tertiary)
+                        .foregroundStyle(current == tab ? Color.white : Theme.tertiary)
                         .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
                         // A render-time transform. Growing the frame instead
                         // would re-lay out the rail on every hover, and layout
@@ -242,15 +265,15 @@ private struct Rail: View {
         // Moving to another icon cancels the pending switch along with the
         // task, so only the icon actually rested on ever wins.
         .task(id: hovered) {
-            guard let hovered, hovered != vm.tab else { return }
+            guard let hovered, hovered != current else { return }
             try? await Task.sleep(for: dwell)
             guard !Task.isCancelled else { return }
-            vm.select(hovered)
+            onSelect(hovered)
         }
     }
 
     private func fill(for tab: NotchViewModel.Tab) -> Color {
-        if vm.tab == tab { return Theme.surfaceHover }
+        if current == tab { return Theme.surfaceHover }
         return hovered == tab ? Theme.surface : .clear
     }
 }

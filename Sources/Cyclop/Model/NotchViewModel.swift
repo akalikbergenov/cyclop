@@ -64,8 +64,6 @@ final class NotchViewModel: ObservableObject {
         }
     }
 
-    @Published var isOpen = false
-    @Published var isDropTargeted = false
     /// Which tabs are switched on right now — the rail only ever shows these.
     @Published private(set) var enabledTabs: Set<Tab> = Tab.enabled
     @Published var tab: Tab = Tab.leftRail.first(where: Tab.enabled.contains) ?? Tab.rightRail.first(where: Tab.enabled.contains) ?? .media {
@@ -82,21 +80,25 @@ final class NotchViewModel: ObservableObject {
             // hover to recreate, and a trail of empty cards is the clutter a
             // scratchpad exists to avoid.
             if oldValue == .notes, tab != .notes { notes.leave() }
-            // Leaving the tab that types gives the keyboard straight back.
-            if !tab.needsKeyboard { wantsKeyboard = false }
         }
     }
 
-    /// Whether the panel currently holds the keyboard.
-    ///
-    /// Tracked apart from `tab` because the two come apart in one direction:
-    /// clicking into another app drops the claim without changing which tab is
-    /// showing, so the text one was typing survives and the panel is free to
-    /// collapse. Landing on a tab that types always raises it again — there is
-    /// no such thing as a panel that shows a field but cannot receive a key.
-    @Published var wantsKeyboard = false
+    /// True while at least one screen's panel is expanded or receiving a
+    /// drag. Set from outside by whatever is keeping track of every screen's
+    /// panel — this model itself has no notion of screens. The tab is shared
+    /// across every display, but a redraw is only worth anything on the one
+    /// that is actually showing.
+    @Published var isPanelActive = false {
+        didSet {
+            guard isPanelActive != oldValue else { return }
+            // The tickers are global — one position bar, one countdown — so
+            // they run exactly while *some* screen has something to show them
+            // on, not once per open panel.
+            media.setActive(isPanelActive)
+            calendar.setActive(isPanelActive)
+        }
+    }
 
-    let geometry: NotchGeometry
     let media: MediaController
     let shelf: ShelfStore
     let clipboard: ClipboardStore
@@ -108,8 +110,7 @@ final class NotchViewModel: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private var enabledTabsObserver: Any?
 
-    init(geometry: NotchGeometry) {
-        self.geometry = geometry
+    init() {
         self.media = MediaController()
         self.shelf = ShelfStore()
         self.clipboard = ClipboardStore()
@@ -123,12 +124,12 @@ final class NotchViewModel: ObservableObject {
         // their own, so those would only refresh when something else happened
         // to redraw the view.
         //
-        // Forwarded only while the panel is open. Collapsed, there is nothing
-        // these redraws could change — the panel is a black shape — yet the
+        // Forwarded only while some panel is open. Collapsed, there is nothing
+        // these redraws could change — every notch is a black shape — yet the
         // stores keep their own schedule: a track change every few minutes, a
         // copy whenever one happens, and each send re-evaluated the whole
         // view for nobody. Opening repaints from the stores directly, because
-        // `isOpen` is itself @Published and its own send does that.
+        // `isPanelActive` is itself @Published and its own send does that.
         //
         // The stores with a text field in their pane — the translator, the
         // snippets and the notes — are deliberately absent. They change on every
@@ -145,7 +146,7 @@ final class NotchViewModel: ObservableObject {
         ] {
             child
                 .sink { [weak self] _ in
-                    guard let self, self.isOpen || self.isDropTargeted else { return }
+                    guard let self, self.isPanelActive else { return }
                     self.objectWillChange.send()
                 }
                 .store(in: &cancellables)
@@ -195,11 +196,6 @@ final class NotchViewModel: ObservableObject {
         }
     }
 
-    /// Size of the visible body for the current state.
-    var bodySize: CGSize {
-        isOpen || isDropTargeted ? geometry.expandedSize : geometry.notchSize
-    }
-
     /// Off switch for people who copy images all day and do not want them kept.
     static let saveClipboardImagesKey = "saveClipboardImages"
 
@@ -210,13 +206,12 @@ final class NotchViewModel: ObservableObject {
         return defaults.bool(forKey: saveClipboardImagesKey)
     }
 
-    /// Hover and click both land here. A tab that types takes the keyboard
-    /// either way: showing a field one cannot type into is worse than briefly
-    /// dimming the caret of the window underneath, and the dwell threshold on
-    /// the rail already keeps a passing pointer from arriving here at all.
+    /// Hover and click both land here. Shared across every screen: landing on
+    /// a tab from one display's rail is what the notch on every other display
+    /// shows too. Whether this particular screen also claims the keyboard for
+    /// it is that screen's own call — see `NotchContentView`.
     func select(_ tab: Tab) {
         self.tab = tab
-        if tab.needsKeyboard { wantsKeyboard = true }
     }
 
     func start() {
