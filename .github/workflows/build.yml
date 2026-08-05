@@ -4,6 +4,12 @@ name: build
 # ли то, что лежит в main. Половина поломок в таком приложении — это сломанный
 # скрипт сборки бандла, а не код, поэтому гоняется весь путь до .app, а не
 # только swift build.
+# Сборке нужно только читать код. Права выписываются явно, иначе токен получает
+# то, что заведено по умолчанию в настройках репозитория, — а это меняется не
+# здесь и незаметно отсюда.
+permissions:
+  contents: read
+
 on:
   push:
     branches: [main]
@@ -17,6 +23,8 @@ jobs:
     # macOS 15 — минимум приложения: Translation.framework младше не бывает.
     runs-on: macos-15
     steps:
+      # TODO: запинить по SHA коммита вместо тега. Тег двигаемый: он указывает
+      # на то, что автор экшена решит положить под него завтра.
       - uses: actions/checkout@v5
 
       - name: Версия Swift
@@ -31,6 +39,9 @@ jobs:
           VERSION="$(sed -n 's/^VERSION=//p' Scripts/version)"
           test -x "$APP/Contents/MacOS/Cyclop"
           test -f "$APP/Contents/Resources/libcyclopmedia.dylib"
+          # Без запечатанного хеша приложение откажется запускать хелпера, и
+          # заметить это можно было бы только по пропавшей вкладке с плеером.
+          /usr/libexec/PlistBuddy -c 'Print CyclopHelperCDHash' "$APP/Contents/Info.plist"
           # Локализации кладет тот же скрипт, и молча потерять их проще всего:
           # приложение с пропавшей таблицей запускается и выглядит целым.
           test -f "$APP/Contents/Resources/en.lproj/Localizable.strings"

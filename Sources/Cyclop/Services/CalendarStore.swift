@@ -181,7 +181,10 @@ final class CalendarStore: ObservableObject {
     }
 
     func join(_ meeting: Meeting) {
-        guard let link = meeting.link else { return }
+        // Проверяется второй раз, у самого вызова. Ссылка приходит из события,
+        // а событие может прислать кто угодно: приглашение в календарь не
+        // требует знакомства, только адреса.
+        guard let link = meeting.link, MeetingLink.isJoinable(link) else { return }
         NSWorkspace.shared.open(link)
     }
 
@@ -192,6 +195,13 @@ final class CalendarStore: ObservableObject {
 
 /// Finds the video call in an event. Providers put the link wherever they like:
 /// Google Meet in the notes, Zoom often in the location, Teams in both.
+///
+/// Only links to the known hosts are ever returned, and only over https. An
+/// event is not the user's own text: anyone who knows the address can put one
+/// in the calendar, and whatever it carries would otherwise arrive as a button
+/// that says "Join" and opens it. A meeting with an unrecognised link keeps its
+/// row and loses the button — the link is still in the event, one click away in
+/// Calendar, where it looks like what it is.
 enum MeetingLink {
     private static let hosts = [
         "meet.google.com": "Google Meet",
@@ -212,14 +222,21 @@ enum MeetingLink {
         for text in haystacks {
             if let url = firstKnownLink(in: text) { return url }
         }
-        return event.url
+        return nil
+    }
+
+    /// Everything the join button is allowed to open.
+    static func isJoinable(_ url: URL) -> Bool {
+        url.scheme?.lowercased() == "https" && provider(for: url) != nil
     }
 
     private static func firstKnownLink(in text: String) -> URL? {
         guard let detector else { return nil }
         let range = NSRange(text.startIndex..., in: text)
         for match in detector.matches(in: text, range: range) {
-            guard let url = match.url, let host = url.host?.lowercased() else { continue }
+            guard let url = match.url,
+                  url.scheme?.lowercased() == "https",
+                  let host = url.host?.lowercased() else { continue }
             if hosts.keys.contains(where: { host == $0 || host.hasSuffix(".\($0)") }) { return url }
         }
         return nil

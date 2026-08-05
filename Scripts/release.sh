@@ -68,6 +68,13 @@ GENERATED="$(gh api "repos/$REPO/releases/generate-notes" \
 BODY="$(mktemp)"
 trap 'rm -f "$BODY"' EXIT
 cat "$NOTES" > "$BODY"
+
+# Контрольная сумма в заметках — единственное, чем скачавший может проверить,
+# что у него тот самый файл. Образ подписан ad-hoc, без Developer ID, так что
+# подпись ему об этом не скажет: сумму приходится публиковать руками.
+SUM="$(shasum -a 256 "$DMG" | cut -d' ' -f1)"
+printf '\n\n**SHA-256** `%s`\n\nПроверить: `shasum -a 256 Cyclop-%s.dmg`\n' "$SUM" "$VERSION" >> "$BODY"
+
 [ -n "$GENERATED" ] && printf '\n\n---\n\n%s\n' "$GENERATED" >> "$BODY"
 
 gh release create "$TAG" "$DMG" \

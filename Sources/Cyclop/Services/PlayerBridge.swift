@@ -132,7 +132,13 @@ enum PlayerBridge {
     static func artwork(for state: PlayerState, completion: @escaping (NSImage?) -> Void) {
         switch state.app {
         case .spotify:
-            guard let url = state.artworkURL else { return completion(nil) }
+            // The one thing the app ever fetches over the network. The address
+            // comes out of another app's scripting dictionary, so the scheme is
+            // checked: https answers for itself through TLS, while file:// or
+            // some private scheme answers to nobody.
+            guard let url = state.artworkURL, url.scheme?.lowercased() == "https" else {
+                return completion(nil)
+            }
             URLSession.shared.dataTask(with: url) { data, _, _ in
                 let image = data.flatMap(NSImage.init(data:))
                 DispatchQueue.main.async { completion(image) }

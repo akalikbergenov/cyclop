@@ -72,8 +72,29 @@ clang -dynamiclib -fobjc-arc -O2 \
     -o "$APP/Contents/Resources/libcyclopmedia.dylib" \
     "$ROOT/Sources/CyclopMediaHelper/helper.m"
 
+# Подписывается сначала вложенное, потом бандл. --deep для этого Apple объявила
+# устаревшей и сама не рекомендует: она подписывает вложенное теми же условиями,
+# что и бандл, и молча пропускает часть случаев. Ошибка здесь не глушится —
+# неподписанная сборка должна останавливать скрипт, а не обнаруживаться у того,
+# кому ее отдали.
 echo "==> ad-hoc signing"
-codesign --force --deep --sign - "$APP" >/dev/null 2>&1 || \
-    echo "    (codesign failed — the app still runs, but TCC prompts may repeat)"
+codesign --force --options runtime \
+    --entitlements "$ROOT/Resources/Cyclop.entitlements" \
+    --sign - "$APP/Contents/Resources/libcyclopmedia.dylib"
+
+# Хеш хелпера запечатывается в Info.plist, и приложение сверяет его перед тем,
+# как отдать библиотеку в perl. perl подписан без валидации библиотек — он
+# загрузит что угодно, что лежит по этому пути, и оно окажется внутри процесса,
+# которому доверяет медиа-демон. Проверять это, кроме самого приложения, некому.
+CDHASH="$(codesign -d -vvv "$APP/Contents/Resources/libcyclopmedia.dylib" 2>&1 \
+    | sed -n 's/^CDHash=//p')"
+[ -n "$CDHASH" ] || { echo "!!! не удалось прочитать CDHash хелпера" >&2; exit 1; }
+/usr/libexec/PlistBuddy -c "Add :CyclopHelperCDHash string $CDHASH" "$APP/Contents/Info.plist"
+
+# Бандл подписывается последним: подпись должна накрыть Info.plist уже с хешем.
+codesign --force --options runtime \
+    --entitlements "$ROOT/Resources/Cyclop.entitlements" \
+    --sign - "$APP"
+codesign --verify --strict "$APP"
 
 echo "==> done: $APP"

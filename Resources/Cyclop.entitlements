@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Единственное право, которое приложение просит у подписи. Под hardened
+         runtime отправка Apple-событий без него запрещена, а на них держится
+         запасной путь управления плеером (AppleScript для Music и Spotify).
+         Само разрешение при этом остается за пользователем: система спросит
+         его в тот момент, когда запасной путь впервые понадобится. -->
+    <key>com.apple.security.automation.apple-events</key>
+    <true/>
+</dict>
+</plist>
