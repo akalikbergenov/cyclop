@@ -13,6 +13,7 @@
 /* Menu bar */
 "Open Panel" = "Open Panel";
 "Launch at Login" = "Launch at Login";
+"Show on Second Monitor" = "Show on Second Monitor";
 "Show in Panel" = "Show in Panel";
 "Switch Smoothness" = "Switch Smoothness";
 "Quick" = "Quick";

@@ -52,6 +52,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         login.state = launchAtLoginEnabled ? .on : .off
         menu.addItem(login)
 
+        let secondMonitor = NSMenuItem(
+            title: localized("Show on Second Monitor"),
+            action: #selector(toggleSecondaryScreens),
+            keyEquivalent: ""
+        )
+        secondMonitor.target = self
+        secondMonitor.state = NotchGeometry.secondaryScreensEnabled ? .on : .off
+        menu.addItem(secondMonitor)
+
         menu.addItem(featuresItem())
         menu.addItem(paneSpeedItem())
 
@@ -104,6 +113,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func togglePanel() {
         controller?.toggle()
+    }
+
+    @objc private func toggleSecondaryScreens(_ sender: NSMenuItem) {
+        NotchGeometry.secondaryScreensEnabled.toggle()
+        sender.state = NotchGeometry.secondaryScreensEnabled ? .on : .off
     }
 
     // MARK: - Features

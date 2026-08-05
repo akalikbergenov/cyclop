@@ -12,6 +12,7 @@
 /* Меню-бар */
 "Open Panel" = "Открыть панель";
 "Launch at Login" = "Запускать при входе";
+"Show on Second Monitor" = "Показывать на втором мониторе";
 "Show in Panel" = "Показывать в панели";
 "Switch Smoothness" = "Плавность переключения";
 "Quick" = "Быстро";

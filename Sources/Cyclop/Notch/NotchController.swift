@@ -27,6 +27,13 @@ final class NotchController {
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.rebuildScreens() }
         }
+        NotificationCenter.default.addObserver(
+            forName: NotchGeometry.secondaryScreensChanged,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.rebuildScreens() }
+        }
         NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.activeSpaceDidChangeNotification,
             object: nil,
