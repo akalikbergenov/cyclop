@@ -52,6 +52,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         login.state = launchAtLoginEnabled ? .on : .off
         menu.addItem(login)
 
+        let secondMonitor = NSMenuItem(
+            title: localized("Show on Second Monitor"),
+            action: #selector(toggleSecondaryScreens),
+            keyEquivalent: ""
+        )
+        secondMonitor.target = self
+        secondMonitor.state = NotchGeometry.secondaryScreensEnabled ? .on : .off
+        menu.addItem(secondMonitor)
+
+        menu.addItem(featuresItem())
+        menu.addItem(paneSpeedItem())
+
         let saveShots = NSMenuItem(
             title: localized("Save Clipboard Screenshots"),
             action: #selector(toggleSaveClipboardImages),
@@ -101,6 +113,72 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func togglePanel() {
         controller?.toggle()
+    }
+
+    @objc private func toggleSecondaryScreens(_ sender: NSMenuItem) {
+        NotchGeometry.secondaryScreensEnabled.toggle()
+        sender.state = NotchGeometry.secondaryScreensEnabled ? .on : .off
+    }
+
+    // MARK: - Features
+
+    private func featuresItem() -> NSMenuItem {
+        let item = NSMenuItem(title: localized("Show in Panel"), action: nil, keyEquivalent: "")
+        let submenu = NSMenu()
+        let enabled = NotchViewModel.Tab.enabled
+        for tab in NotchViewModel.Tab.leftRail + NotchViewModel.Tab.rightRail {
+            let entry = NSMenuItem(title: tab.title, action: #selector(toggleFeature(_:)), keyEquivalent: "")
+            entry.target = self
+            entry.representedObject = tab.rawValue
+            entry.state = enabled.contains(tab) ? .on : .off
+            submenu.addItem(entry)
+        }
+        item.submenu = submenu
+        return item
+    }
+
+    @objc private func toggleFeature(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String,
+              let tab = NotchViewModel.Tab(rawValue: raw) else { return }
+        var enabled = NotchViewModel.Tab.enabled
+        if enabled.contains(tab) {
+            // The panel always needs one way in — the last tab standing
+            // cannot be switched off.
+            guard enabled.count > 1 else { return }
+            enabled.remove(tab)
+        } else {
+            enabled.insert(tab)
+        }
+        NotchViewModel.Tab.enabled = enabled
+        sender.state = enabled.contains(tab) ? .on : .off
+    }
+
+    // MARK: - Pane switch speed
+
+    private func paneSpeedItem() -> NSMenuItem {
+        let item = NSMenuItem(title: localized("Switch Smoothness"), action: nil, keyEquivalent: "")
+        let submenu = NSMenu()
+        for speed in Theme.PaneSpeed.allCases {
+            let entry = NSMenuItem(
+                title: speed.title,
+                action: #selector(selectPaneSpeed(_:)),
+                keyEquivalent: ""
+            )
+            entry.target = self
+            entry.tag = speed.rawValue
+            entry.state = Theme.paneSpeed == speed ? .on : .off
+            submenu.addItem(entry)
+        }
+        item.submenu = submenu
+        return item
+    }
+
+    @objc private func selectPaneSpeed(_ sender: NSMenuItem) {
+        guard let speed = Theme.PaneSpeed(rawValue: sender.tag) else { return }
+        Theme.paneSpeed = speed
+        for entry in sender.menu?.items ?? [] {
+            entry.state = entry.tag == sender.tag ? .on : .off
+        }
     }
 
     /// The size is measured when the menu opens, not kept fresh in between: a

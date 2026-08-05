@@ -13,3 +13,5 @@ build/
 *.key
 *.mobileprovision
 *.certSigningRequest
+
+.idea/

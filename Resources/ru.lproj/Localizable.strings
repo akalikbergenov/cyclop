@@ -12,6 +12,12 @@
 /* Меню-бар */
 "Open Panel" = "Открыть панель";
 "Launch at Login" = "Запускать при входе";
+"Show on Second Monitor" = "Показывать на втором мониторе";
+"Show in Panel" = "Показывать в панели";
+"Switch Smoothness" = "Плавность переключения";
+"Quick" = "Быстро";
+"Normal" = "Обычно";
+"Smooth" = "Плавно";
 "Save Clipboard Screenshots" = "Сохранять скриншоты из буфера";
 "Show Screenshots Folder" = "Показать папку скриншотов";
 "Clear Screenshots Folder" = "Очистить папку снимков";
@@ -45,7 +51,10 @@
 "Jot something down…" = "Набросай что-нибудь…";
 
 /* Перевод */
+"Auto" = "Авто";
 "Translation Languages…" = "Языки перевода…";
+"Download Language Pack" = "Скачать языковой пакет";
+"Open it there, then Retry." = "Откроются «Язык и регион» — нажми там «Языки перевода…», выбери эту пару, вернись и нажми «Повторить».";
 "Retry" = "Повторить";
 "The %@ → %@ language pack is not installed." = "Не скачан языковой пакет %@ → %@.";
 "macOS does not translate this pair of languages." = "macOS не переводит эту пару языков.";

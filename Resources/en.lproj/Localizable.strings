@@ -13,6 +13,12 @@
 /* Menu bar */
 "Open Panel" = "Open Panel";
 "Launch at Login" = "Launch at Login";
+"Show on Second Monitor" = "Show on Second Monitor";
+"Show in Panel" = "Show in Panel";
+"Switch Smoothness" = "Switch Smoothness";
+"Quick" = "Quick";
+"Normal" = "Normal";
+"Smooth" = "Smooth";
 "Save Clipboard Screenshots" = "Save Clipboard Screenshots";
 "Show Screenshots Folder" = "Show Screenshots Folder";
 "Clear Screenshots Folder" = "Clear Screenshots Folder";
@@ -46,7 +52,10 @@
 "Jot something down…" = "Jot something down…";
 
 /* Translate */
+"Auto" = "Auto";
 "Translation Languages…" = "Translation Languages…";
+"Download Language Pack" = "Download Language Pack";
+"Open it there, then Retry." = "Opens Language & Region — click “Translation Languages…” there, pick this pair, then come back and Retry.";
 "Retry" = "Retry";
 "The %@ → %@ language pack is not installed." = "The %@ → %@ language pack is not installed.";
 "macOS does not translate this pair of languages." = "macOS does not translate this pair of languages.";

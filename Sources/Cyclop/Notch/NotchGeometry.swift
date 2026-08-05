@@ -11,14 +11,52 @@ struct NotchGeometry {
     /// True when the display actually has a notch cut into it.
     let isPhysical: Bool
 
+    /// Stable across a screen-parameter-change notification even though
+    /// AppKit hands out a fresh `NSScreen` instance for the same physical
+    /// display every time — the one thing worth keying a panel on when
+    /// reconciling before/after a reconfiguration.
+    var displayID: CGDirectDisplayID? {
+        (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value
+    }
+
     /// Size of the fully expanded panel body.
     let expandedSize = CGSize(width: 620, height: 208)
     /// Slack around the panel so the concave shoulders and shadow are not clipped.
     let windowPadding = NSEdgeInsets(top: 0, left: 40, bottom: 44, right: 40)
 
-    static func current() -> NotchGeometry {
-        let screen = NSScreen.screens.first { $0.safeAreaInsets.top > 0 } ?? NSScreen.main ?? NSScreen.screens[0]
+    /// Persisted switch for every screen beyond the primary one. Defaults to
+    /// on: the panel already reaches every display once this exists, and the
+    /// setting is the way to pull that back in, not to opt into it.
+    static let secondaryScreensKey = "secondaryScreensEnabled"
+    static let secondaryScreensChanged = Notification.Name("com.cyclop.secondaryScreensChanged")
 
+    static var secondaryScreensEnabled: Bool {
+        get {
+            let defaults = UserDefaults.standard
+            guard defaults.object(forKey: secondaryScreensKey) != nil else { return true }
+            return defaults.bool(forKey: secondaryScreensKey)
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: secondaryScreensKey)
+            NotificationCenter.default.post(name: secondaryScreensChanged, object: nil)
+        }
+    }
+
+    /// One entry per connected screen — every display gets its own notch, real
+    /// or synthetic, so the panel is reachable wherever the pointer happens to
+    /// be. Switched off, only the primary screen — the one with a physical
+    /// notch, or the main display if none has one — gets it, exactly as
+    /// before secondary displays were supported at all.
+    static func all() -> [NotchGeometry] {
+        let screens = NSScreen.screens
+        guard secondaryScreensEnabled, screens.count > 1 else {
+            let primary = screens.first { $0.safeAreaInsets.top > 0 } ?? NSScreen.main ?? screens.first
+            return primary.map { [geometry(for: $0)] } ?? []
+        }
+        return screens.map(geometry(for:))
+    }
+
+    static func geometry(for screen: NSScreen) -> NotchGeometry {
         if screen.safeAreaInsets.top > 0,
            let left = screen.auxiliaryTopLeftArea,
            let right = screen.auxiliaryTopRightArea {
