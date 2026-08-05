@@ -33,12 +33,66 @@ final class Translator: ObservableObject {
     /// The failure is a missing language pack, which is a thing the user can
     /// go and fix — so the pane offers the button that takes them there.
     @Published private(set) var needsDownload = false
+    /// `nil` is Auto: the pair is decided fresh from the script of whatever is
+    /// typed, exactly as before this existed. Set the moment either column's
+    /// menu picks a language by hand, and cleared again by picking "Auto".
+    /// Not persisted — a session starts back on Auto, the pair most typing
+    /// actually wants.
+    @Published private(set) var manualRoute: Route?
 
     private var attempt = 0
 
     var request: Request { Request(text: input, attempt: attempt) }
     var trimmed: String { input.trimmingCharacters(in: .whitespacesAndNewlines) }
-    var route: Route { Self.route(for: trimmed) }
+    var route: Route { manualRoute ?? Self.route(for: trimmed) }
+    var isAuto: Bool { manualRoute == nil }
+
+    /// Curated rather than pulled live from `LanguageAvailability`: that needs
+    /// an async round trip just to draw a menu, and this covers what most
+    /// people actually reach for. A language outside the list still works
+    /// fine through Auto — this only limits what the menus offer by hand.
+    static let supportedLanguages: [Locale.Language] = [
+        english, russian,
+        Locale.Language(identifier: "es"),
+        Locale.Language(identifier: "fr"),
+        Locale.Language(identifier: "de"),
+        Locale.Language(identifier: "it"),
+        Locale.Language(identifier: "pt"),
+        Locale.Language(identifier: "ja"),
+        Locale.Language(identifier: "ko"),
+        Locale.Language(identifier: "zh-Hans"),
+        Locale.Language(identifier: "ar"),
+        Locale.Language(identifier: "tr"),
+        Locale.Language(identifier: "uk"),
+        Locale.Language(identifier: "pl"),
+        Locale.Language(identifier: "nl"),
+    ]
+
+    /// Picks a language for one side by hand; the other side follows only if
+    /// it would otherwise collide with it (choosing the source as the current
+    /// target swaps them instead of pointing both columns the same way).
+    func setSource(_ language: Locale.Language) {
+        let base = route
+        manualRoute = Route(source: language, target: base.target == language ? base.source : base.target)
+        retry()
+    }
+
+    func setTarget(_ language: Locale.Language) {
+        let base = route
+        manualRoute = Route(source: base.source == language ? base.target : base.source, target: language)
+        retry()
+    }
+
+    func swap() {
+        let base = route
+        manualRoute = Route(source: base.target, target: base.source)
+        retry()
+    }
+
+    func useAutoRoute() {
+        manualRoute = nil
+        retry()
+    }
 
     /// Russian goes out to English, everything else comes in to Russian.
     ///

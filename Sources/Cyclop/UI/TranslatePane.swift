@@ -55,14 +55,19 @@ struct TranslatePane: View {
     // MARK: - Left
 
     private func source(_ font: CGFloat) -> some View {
-        column(Translator.name(translator.route.source)) {
-            if !translator.input.isEmpty {
-                Button { translator.reset() } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(Theme.secondary)
+        column {
+            languageMenu(for: translator.route.source, allowsAuto: true) { translator.setSource($0) }
+        } accessory: {
+            HStack(spacing: 10) {
+                swapButton
+                if !translator.input.isEmpty {
+                    Button { translator.reset() } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(Theme.secondary)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
         } content: {
             // A `TextField(axis: .vertical)` grows to fit its text, and growing
@@ -102,7 +107,9 @@ struct TranslatePane: View {
     // MARK: - Right
 
     private func result(_ font: CGFloat) -> some View {
-        column(Translator.name(translator.route.target)) {
+        column {
+            languageMenu(for: translator.route.target, allowsAuto: false) { translator.setTarget($0) }
+        } accessory: {
             if !translator.output.isEmpty {
                 Button {
                     translator.copyOutput()
@@ -130,9 +137,23 @@ struct TranslatePane: View {
                     .font(.system(size: 11))
                     .foregroundStyle(Theme.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+                // The button lands in the general Language & Region pane, not
+                // on the download itself — macOS has no deep link straight to
+                // the "Translation Languages…" sheet, only to the pane that
+                // sheet lives on. One more click is unavoidable, so the label
+                // says so instead of pretending the download is one tap away.
+                if translator.needsDownload {
+                    Text(localized("Open it there, then Retry."))
+                        .font(.system(size: 10))
+                        .foregroundStyle(Theme.tertiary)
+                }
                 HStack(spacing: 10) {
                     if translator.needsDownload {
-                        Button("Translation Languages…") { Translator.openLanguageSettings() }
+                        Button {
+                            Translator.openLanguageSettings()
+                        } label: {
+                            Label(localized("Download Language Pack"), systemImage: "arrow.down.circle")
+                        }
                     }
                     Button("Retry") { translator.retry() }
                 }
@@ -194,17 +215,14 @@ struct TranslatePane: View {
 
     // MARK: - Shared
 
-    private func column<Accessory: View, Content: View>(
-        _ title: String,
+    private func column<Title: View, Accessory: View, Content: View>(
+        @ViewBuilder title: () -> Title,
         @ViewBuilder accessory: () -> Accessory,
         @ViewBuilder content: () -> Content
     ) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
-                Text(title.uppercased())
-                    .font(.system(size: 9, weight: .semibold))
-                    .tracking(0.8)
-                    .foregroundStyle(Theme.tertiary)
+                title()
                 Spacer(minLength: 4)
                 accessory()
             }
@@ -213,6 +231,62 @@ struct TranslatePane: View {
             content()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    /// A column title doubles as its language picker: the small-caps label is
+    /// the button, a chevron is the only hint that it opens anything. "Auto"
+    /// only makes sense on the source side — the result column has no script
+    /// of its own to read a direction from.
+    private func languageMenu(
+        for language: Locale.Language,
+        allowsAuto: Bool,
+        onSelect: @escaping (Locale.Language) -> Void
+    ) -> some View {
+        Menu {
+            if allowsAuto {
+                Button {
+                    translator.useAutoRoute()
+                } label: {
+                    if translator.isAuto {
+                        Label(localized("Auto"), systemImage: "checkmark")
+                    } else {
+                        Text(localized("Auto"))
+                    }
+                }
+                Divider()
+            }
+            ForEach(Translator.supportedLanguages, id: \.self) { code in
+                Button {
+                    onSelect(code)
+                } label: {
+                    if !translator.isAuto, code == language {
+                        Label(Translator.name(code), systemImage: "checkmark")
+                    } else {
+                        Text(Translator.name(code))
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 3) {
+                Text(Translator.name(language).uppercased())
+                    .font(.system(size: 9, weight: .semibold))
+                    .tracking(0.8)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 7, weight: .bold))
+            }
+            .foregroundStyle(Theme.tertiary)
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+    }
+
+    private var swapButton: some View {
+        Button { translator.swap() } label: {
+            Image(systemName: "arrow.left.arrow.right")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(Theme.secondary)
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Scheduling
@@ -229,7 +303,7 @@ struct TranslatePane: View {
         try? await Task.sleep(for: .milliseconds(320))
         guard !Task.isCancelled else { return }
 
-        let route = Translator.route(for: text)
+        let route = translator.route
         if var current = configuration, current.source == route.source, current.target == route.target {
             // Same pair, different text. The modifier only re-runs when the
             // configuration changes, and invalidating is how one says "again".

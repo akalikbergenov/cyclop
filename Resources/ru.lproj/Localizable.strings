@@ -50,7 +50,10 @@
 "Jot something down…" = "Набросай что-нибудь…";
 
 /* Перевод */
+"Auto" = "Авто";
 "Translation Languages…" = "Языки перевода…";
+"Download Language Pack" = "Скачать языковой пакет";
+"Open it there, then Retry." = "Откроются «Язык и регион» — нажми там «Языки перевода…», выбери эту пару, вернись и нажми «Повторить».";
 "Retry" = "Повторить";
 "The %@ → %@ language pack is not installed." = "Не скачан языковой пакет %@ → %@.";
 "macOS does not translate this pair of languages." = "macOS не переводит эту пару языков.";
