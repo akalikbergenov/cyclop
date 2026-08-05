@@ -3,11 +3,48 @@ import SwiftUI
 enum Theme {
     static let openAnimation = Animation.spring(response: 0.27, dampingFraction: 0.82)
     static let contentAnimation = Animation.easeOut(duration: 0.16)
+
+    /// How gently a tab switches when the rail hands it over. A free slider
+    /// promises a precision nobody can actually place by eye or describe
+    /// afterwards, so this is three named speeds instead — picked once from
+    /// the menu bar and left alone.
+    enum PaneSpeed: Int, CaseIterable {
+        case quick, normal, smooth
+
+        var title: String {
+            switch self {
+            case .quick: return localized("Quick")
+            case .normal: return localized("Normal")
+            case .smooth: return localized("Smooth")
+            }
+        }
+
+        /// Scales every duration below. `normal` is today's feel, unchanged.
+        var factor: Double {
+            switch self {
+            case .quick: return 0.5
+            case .normal: return 1.0
+            case .smooth: return 2.5
+            }
+        }
+    }
+
+    static let paneSpeedKey = "paneSpeed"
+
+    static var paneSpeed: PaneSpeed {
+        get {
+            let stored = UserDefaults.standard.object(forKey: paneSpeedKey) as? Int
+            return stored.flatMap(PaneSpeed.init(rawValue:)) ?? .normal
+        }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: paneSpeedKey) }
+    }
+
     /// Pane switching: the outgoing pane leaves faster than the incoming one
-    /// arrives, so the two are never both half-visible for long.
-    static let paneAnimation = Animation.easeOut(duration: 0.18)
-    static let paneIn = Animation.easeOut(duration: 0.20).delay(0.04)
-    static let paneOut = Animation.easeIn(duration: 0.12)
+    /// arrives, so the two are never both half-visible for long. Scaling both
+    /// by the same factor keeps that ratio at every speed.
+    static var paneAnimation: Animation { .easeOut(duration: 0.18 * paneSpeed.factor) }
+    static var paneIn: Animation { .easeOut(duration: 0.20 * paneSpeed.factor).delay(0.04 * paneSpeed.factor) }
+    static var paneOut: Animation { .easeIn(duration: 0.12 * paneSpeed.factor) }
     static let artworkAnimation = Animation.easeOut(duration: 0.28)
 
     static let collapsedTopRadius: CGFloat = 6

@@ -52,6 +52,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         login.state = launchAtLoginEnabled ? .on : .off
         menu.addItem(login)
 
+        menu.addItem(paneSpeedItem())
+
         let saveShots = NSMenuItem(
             title: localized("Save Clipboard Screenshots"),
             action: #selector(toggleSaveClipboardImages),
@@ -101,6 +103,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func togglePanel() {
         controller?.toggle()
+    }
+
+    // MARK: - Pane switch speed
+
+    private func paneSpeedItem() -> NSMenuItem {
+        let item = NSMenuItem(title: localized("Switch Smoothness"), action: nil, keyEquivalent: "")
+        let submenu = NSMenu()
+        for speed in Theme.PaneSpeed.allCases {
+            let entry = NSMenuItem(
+                title: speed.title,
+                action: #selector(selectPaneSpeed(_:)),
+                keyEquivalent: ""
+            )
+            entry.target = self
+            entry.tag = speed.rawValue
+            entry.state = Theme.paneSpeed == speed ? .on : .off
+            submenu.addItem(entry)
+        }
+        item.submenu = submenu
+        return item
+    }
+
+    @objc private func selectPaneSpeed(_ sender: NSMenuItem) {
+        guard let speed = Theme.PaneSpeed(rawValue: sender.tag) else { return }
+        Theme.paneSpeed = speed
+        for entry in sender.menu?.items ?? [] {
+            entry.state = entry.tag == sender.tag ? .on : .off
+        }
     }
 
     /// The size is measured when the menu opens, not kept fresh in between: a

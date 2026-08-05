@@ -12,6 +12,10 @@
 /* Меню-бар */
 "Open Panel" = "Открыть панель";
 "Launch at Login" = "Запускать при входе";
+"Switch Smoothness" = "Плавность переключения";
+"Quick" = "Быстро";
+"Normal" = "Обычно";
+"Smooth" = "Плавно";
 "Save Clipboard Screenshots" = "Сохранять скриншоты из буфера";
 "Show Screenshots Folder" = "Показать папку скриншотов";
 "Clear Screenshots Folder" = "Очистить папку снимков";

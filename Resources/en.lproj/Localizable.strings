@@ -13,6 +13,10 @@
 /* Menu bar */
 "Open Panel" = "Open Panel";
 "Launch at Login" = "Launch at Login";
+"Switch Smoothness" = "Switch Smoothness";
+"Quick" = "Quick";
+"Normal" = "Normal";
+"Smooth" = "Smooth";
 "Save Clipboard Screenshots" = "Save Clipboard Screenshots";
 "Show Screenshots Folder" = "Show Screenshots Folder";
 "Clear Screenshots Folder" = "Clear Screenshots Folder";
