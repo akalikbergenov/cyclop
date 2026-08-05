@@ -41,11 +41,34 @@ final class NotchViewModel: ObservableObject {
         /// which the scratch notes open.
         static let leftRail: [Tab] = [.media, .shelf, .clipboard, .snippets, .calendar, .translate]
         static let rightRail: [Tab] = [.notes]
+
+        /// Persisted per-tab on/off switch, set from the menu bar. Stored as
+        /// raw values so a corrupt or empty file reads as "everything on"
+        /// rather than "everything off" — the panel always needs at least one
+        /// way in.
+        static let enabledDefaultsKey = "enabledTabs"
+        static let enabledChanged = Notification.Name("com.cyclop.enabledTabsChanged")
+
+        static var enabled: Set<Tab> {
+            get {
+                guard let stored = UserDefaults.standard.array(forKey: enabledDefaultsKey) as? [String] else {
+                    return Set(allCases)
+                }
+                let set = Set(stored.compactMap(Tab.init(rawValue:)))
+                return set.isEmpty ? Set(allCases) : set
+            }
+            set {
+                UserDefaults.standard.set(newValue.map(\.rawValue), forKey: enabledDefaultsKey)
+                NotificationCenter.default.post(name: enabledChanged, object: nil)
+            }
+        }
     }
 
     @Published var isOpen = false
     @Published var isDropTargeted = false
-    @Published var tab: Tab = .media {
+    /// Which tabs are switched on right now — the rail only ever shows these.
+    @Published private(set) var enabledTabs: Set<Tab> = Tab.enabled
+    @Published var tab: Tab = Tab.leftRail.first(where: Tab.enabled.contains) ?? Tab.rightRail.first(where: Tab.enabled.contains) ?? .media {
         didSet {
             // Opening the tab only re-checks the status. The permission prompt
             // is the user's own press on the button inside the pane: this is
@@ -83,6 +106,7 @@ final class NotchViewModel: ObservableObject {
     let notes: NoteStore
 
     private var cancellables = Set<AnyCancellable>()
+    private var enabledTabsObserver: Any?
 
     init(geometry: NotchGeometry) {
         self.geometry = geometry
@@ -126,6 +150,49 @@ final class NotchViewModel: ObservableObject {
                 }
                 .store(in: &cancellables)
         }
+
+        enabledTabsObserver = NotificationCenter.default.addObserver(
+            forName: Tab.enabledChanged, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.applyEnabledTabsChange() }
+        }
+    }
+
+    /// Reacts to a change made from the menu bar while the panel may already
+    /// be alive: starts or stops whatever service just flipped, and moves off
+    /// a tab that just disappeared instead of leaving the panel pointed at
+    /// nothing.
+    private func applyEnabledTabsChange() {
+        let previous = enabledTabs
+        let current = Tab.enabled
+        guard previous != current else { return }
+        enabledTabs = current
+        syncBackgroundServices(previous: previous, current: current)
+        if !current.contains(tab) {
+            tab = Tab.leftRail.first(where: current.contains) ?? Tab.rightRail.first(where: current.contains) ?? tab
+        }
+    }
+
+    /// Only three tabs have something running behind them when nobody is
+    /// looking: Music holds a helper process open, Clipboard polls the
+    /// pasteboard, Calendar keeps an EventKit observer. Everything else is
+    /// read fresh on the way into its tab and needs nothing stopped.
+    private func syncBackgroundServices(previous: Set<Tab>, current: Set<Tab>) {
+        if current.contains(.media), !previous.contains(.media) {
+            media.start()
+        } else if !current.contains(.media), previous.contains(.media) {
+            media.stop()
+        }
+        if current.contains(.clipboard), !previous.contains(.clipboard) {
+            clipboard.start()
+        } else if !current.contains(.clipboard), previous.contains(.clipboard) {
+            clipboard.stop()
+        }
+        if current.contains(.calendar), !previous.contains(.calendar) {
+            calendar.start()
+        } else if !current.contains(.calendar), previous.contains(.calendar) {
+            calendar.stop()
+        }
     }
 
     /// Size of the visible body for the current state.
@@ -153,12 +220,8 @@ final class NotchViewModel: ObservableObject {
     }
 
     func start() {
-        media.start()
         shelf.load()
         snippets.reload()
-        // Only picks up where it left off if access was granted earlier; it
-        // never prompts on its own.
-        calendar.start()
 
         // Screenshots reach the shelf through here whether they were taken on
         // this Mac or on a phone: a copy made on the phone arrives in the same
@@ -172,9 +235,14 @@ final class NotchViewModel: ObservableObject {
         clipboard.onImage = { [weak self] png in
             guard let self, let url = ScreenshotVault.save(png) else { return }
             self.shelf.add([url])
-            self.tab = .shelf
+            if self.enabledTabs.contains(.shelf) { self.tab = .shelf }
         }
-        clipboard.start()
+
+        // Starts only what is switched on. Media, Clipboard and Calendar are
+        // the ones with anything to start — see `syncBackgroundServices`.
+        // Calendar in particular only picks up where it left off if access
+        // was granted earlier; it never prompts on its own.
+        syncBackgroundServices(previous: [], current: enabledTabs)
     }
 
     func stop() {
@@ -183,6 +251,7 @@ final class NotchViewModel: ObservableObject {
         calendar.stop()
         // Whatever was typed makes it to disk even when quitting mid-thought.
         notes.flush()
+        if let enabledTabsObserver { NotificationCenter.default.removeObserver(enabledTabsObserver) }
     }
 
     func accept(urls: [URL]) -> Bool {

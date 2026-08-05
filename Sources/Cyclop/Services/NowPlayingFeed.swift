@@ -41,6 +41,7 @@ final class NowPlayingFeed {
     // MARK: - Lifecycle
 
     func start() {
+        guard process == nil else { return }
         stopped = false
         launch()
     }

@@ -52,6 +52,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         login.state = launchAtLoginEnabled ? .on : .off
         menu.addItem(login)
 
+        menu.addItem(featuresItem())
         menu.addItem(paneSpeedItem())
 
         let saveShots = NSMenuItem(
@@ -103,6 +104,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func togglePanel() {
         controller?.toggle()
+    }
+
+    // MARK: - Features
+
+    private func featuresItem() -> NSMenuItem {
+        let item = NSMenuItem(title: localized("Show in Panel"), action: nil, keyEquivalent: "")
+        let submenu = NSMenu()
+        let enabled = NotchViewModel.Tab.enabled
+        for tab in NotchViewModel.Tab.leftRail + NotchViewModel.Tab.rightRail {
+            let entry = NSMenuItem(title: tab.title, action: #selector(toggleFeature(_:)), keyEquivalent: "")
+            entry.target = self
+            entry.representedObject = tab.rawValue
+            entry.state = enabled.contains(tab) ? .on : .off
+            submenu.addItem(entry)
+        }
+        item.submenu = submenu
+        return item
+    }
+
+    @objc private func toggleFeature(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String,
+              let tab = NotchViewModel.Tab(rawValue: raw) else { return }
+        var enabled = NotchViewModel.Tab.enabled
+        if enabled.contains(tab) {
+            // The panel always needs one way in — the last tab standing
+            // cannot be switched off.
+            guard enabled.count > 1 else { return }
+            enabled.remove(tab)
+        } else {
+            enabled.insert(tab)
+        }
+        NotchViewModel.Tab.enabled = enabled
+        sender.state = enabled.contains(tab) ? .on : .off
     }
 
     // MARK: - Pane switch speed

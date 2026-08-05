@@ -112,13 +112,23 @@ struct NotchContentView: View {
 
     private var content: some View {
         HStack(spacing: 14) {
-            Rail(vm: vm, tabs: NotchViewModel.Tab.leftRail)
+            rail(for: NotchViewModel.Tab.leftRail)
             panes
-            Rail(vm: vm, tabs: NotchViewModel.Tab.rightRail)
+            rail(for: NotchViewModel.Tab.rightRail)
         }
         .padding(.horizontal, 14)
         .padding(.bottom, 14)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// Omitted entirely when every tab on this side is switched off — an
+    /// empty rail would still claim its width and the spacing around it.
+    @ViewBuilder
+    private func rail(for tabs: [NotchViewModel.Tab]) -> some View {
+        let visible = tabs.filter(vm.enabledTabs.contains)
+        if !visible.isEmpty {
+            Rail(vm: vm, tabs: visible)
+        }
     }
 
     private var panes: some View {

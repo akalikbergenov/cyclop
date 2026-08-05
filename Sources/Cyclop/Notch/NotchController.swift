@@ -131,7 +131,7 @@ final class NotchController {
         root.addSubview(hosting)
 
         root.onDragEntered = { [weak self] in
-            guard let self, let vm = self.viewModel else { return }
+            guard let self, let vm = self.viewModel, vm.enabledTabs.contains(.shelf) else { return }
             vm.tab = .shelf
             vm.isDropTargeted = true
             self.setOpen(true)
@@ -143,7 +143,7 @@ final class NotchController {
             self.scheduleCollapseIfPointerAway()
         }
         root.onDrop = { [weak self] urls in
-            guard let self, let vm = self.viewModel else { return false }
+            guard let self, let vm = self.viewModel, vm.enabledTabs.contains(.shelf) else { return false }
             vm.isDropTargeted = false
             let accepted = vm.accept(urls: urls)
             self.pointer.setInside(true)
