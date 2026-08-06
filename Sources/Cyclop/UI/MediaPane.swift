@@ -59,6 +59,18 @@ struct MediaPane: View {
                     .resizable()
                     .aspectRatio(contentMode: .fill)
                     .transition(.opacity)
+            } else if media.artworkUnavailable {
+                // No cover exists anywhere for this track (Spotify local files,
+                // mostly). A skeleton here would shimmer forever and read as a
+                // bug; a quiet glyph reads as the truth.
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(Theme.surface)
+                    .overlay(
+                        Image(systemName: "music.note")
+                            .font(.system(size: 30, weight: .light))
+                            .foregroundStyle(Theme.tertiary)
+                    )
+                    .transition(.opacity)
             } else {
                 SkeletonBox(cornerRadius: 14)
             }
