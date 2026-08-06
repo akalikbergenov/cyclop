@@ -24,6 +24,11 @@ final class MediaController: ObservableObject {
     @Published private(set) var duration: TimeInterval = 0
     @Published private(set) var position: TimeInterval = 0
     @Published private(set) var sourceName: String?
+    /// Nil for sessions without a connector (browser tabs) — the pane hides
+    /// the corresponding controls rather than show knobs wired to nothing.
+    @Published private(set) var volume: Int?
+    @Published private(set) var shuffle: Bool?
+    @Published private(set) var repeatMode: RepeatMode?
 
     private let feed = NowPlayingFeed()
     private var feedAvailable = true
@@ -79,6 +84,14 @@ final class MediaController: ObservableObject {
     private var queryCounter = 0
     private var appliedQuery = 0
     private var poller: Timer?
+    /// While the user drags the volume slider, polled readings lag the drag
+    /// and would snap the knob back — local intent wins for a beat.
+    private var volumeHold: Date?
+    /// Debounces the drag's stream of values into one command per beat; the
+    /// AppleScript queue is serial and slow enough to drown otherwise.
+    private var volumeSend: DispatchWorkItem?
+    /// The bundle id owning the session, whichever route — for `openPlayer`.
+    private var sourceBundleID: String?
     private var observers: [Any] = []
     /// Whether the panel is open — the ticker below runs only then.
     private var isActive = false
@@ -168,6 +181,42 @@ final class MediaController: ObservableObject {
 
     func previous() {
         dispatch(feed: .previous, script: { $0.previous() }, key: .previous)
+    }
+
+    func toggleShuffle() {
+        guard let activeConnector, let current = shuffle else { return }
+        shuffle = !current
+        activeConnector.setShuffle(!current)
+        verifySoon()
+    }
+
+    func cycleRepeat() {
+        guard let activeConnector, let current = repeatMode else { return }
+        let modes = activeConnector.supportedRepeatModes
+        let next = modes[((modes.firstIndex(of: current) ?? 0) + 1) % modes.count]
+        repeatMode = next
+        activeConnector.setRepeat(next)
+        verifySoon()
+    }
+
+    func setVolume(_ value: Int) {
+        guard let activeConnector else { return }
+        let clamped = min(max(0, value), 100)
+        volume = clamped
+        volumeHold = Date()
+        volumeSend?.cancel()
+        let work = DispatchWorkItem { activeConnector.setVolume(clamped) }
+        volumeSend = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: work)
+    }
+
+    /// The cover doubles as a door: clicking it raises whatever app owns the
+    /// session — a player, or the browser hosting the tab.
+    func openPlayer() {
+        guard let sourceBundleID,
+              let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: sourceBundleID)
+        else { return }
+        NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
     }
 
     func seek(to seconds: TimeInterval) {
@@ -278,10 +327,18 @@ final class MediaController: ObservableObject {
     private func applyScripted(_ state: PlayerState) {
         if track?.key != state.key { noteTrackChanged() }
         sourceName = state.connector.displayName
+        sourceBundleID = state.connector.bundleID
         track = Track(title: state.title, artist: state.artist, album: state.album, key: state.key)
         isPlaying = state.isPlaying
         if state.duration > 0 { duration = state.duration }
         playbackRate = 1
+        shuffle = state.shuffle
+        repeatMode = state.repeatMode
+        // A reading taken mid-drag describes where the knob was, not where the
+        // finger is; local intent outranks it until the dust settles.
+        if volumeHold.map({ Date().timeIntervalSince($0) > 1.5 }) ?? true {
+            volume = state.volume
+        }
         adoptReported(state.position)
         updateTicker()
 
@@ -365,7 +422,12 @@ final class MediaController: ObservableObject {
         isPlaying = snapshot.isPlaying || snapshot.rate > 0
         duration = snapshot.duration
         sourceName = snapshot.source
+        sourceBundleID = snapshot.bundleID
         playbackRate = snapshot.rate > 0 ? snapshot.rate : 1
+        // No connector, no knobs: the pane hides what cannot be answered for.
+        volume = nil
+        shuffle = nil
+        repeatMode = nil
         // `livePosition`, never `elapsed`: the reading on its own is frozen at
         // the moment the player last published it, and taking it at face value
         // is what pinned the bar to 0:00 on a track minutes in.
@@ -465,6 +527,10 @@ final class MediaController: ObservableObject {
         noteTrackChanged()
         activeConnector = nil
         track = nil
+        sourceBundleID = nil
+        volume = nil
+        shuffle = nil
+        repeatMode = nil
         artwork = nil
         artworkKey = nil
         artworkUnavailable = false

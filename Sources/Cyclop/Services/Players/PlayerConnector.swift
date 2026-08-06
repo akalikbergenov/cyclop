@@ -24,6 +24,14 @@ protocol PlayerConnector {
     func next()
     func previous()
     func seek(to seconds: TimeInterval)
+    /// Player volume, 0–100 — the player's own, deliberately not the system's:
+    /// turning music down should not turn a video call down with it.
+    func setVolume(_ volume: Int)
+    func setShuffle(_ enabled: Bool)
+    func setRepeat(_ mode: RepeatMode)
+    /// The modes this player can express, in the order a toggle should walk
+    /// them. Spotify's scripting has no repeat-one; Music has all three.
+    var supportedRepeatModes: [RepeatMode] { get }
     func artwork(for state: PlayerState, completion: @escaping (NSImage?) -> Void)
     /// True when no route to a cover exists for this track at all, so the
     /// caller can settle for a placeholder at once instead of retrying a fetch
@@ -31,8 +39,14 @@ protocol PlayerConnector {
     func artworkIsUnobtainable(for state: PlayerState) -> Bool
 }
 
+enum RepeatMode: String {
+    case off, all, one
+}
+
 extension PlayerConnector {
     func artworkIsUnobtainable(for state: PlayerState) -> Bool { false }
+    func setVolume(_ volume: Int) { command("set sound volume to \(min(max(0, volume), 100))") }
+    var supportedRepeatModes: [RepeatMode] { [.off, .all] }
 }
 
 struct PlayerState {
@@ -47,6 +61,11 @@ struct PlayerState {
     /// The player's own id for the track, when it has one — the way back to
     /// artwork when `artworkURL` is not (see `SpotifyConnector.artwork`).
     var trackID: String?
+    /// Player volume 0–100. Optional because a session without a connector
+    /// has no volume anyone can read — the pane hides the slider then.
+    var volume: Int?
+    var shuffle: Bool?
+    var repeatMode: RepeatMode?
     /// Identity of the track, used to decide when artwork must be refetched.
     var key: String { "\(connector.bundleID)|\(title)|\(artist)|\(album)" }
 }
@@ -75,7 +94,8 @@ extension PlayerConnector {
 
     /// Runs a state script and parses its answer. Both bundled connectors emit
     /// the same sep-separated shape — state, name, artist, album, duration in
-    /// ms, position in ms, artwork url, track id — so the parsing lives here.
+    /// ms, position in ms, artwork url, track id, volume, shuffle, repeat — so
+    /// the parsing lives here.
     func runStateScript(_ source: String, completion: @escaping (PlayerState?) -> Void) {
         guard isRunning else { return completion(nil) }
         PlayerBridge.runScript(source) { descriptor in
@@ -92,6 +112,16 @@ extension PlayerConnector {
         // URL and send a doomed request. Only an actual address counts.
         var artworkURL: URL?
         if parts.count > 6, parts[6].hasPrefix("http") { artworkURL = URL(string: parts[6]) }
+        // Repeat arrives as the player expresses it: Spotify's boolean
+        // ("true"/"false"), Music's constant ("off"/"one"/"all").
+        var repeatMode: RepeatMode?
+        if parts.count > 10 {
+            switch parts[10] {
+            case "true": repeatMode = .all
+            case "false": repeatMode = .off
+            default: repeatMode = RepeatMode(rawValue: parts[10])
+            }
+        }
         return PlayerState(
             connector: self,
             isPlaying: parts[0].lowercased() == "playing",
@@ -101,7 +131,10 @@ extension PlayerConnector {
             duration: (Double(parts[4]) ?? 0) / 1000,
             position: (Double(parts[5]) ?? 0) / 1000,
             artworkURL: artworkURL,
-            trackID: parts.count > 7 && !parts[7].isEmpty ? parts[7] : nil
+            trackID: parts.count > 7 && !parts[7].isEmpty ? parts[7] : nil,
+            volume: parts.count > 8 ? Int(parts[8]) : nil,
+            shuffle: parts.count > 9 && !parts[9].isEmpty ? parts[9] == "true" : nil,
+            repeatMode: repeatMode
         )
     }
 }

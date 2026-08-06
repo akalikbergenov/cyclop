@@ -6,6 +6,13 @@ struct MediaPane: View {
     @State private var scrubHover = false
     /// Set while dragging, so the bar follows the finger instead of the clock.
     @State private var scrubbing: Double?
+    /// The transport row yields to the volume slider while this is set —
+    /// hovering the speaker opens it, leaving the row closes it. One row,
+    /// two duties, never both at once.
+    @State private var volumeExpanded = false
+    /// Total ↔ remaining on the right-hand timer; survives restarts because a
+    /// preference this small should not need re-teaching.
+    @AppStorage("mediaShowRemaining") private var showRemaining = false
 
     /// Artwork and the text column share this height, so their top and bottom
     /// edges line up instead of the column floating past them.
@@ -83,6 +90,8 @@ struct MediaPane: View {
         )
         .shadow(color: .black.opacity(0.5), radius: 12, y: 5)
         .animation(Theme.artworkAnimation, value: media.artwork)
+        // The cover is the door to the app that is playing.
+        .onTapGesture { media.openPlayer() }
     }
 
     // MARK: - Scrubber
@@ -142,8 +151,13 @@ struct MediaPane: View {
             }
             .frame(height: 14)
 
-            Text(formatTime(media.duration))
-                .frame(width: 32, alignment: .trailing)
+            // Total by default, remaining on click — the countdown DJs watch.
+            Text(showRemaining
+                 ? "-" + formatTime(max(0, media.duration - progress * media.duration))
+                 : formatTime(media.duration))
+                .frame(width: 36, alignment: .trailing)
+                .contentShape(Rectangle())
+                .onTapGesture { showRemaining.toggle() }
         }
         .font(.system(size: 10, weight: .medium).monospacedDigit())
         .foregroundStyle(Theme.tertiary)
@@ -152,7 +166,27 @@ struct MediaPane: View {
     // MARK: - Transport
 
     private var controls: some View {
-        HStack(spacing: 20) {
+        ZStack {
+            if volumeExpanded, media.volume != nil {
+                expandedVolume.transition(.opacity)
+            } else {
+                transportRow.transition(.opacity)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 40)
+        // The container spans both faces of the row, so leaving it always
+        // folds the slider back — including the case where the swap happened
+        // under a cursor that then left without ever touching the slider.
+        .onHover { inside in if !inside { volumeExpanded = false } }
+        .animation(Theme.contentAnimation, value: volumeExpanded)
+    }
+
+    private var transportRow: some View {
+        HStack(spacing: 16) {
+            if media.shuffle != nil {
+                modeToggle("shuffle", active: media.shuffle == true) { media.toggleShuffle() }
+            }
             Button { media.previous() } label: { Image(systemName: "backward.fill") }
                 .buttonStyle(NotchButtonStyle(size: 30))
             Button { media.togglePlayPause() } label: {
@@ -161,8 +195,88 @@ struct MediaPane: View {
             .buttonStyle(NotchButtonStyle(size: 40, prominent: true))
             Button { media.next() } label: { Image(systemName: "forward.fill") }
                 .buttonStyle(NotchButtonStyle(size: 30))
+            if let mode = media.repeatMode {
+                modeToggle(mode == .one ? "repeat.1" : "repeat", active: mode != .off) {
+                    media.cycleRepeat()
+                }
+            }
+            if media.volume != nil {
+                Image(systemName: volumeIcon)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Theme.tertiary)
+                    .frame(width: 24, height: 24)
+                    .contentShape(Rectangle())
+                    .onHover { inside in if inside { volumeExpanded = true } }
+            }
         }
-        .frame(maxWidth: .infinity)
+    }
+
+    /// Shuffle and repeat: quieter than transport, lit when engaged.
+    private func modeToggle(_ system: String, active: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: system)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(active ? .white : Theme.tertiary)
+                .frame(width: 24, height: 24)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Volume
+
+    /// What the transport row becomes while the speaker is hovered: one wide
+    /// slider with the level spelled out, gone the moment the cursor leaves.
+    private var expandedVolume: some View {
+        HStack(spacing: 10) {
+            Image(systemName: volumeIcon)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 24)
+
+            GeometryReader { geo in
+                let width = geo.size.width
+                let level = Double(media.volume ?? 0) / 100
+                let filled = width * level
+
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Theme.surface).frame(height: 5)
+                    Capsule()
+                        .fill(Color.white.opacity(0.9))
+                        .frame(width: filled, height: 5)
+                    Circle()
+                        .fill(.white)
+                        .frame(width: 11, height: 11)
+                        .offset(x: min(max(filled - 5.5, 0), max(width - 11, 0)))
+                        .shadow(color: .black.opacity(0.4), radius: 3)
+                }
+                .frame(maxHeight: .infinity)
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { value in
+                            guard width > 0 else { return }
+                            media.setVolume(Int(min(max(value.location.x / width, 0), 1) * 100))
+                        }
+                )
+            }
+            .frame(height: 24)
+
+            Text("\(media.volume ?? 0)")
+                .font(.system(size: 10, weight: .medium).monospacedDigit())
+                .foregroundStyle(Theme.tertiary)
+                .frame(width: 24, alignment: .trailing)
+        }
+        .padding(.horizontal, 4)
+    }
+
+    private var volumeIcon: String {
+        switch media.volume ?? 0 {
+        case 0: return "speaker.slash.fill"
+        case ..<34: return "speaker.wave.1.fill"
+        case ..<67: return "speaker.wave.2.fill"
+        default: return "speaker.wave.3.fill"
+        }
     }
 
     private var emptyState: some View {

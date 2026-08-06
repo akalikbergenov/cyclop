@@ -23,7 +23,7 @@ struct SpotifyConnector: PlayerConnector {
                 on error
                     set posMillis to 0
                 end try
-                return stateText & sep & (name of theTrack) & sep & (artist of theTrack) & sep & (album of theTrack) & sep & (duration of theTrack) & sep & posMillis & sep & (artwork url of theTrack) & sep & (id of theTrack)
+                return stateText & sep & (name of theTrack) & sep & (artist of theTrack) & sep & (album of theTrack) & sep & (duration of theTrack) & sep & posMillis & sep & (artwork url of theTrack) & sep & (id of theTrack) & sep & (sound volume as text) & sep & (shuffling as text) & sep & (repeating as text)
             on error
                 return ""
             end try
@@ -33,6 +33,10 @@ struct SpotifyConnector: PlayerConnector {
 
     func playPause() { command("playpause") }
     func next() { command("next track") }
+    func setShuffle(_ enabled: Bool) { command("set shuffling to \(enabled)") }
+    /// Spotify's scripting exposes repeat as a boolean, so `.one` cannot be
+    /// asked for — `supportedRepeatModes` keeps it out of the cycle.
+    func setRepeat(_ mode: RepeatMode) { command("set repeating to \(mode != .off)") }
 
     func previous() {
         // Spotify's `previous track` restarts the current song first, matching

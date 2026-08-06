@@ -20,7 +20,7 @@ struct MusicConnector: PlayerConnector {
                 on error
                     set posMillis to 0
                 end try
-                return stateText & sep & (name of theTrack) & sep & (artist of theTrack) & sep & (album of theTrack) & sep & (round ((duration of theTrack) * 1000)) & sep & posMillis & sep & "" & sep & ""
+                return stateText & sep & (name of theTrack) & sep & (artist of theTrack) & sep & (album of theTrack) & sep & (round ((duration of theTrack) * 1000)) & sep & posMillis & sep & "" & sep & "" & sep & (sound volume as text) & sep & (shuffle enabled as text) & sep & (song repeat as text)
             on error
                 return ""
             end try
@@ -31,6 +31,9 @@ struct MusicConnector: PlayerConnector {
     func playPause() { command("playpause") }
     func next() { command("next track") }
     func previous() { command("back track") }
+    func setShuffle(_ enabled: Bool) { command("set shuffle enabled to \(enabled)") }
+    func setRepeat(_ mode: RepeatMode) { command("set song repeat to \(mode.rawValue)") }
+    var supportedRepeatModes: [RepeatMode] { [.off, .all, .one] }
 
     /// Music, unlike Spotify, hands the actual bytes over — no network at all.
     func artwork(for state: PlayerState, completion: @escaping (NSImage?) -> Void) {
