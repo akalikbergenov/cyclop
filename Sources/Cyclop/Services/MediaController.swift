@@ -122,7 +122,7 @@ final class MediaController: ObservableObject {
         duration = snapshot.duration
         sourceName = snapshot.source
 
-        let reported = reportedPosition(from: snapshot)
+        let reported = snapshot.livePosition
 
         // A player needs a moment to act on a seek, and until it does it keeps
         // reporting the old position. Accepting that would yank the bar back.
@@ -222,30 +222,6 @@ final class MediaController: ObservableObject {
     }
 
     // MARK: - Position
-
-    /// What a report actually says by the time it is read.
-    ///
-    /// MediaRemote does not keep the elapsed time running. The field is a
-    /// reading taken when the session last changed state, and the timestamp
-    /// beside it says when — a tab playing for three minutes keeps reporting
-    /// the second it started at, and many browsers report a plain zero. Taken
-    /// literally, every refresh describes the beginning of the track, and
-    /// `adopt` reads the gap as a seek made in the player and obeys it. Which
-    /// is exactly what hovering did: open the panel, refresh, bar to zero.
-    ///
-    /// So the reading is aged by the clock that came with it. A paused session
-    /// is left alone — its reading is not moving and there is nothing to add.
-    private func reportedPosition(from snapshot: NowPlayingFeed.Snapshot) -> TimeInterval {
-        guard snapshot.isPlaying || snapshot.rate > 0, let takenAt = snapshot.takenAt else {
-            return snapshot.elapsed
-        }
-        let since = Date().timeIntervalSince(takenAt)
-        // A stamp from the future is not a clock to add to. Trust the reading.
-        guard since >= 0 else { return snapshot.elapsed }
-        let rate = snapshot.rate > 0 ? snapshot.rate : 1
-        let aged = snapshot.elapsed + since * rate
-        return snapshot.duration > 0 ? min(aged, snapshot.duration) : aged
-    }
 
     private func setAnchor(_ value: TimeInterval) {
         position = value
