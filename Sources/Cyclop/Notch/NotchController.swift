@@ -9,7 +9,16 @@ final class NotchController {
     private var viewModel: NotchViewModel?
     private let pointer = PointerWatcher()
     private var closeActiveRectWork: DispatchWorkItem?
+    /// Subscriptions belonging to the current panel. Emptied on every rebuild,
+    /// because the objects they watch go with it.
     private var cancellables = Set<AnyCancellable>()
+    /// Subscriptions belonging to the controller itself, which outlives every
+    /// panel it builds. Kept apart from the set above for one concrete reason:
+    /// the settings subscription lives here, and clearing it along with the
+    /// panel's would mean the first resize worked and no later one did.
+    private var lifetimeCancellables = Set<AnyCancellable>()
+    /// Live only while a click-opened panel is on screen.
+    private var clickOutsideMonitor: Any?
     /// Monotonic stamp for the deferred half of closing: any newer open or
     /// close outdates the one still in flight.
     private var openGeneration = 0
@@ -23,6 +32,16 @@ final class NotchController {
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.screenParametersChanged() }
         }
+        // The panel's own size is a setting now, and a window cannot be
+        // resized into a different shape without being built again: the frame,
+        // every hover rect and the click-through region are all derived from
+        // the geometry the panel was made with.
+        Settings.shared.geometryDidChange
+            .sink { [weak self] in
+                MainActor.assumeIsolated { self?.rebuild() }
+            }
+            .store(in: &lifetimeCancellables)
+
         NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.activeSpaceDidChangeNotification,
             object: nil,
@@ -54,10 +73,11 @@ final class NotchController {
         }
     }
 
-    /// The screenshots folder can be emptied from the menu bar; the shelf has
-    /// to notice its files are gone without waiting for a relaunch.
-    func reloadShelf() {
-        viewModel?.shelf.load()
+    /// The screenshots folder can be emptied from the menu bar; the entries
+    /// pointing into it have to notice their files are gone without waiting
+    /// for a relaunch.
+    func reloadBuffer() {
+        viewModel?.buffer.dropMissingFiles()
     }
 
     /// The panel belongs to the desktop it was opened on. ⌘-Tab to another one
@@ -83,22 +103,35 @@ final class NotchController {
     }
 
     func teardown() {
+        stopWatchingForClickOutside()
         pointer.stop()
         viewModel?.stop()
         panel?.acceptsKeyboard = false
         panel?.orderOut(nil)
     }
 
+    /// Opens the panel on the settings tab. The menu bar keeps a way in for
+    /// people who have not found the gear on the rail — and for the case where
+    /// a shortcut was set to something the machine will not give back.
+    func showSettings() {
+        guard let viewModel else { return }
+        viewModel.select(.settings)
+        setOpen(true)
+        pointer.setInside(true)
+    }
+
     func toggle() {
         guard let viewModel else { return }
         setOpen(!viewModel.isOpen)
         pointer.setInside(viewModel.isOpen)
+        if viewModel.isOpen, !Settings.shared.opensOnHover { watchForClickOutside() }
     }
 
     // MARK: - Construction
 
     private func rebuild() {
         let previousTab = viewModel?.tab
+        let wasOpen = viewModel?.isOpen == true
         pointer.stop()
         viewModel?.stop()
         closeActiveRectWork?.cancel()
@@ -111,6 +144,14 @@ final class NotchController {
         viewModel = nil
         build()
         if let previousTab { viewModel?.tab = previousTab }
+        // Rebuilt because the user moved a stepper in the settings tab: the
+        // panel they are working in must come back, or every press would fold
+        // it and the next one would need a trip to the notch first.
+        if wasOpen {
+            pointer.setInside(true)
+            setOpen(true)
+            if previousTab?.needsKeyboard == true { viewModel?.wantsKeyboard = true }
+        }
     }
 
     private func build() {
@@ -132,7 +173,7 @@ final class NotchController {
 
         root.onDragEntered = { [weak self] in
             guard let self, let vm = self.viewModel else { return }
-            vm.tab = .shelf
+            vm.tab = .buffer
             vm.isDropTargeted = true
             self.setOpen(true)
         }
@@ -154,8 +195,20 @@ final class NotchController {
 
         // Clicking away drops the keyboard but leaves the tab where it was, so
         // a click back into the panel has to be able to ask for it again.
+        //
+        // The same press is also what opens the panel when hover-to-open is
+        // switched off: collapsed, the only thing under the pointer is the
+        // notch strip, and a click there is unambiguous.
         panel.onPress = { [weak self] in
-            guard let vm = self?.viewModel, vm.tab.needsKeyboard else { return }
+            guard let self, let vm = self.viewModel else { return }
+            if !vm.isOpen {
+                guard !Settings.shared.opensOnHover else { return }
+                self.pointer.setInside(true)
+                self.setOpen(true)
+                self.watchForClickOutside()
+                return
+            }
+            guard vm.tab.needsKeyboard else { return }
             vm.wantsKeyboard = true
         }
 
@@ -181,7 +234,12 @@ final class NotchController {
         pointer.isDragging = { [weak root] in root?.isReceivingDrag ?? false }
         pointer.isPanelOpen = { [weak vm] in vm?.isOpen ?? false }
         pointer.onChange = { [weak self] inside in
-            self?.setOpen(inside)
+            guard let self else { return }
+            // In click mode the pointer decides nothing: it neither opens the
+            // panel nor closes it, which is the whole point of the setting —
+            // the panel is not to react to a pointer merely passing by.
+            guard Settings.shared.opensOnHover else { return }
+            self.setOpen(inside)
         }
         // Everything outside the visible panel must reach the app underneath:
         // a `nil` from hitTest only discards the event, it does not forward it.
@@ -273,9 +331,14 @@ final class NotchController {
     /// method per section would be four methods that only forward.
     var privacy: PrivacyMode? { viewModel?.privacy }
 
+    /// The copy history. Read through the view model only for convenience —
+    /// the store itself is app-wide and survives every rebuild.
+    var buffer: BufferStore? { viewModel?.buffer }
+
     /// The visual half of closing, one pass after the keyboard was let go.
     private func collapse() {
         guard let vm = viewModel, vm.isOpen else { return }
+        stopWatchingForClickOutside()
         // Whatever was uncovered by hand goes back under cover with the panel.
         // The next hover is the one nobody planned, and it must not open onto
         // a row somebody revealed ten minutes ago.
@@ -291,7 +354,37 @@ final class NotchController {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.45, execute: work)
     }
 
+    /// Closes a click-opened panel when the next click lands anywhere else.
+    ///
+    /// A global monitor, which for *mouse* events needs no permission — only
+    /// keyboard monitoring does. It is the only way to hear about a click in
+    /// another application without taking focus, and taking focus is exactly
+    /// what this panel spends its whole design avoiding.
+    private func watchForClickOutside() {
+        clickOutsideMonitor.map(NSEvent.removeMonitor)
+        clickOutsideMonitor = NSEvent.addGlobalMonitorForEvents(
+            matching: [.leftMouseDown, .rightMouseDown]
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, let geometry = self.viewModel?.geometry else { return }
+                // A click on the panel itself arrives here too — it is global —
+                // so the panel's own area is excluded by hand.
+                guard !geometry.expandedHoverRect.contains(NSEvent.mouseLocation) else { return }
+                self.stopWatchingForClickOutside()
+                self.setOpen(false)
+                self.pointer.setInside(false)
+            }
+        }
+    }
+
+    private func stopWatchingForClickOutside() {
+        clickOutsideMonitor.map(NSEvent.removeMonitor)
+        clickOutsideMonitor = nil
+    }
+
     private func scheduleCollapseIfPointerAway() {
+        // In click mode nothing collapses because the pointer wandered off.
+        guard Settings.shared.opensOnHover else { return }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
             guard let self, let geometry = self.viewModel?.geometry else { return }
             // Resync either way. A pointer that is still on the panel has to be

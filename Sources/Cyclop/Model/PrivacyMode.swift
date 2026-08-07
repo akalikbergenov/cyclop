@@ -19,6 +19,12 @@ import Combine
 /// is predictable, and predictability is the feature.
 @MainActor
 final class PrivacyMode: ObservableObject {
+    /// One instance: the menu bar switches it and the panel obeys it, and the
+    /// panel is rebuilt from under both whenever its size or the display
+    /// changes. A per-panel instance meant the menu's ticks and what the panel
+    /// covered could come apart at exactly that moment.
+    static let shared = PrivacyMode()
+
     enum Section: String, CaseIterable, Identifiable {
         case clipboard, snippets, calendar, notes
 
@@ -28,7 +34,10 @@ final class PrivacyMode: ObservableObject {
         /// what a section is called.
         var title: String {
             switch self {
-            case .clipboard: return localized("Clipboard")
+            // The raw value stays "clipboard": it is what is already written
+            // in everyone's defaults, and a section that quietly stopped
+            // covering on update is the one mistake this feature cannot make.
+            case .clipboard: return localized("Buffer")
             case .snippets: return localized("Snippets")
             case .calendar: return localized("Calendar")
             case .notes: return localized("Notes")
@@ -50,7 +59,7 @@ final class PrivacyMode: ObservableObject {
     /// it and the camera is.
     @Published private(set) var revealed: Set<String> = []
 
-    init() {
+    private init() {
         let defaults = UserDefaults.standard
         if let stored = defaults.array(forKey: Self.key) as? [String] {
             sections = Set(stored.compactMap(Section.init(rawValue:)))

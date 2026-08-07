@@ -1,10 +1,18 @@
 import AppKit
+import Combine
 import ServiceManagement
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var controller: NotchController?
+    private var picker: BufferPickerController?
+    private var shot: ShotController?
+    private var panelHotKey: HotKey?
+    private var cancellables = Set<AnyCancellable>()
     private var statusItem: NSStatusItem?
+    private var pasteItem: NSMenuItem?
+    private var bufferItem: NSMenuItem?
+    private var screenshotItem: NSMenuItem?
     private var clearVaultItem: NSMenuItem?
     private var privacyItem: NSMenuItem?
     private var privacyAllItem: NSMenuItem?
@@ -13,13 +21,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var saveShotsItem: NSMenuItem?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Before the panel: the panel reads the history on the way up, and the
+        // store is what survives every rebuild of it.
+        BufferStore.shared.start()
         controller = NotchController()
         controller?.install()
+        installPicker()
+        shot = ShotController()
+        shot?.installHotKey()
         installStatusItem()
     }
 
-    func applicationWillTerminate(_ notification: Notification) {
-        controller?.teardown()
+    /// The keyboard list reads the same buffer the panel shows — there is one
+    /// history, reachable two ways.
+    private func installPicker() {
+        let picker = BufferPickerController()
+        picker.installHotKey()
+        self.picker = picker
+
+        applyPanelHotKey()
+        Settings.shared.$panelHotKey
+            .dropFirst()
+            .removeDuplicates()
+            .sink { [weak self] _ in
+                MainActor.assumeIsolated { self?.applyPanelHotKey() }
+            }
+            .store(in: &cancellables)
+    }
+
+    /// The optional shortcut that opens the panel itself. Unset by default —
+    /// hovering the notch is how the panel opens, and a combination taken from
+    /// every other app on the machine should be something the user asked for.
+    private func applyPanelHotKey() {
+        panelHotKey?.unregister()
+        panelHotKey = nil
+        guard let combo = Settings.shared.panelHotKey else { return }
+        panelHotKey = HotKey(combo: combo) { [weak self] in
+            self?.controller?.toggle()
+        }
+        if panelHotKey == nil {
+            NSLog("Cyclop: \(combo.label) is already registered by another application")
+        }
     }
 
     // MARK: - Menu bar item
@@ -47,6 +89,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         )
         toggle.target = self
         menu.addItem(toggle)
+
+        // Carries its shortcut as a label as much as a binding: the picker is
+        // the one feature here with no hover to discover it by, and a shortcut
+        // nobody is told about is a shortcut nobody presses.
+        let paste = NSMenuItem(
+            title: localized("Open Buffer"),
+            action: #selector(showBufferPicker),
+            keyEquivalent: ""
+        )
+        paste.target = self
+        menu.addItem(paste)
+        bufferItem = paste
+
+        // Only ever shown while the permission is missing — see `menuWillOpen`.
+        // Once granted there is nothing to offer, and a settings shortcut for a
+        // setting already made is one more line to read past every time.
+        let grant = NSMenuItem(
+            title: localized("Allow Automatic Pasting…"),
+            action: #selector(openAccessibilitySettings),
+            keyEquivalent: ""
+        )
+        grant.target = self
+        menu.addItem(grant)
+        pasteItem = grant
+
+        let shotItem = NSMenuItem(
+            title: localized("Take Screenshot"),
+            action: #selector(takeShot),
+            keyEquivalent: ""
+        )
+        shotItem.target = self
+        menu.addItem(shotItem)
+        screenshotItem = shotItem
+
+        let settingsItem = NSMenuItem(
+            title: localized("Settings"),
+            action: #selector(openSettings),
+            keyEquivalent: ""
+        )
+        settingsItem.target = self
+        menu.addItem(settingsItem)
 
         let login = NSMenuItem(
             title: localized("Launch at Login"),
@@ -98,7 +181,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             keyEquivalent: ""
         )
         saveShots.target = self
-        saveShots.state = NotchViewModel.saveClipboardImagesEnabled ? .on : .off
+        saveShots.state = Settings.shared.saveImages ? .on : .off
         menu.addItem(saveShots)
         saveShotsItem = saveShots
 
@@ -144,6 +227,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         controller?.toggle()
     }
 
+    @objc private func showBufferPicker() {
+        picker?.open()
+    }
+
+    @objc private func takeShot() {
+        shot?.begin()
+    }
+
+    @objc private func openSettings() {
+        controller?.showSettings()
+    }
+
+    @objc private func openAccessibilitySettings() {
+        // Prompts first: on a Mac where the app has never asked, the system
+        // dialog offers to open the same pane and adds Cyclop to the list, so
+        // the user finds a row to tick rather than an empty list and a name to
+        // go hunting for in Finder.
+        Paster.requestTrust()
+        Paster.openSettings()
+    }
+
     /// Everything shown is re-read when the menu opens, not kept fresh in
     /// between: a menu nobody is looking at deserves no bookkeeping — and a
     /// state set once at launch quietly goes stale. Launch-at-login is the
@@ -152,7 +256,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func menuWillOpen(_ menu: NSMenu) {
         refreshPrivacyItems()
         loginItem?.state = launchAtLoginEnabled ? .on : .off
-        saveShotsItem?.state = NotchViewModel.saveClipboardImagesEnabled ? .on : .off
+        // Re-read every time: the permission is granted outside this app, and
+        // the running process only learns about it by asking again.
+        pasteItem?.isHidden = Paster.isTrusted
+        // The shortcut is the user's to change, so the menu asks what it is
+        // rather than repeating what it used to be.
+        if let combo = Settings.shared.bufferHotKey {
+            bufferItem?.title = localized("Open Buffer (%@)", combo.label)
+        } else {
+            bufferItem?.title = localized("Open Buffer")
+        }
+        if let combo = Settings.shared.shotHotKey {
+            screenshotItem?.title = localized("Take Screenshot (%@)", combo.label)
+        } else {
+            screenshotItem?.title = localized("Take Screenshot")
+        }
+        saveShotsItem?.state = Settings.shared.saveImages ? .on : .off
 
         guard let clearVaultItem else { return }
         // Off the main thread: walking the folder takes as long as the folder
@@ -177,8 +296,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func clearScreenshots() {
         ScreenshotVault.clear()
-        // The cards pointing into that folder just went to the Trash with it.
-        controller?.reloadShelf()
+        // The entries pointing into that folder just went to the Trash with it.
+        controller?.reloadBuffer()
     }
 
     @objc private func quit() {
@@ -215,11 +334,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func toggleSaveClipboardImages(_ sender: NSMenuItem) {
-        UserDefaults.standard.set(
-            !NotchViewModel.saveClipboardImagesEnabled,
-            forKey: NotchViewModel.saveClipboardImagesKey
-        )
-        sender.state = NotchViewModel.saveClipboardImagesEnabled ? .on : .off
+        Settings.shared.saveImages.toggle()
+        sender.state = Settings.shared.saveImages ? .on : .off
     }
 
     @objc private func revealScreenshots() {

@@ -4,43 +4,47 @@ import Combine
 @MainActor
 final class NotchViewModel: ObservableObject {
     enum Tab: String, CaseIterable, Identifiable {
-        case media, shelf, clipboard, snippets, calendar, translate, notes
+        case media, buffer, snippets, calendar, translate, notes, settings
         var id: String { rawValue }
 
         var symbol: String {
             switch self {
             case .media: return "music.note"
-            case .shelf: return "tray.full.fill"
-            case .clipboard: return "list.clipboard.fill"
+            case .buffer: return "list.clipboard.fill"
             case .snippets: return "pin.fill"
             case .calendar: return "calendar"
             case .translate: return "translate"
             case .notes: return "note.text"
+            case .settings: return "gearshape.fill"
             }
         }
 
         var title: String {
             switch self {
             case .media: return localized("Music")
-            case .shelf: return localized("Shelf")
-            case .clipboard: return localized("Clipboard")
+            case .buffer: return localized("Buffer")
             case .snippets: return localized("Snippets")
             case .calendar: return localized("Calendar")
             case .translate: return localized("Translate")
             case .notes: return localized("Notes")
+            case .settings: return localized("Settings")
             }
         }
 
-        /// Tabs with a field in them. Landing on one hands it the keyboard, so
-        /// that arriving and typing is a single move.
-        var needsKeyboard: Bool { self == .translate || self == .snippets || self == .notes }
+        /// Tabs that need key presses. Landing on one hands the panel the
+        /// keyboard, so that arriving and typing is a single move. Settings is
+        /// here for the shortcut recorder, which has no field but is nothing
+        /// without keys.
+        var needsKeyboard: Bool {
+            self == .translate || self == .snippets || self == .notes || self == .settings
+        }
 
-        /// Which rail the icon sits on. The left one carries the original six
-        /// and is full — a seventh icon would outgrow the height the panel
-        /// body has — so growth continues in a second column on the right,
-        /// which the scratch notes open.
-        static let leftRail: [Tab] = [.media, .shelf, .clipboard, .snippets, .calendar, .translate]
-        static let rightRail: [Tab] = [.notes]
+        /// Which rail the icon sits on. The left one carries what the app is
+        /// for; the right one what it is set up with. Merging the shelf into
+        /// the buffer freed a slot on the left, which is where the settings
+        /// gear would otherwise not have fitted at all.
+        static let leftRail: [Tab] = [.media, .buffer, .snippets, .calendar, .translate]
+        static let rightRail: [Tab] = [.notes, .settings]
     }
 
     @Published var isOpen = false
@@ -55,6 +59,10 @@ final class NotchViewModel: ObservableObject {
             // The snippets file is edited from outside the app, so it is read
             // on the way in rather than held from launch.
             if tab == .snippets { snippets.reload() }
+            // Nothing is dragged out of a list nobody is looking at, and a
+            // selection left behind would show as a phantom count on the way
+            // back in.
+            if oldValue == .buffer, tab != .buffer { buffer.clearSelection() }
             // Leaving the notes sweeps out the blank ones — they cost one
             // hover to recreate, and a trail of empty cards is the clutter a
             // scratchpad exists to avoid.
@@ -75,22 +83,25 @@ final class NotchViewModel: ObservableObject {
 
     let geometry: NotchGeometry
     let media: MediaController
-    let shelf: ShelfStore
-    let clipboard: ClipboardStore
+    /// Copies, files and pictures — one list, and one instance of it for the
+    /// whole app. Everything else here is rebuilt with the panel; this is not,
+    /// because rebuilding it would empty the history (and the panel is now
+    /// rebuilt whenever its own size is changed).
+    let buffer = BufferStore.shared
     let calendar: CalendarStore
     let translator: Translator
     let snippets: SnippetStore
     let notes: NoteStore
-    /// Shared by every pane that shows something worth not showing.
-    let privacy = PrivacyMode()
+    /// Shared by every pane that shows something worth not showing — and by
+    /// the menu bar, which switches it.
+    let privacy = PrivacyMode.shared
+    let settings = Settings.shared
 
     private var cancellables = Set<AnyCancellable>()
 
     init(geometry: NotchGeometry) {
         self.geometry = geometry
         self.media = MediaController()
-        self.shelf = ShelfStore()
-        self.clipboard = ClipboardStore()
         self.calendar = CalendarStore()
         self.translator = Translator()
         self.snippets = SnippetStore()
@@ -117,8 +128,7 @@ final class NotchViewModel: ObservableObject {
         // because the list is only ever re-read on the way into the tab.
         for child in [
             media.objectWillChange,
-            shelf.objectWillChange,
-            clipboard.objectWillChange,
+            buffer.objectWillChange,
             calendar.objectWillChange,
         ] {
             child
@@ -135,16 +145,6 @@ final class NotchViewModel: ObservableObject {
         isOpen || isDropTargeted ? geometry.expandedSize : geometry.notchSize
     }
 
-    /// Off switch for people who copy images all day and do not want them kept.
-    static let saveClipboardImagesKey = "saveClipboardImages"
-
-    /// Defaults to on: the feature is the reason the folder exists.
-    static var saveClipboardImagesEnabled: Bool {
-        let defaults = UserDefaults.standard
-        guard defaults.object(forKey: saveClipboardImagesKey) != nil else { return true }
-        return defaults.bool(forKey: saveClipboardImagesKey)
-    }
-
     /// Hover and click both land here. A tab that types takes the keyboard
     /// either way: showing a field one cannot type into is worse than briefly
     /// dimming the caret of the window underneath, and the dwell threshold on
@@ -156,40 +156,23 @@ final class NotchViewModel: ObservableObject {
 
     func start() {
         media.start()
-        shelf.load()
         snippets.reload()
         // Only picks up where it left off if access was granted earlier; it
         // never prompts on its own.
         calendar.start()
 
-        // Screenshots reach the shelf through here whether they were taken on
-        // this Mac or on a phone: a copy made on the phone arrives in the same
-        // pasteboard, carried over by Continuity.
-        //
-        // The switch is asked by the store before it touches image data, not
-        // here after the fact: turned off, a copied picture used to be encoded
-        // to PNG in full just to be dropped on this doorstep — pure heat on
-        // exactly the machines whose owners turned the feature off.
-        clipboard.wantsImages = { Self.saveClipboardImagesEnabled }
-        clipboard.onImage = { [weak self] png in
-            guard let self, let url = ScreenshotVault.save(png) else { return }
-            self.shelf.add([url])
-            self.tab = .shelf
-        }
-        clipboard.start()
     }
 
     func stop() {
         media.stop()
-        clipboard.stop()
         calendar.stop()
         // Whatever was typed makes it to disk even when quitting mid-thought.
         notes.flush()
     }
 
     func accept(urls: [URL]) -> Bool {
-        shelf.add(urls)
-        tab = .shelf
+        buffer.add(urls)
+        tab = .buffer
         return true
     }
 }

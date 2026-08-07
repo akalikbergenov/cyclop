@@ -4,7 +4,6 @@
 
 /* Tabs */
 "Music" = "Music";
-"Shelf" = "Shelf";
 "Clipboard" = "Clipboard";
 "Snippets" = "Snippets";
 "Calendar" = "Calendar";
@@ -27,7 +26,6 @@
 "Copy" = "Copy";
 "Open" = "Open";
 "Show in Finder" = "Show in Finder";
-"Remove from Shelf" = "Remove from Shelf";
 
 /* Media */
 "Nothing is playing" = "Nothing is playing";
@@ -87,3 +85,86 @@
 "Show" = "Show";
 "Hide" = "Hide";
 "All" = "All";
+
+/* Keyboard clipboard picker: ⌘⌥V, arrows, Return. */
+"Allow Automatic Pasting…" = "Allow Automatic Pasting…";
+"Copied. Allow Accessibility to paste automatically." = "Copied. Allow Accessibility to paste automatically.";
+
+/* Footer hints, lower-case: they sit after a key cap and read as one phrase. */
+"select" = "select";
+"paste" = "paste";
+"delete" = "delete";
+"close" = "close";
+
+/* One list for copies, files and pictures — the shelf and the clipboard, merged. */
+"Buffer" = "Buffer";
+"Buffer is empty" = "Buffer is empty";
+"Copy something, or drop files here" = "Copy something, or drop files here";
+"Remove" = "Remove";
+"Open Buffer" = "Open Buffer";
+"Open Buffer (%@)" = "Open Buffer (%@)";
+
+/* Settings, as a tab in the panel. */
+"Settings" = "Settings";
+"Shortcuts" = "Shortcuts";
+"Size" = "Size";
+"General" = "General";
+"Entries kept" = "Entries kept";
+"Keep text after a restart" = "Keep text after a restart";
+"Copied text is written to disk. Files always are." = "Copied text is written to disk. Files always are.";
+"Save copied images" = "Save copied images";
+"Kept in ~/Pictures/Cyclop, otherwise they are not recorded." = "Kept in ~/Pictures/Cyclop, otherwise they are not recorded.";
+"Open the buffer" = "Open the buffer";
+"Open the panel" = "Open the panel";
+"Hold modifiers and press a key. Esc cancels, \U232B clears." = "Hold modifiers and press a key. Esc cancels, \U232B clears.";
+"Press keys\U2026" = "Press keys\U2026";
+"None" = "None";
+"Panel width" = "Panel width";
+"Panel height" = "Panel height";
+"Notch width" = "Notch width";
+"Notch width applies to Macs without a cutout." = "Notch width applies to Macs without a cutout.";
+"Covers what the panel holds, for a shared screen." = "Covers what the panel holds, for a shared screen.";
+"Automatic pasting needs Accessibility." = "Automatic pasting needs Accessibility.";
+"Allow\U2026" = "Allow\U2026";
+"Reset Size and Shortcuts" = "Reset Size and Shortcuts";
+
+/* Accessibility, when it is missing. The second line is for the ad-hoc case:
+   the box is ticked for a build that has since been replaced. */
+"Restart" = "Restart";
+"Already ticked? Remove Cyclop from the list, restart, and allow again." = "Already ticked? Remove Cyclop from the list, restart, and allow again.";
+
+/* The screenshot tool: pick a region, draw on it, read the text out of it. */
+"Take Screenshot" = "Take Screenshot";
+"Take Screenshot (%@)" = "Take Screenshot (%@)";
+"Screenshots" = "Screenshots";
+"Take a screenshot" = "Take a screenshot";
+"Recognise text in" = "Recognise text in";
+"Recognise Text" = "Recognise Text";
+"Recognised Text" = "Recognised Text";
+"No text found here." = "No text found here.";
+"Language of the text to recognise" = "Language of the text to recognise";
+"Automatic" = "Automatic";
+"Translating\U2026" = "Translating\U2026";
+"Copy Translation" = "Copy Translation";
+"Copy to the buffer and close" = "Copy to the buffer and close";
+"Screenshots need Screen Recording." = "Screenshots need Screen Recording.";
+"Press \"C\" to copy" = "Press \"C\" to copy";
+
+/* Annotation tools. */
+"Move" = "Move";
+"Rectangle" = "Rectangle";
+"Ellipse" = "Ellipse";
+"Arrow" = "Arrow";
+"Line" = "Line";
+"Pen" = "Pen";
+"Highlighter" = "Highlighter";
+"Pixelate" = "Pixelate";
+"Undo" = "Undo";
+"Save" = "Save";
+"Cancel" = "Cancel";
+"Thickness" = "Thickness";
+"Copied" = "Copied";
+"Reading\U2026" = "Reading\U2026";
+"Close" = "Close";
+"Open the panel on hover" = "Open the panel on hover";
+"Off: it opens on a click on the notch, or by its shortcut." = "Off: it opens on a click on the notch, or by its shortcut.";

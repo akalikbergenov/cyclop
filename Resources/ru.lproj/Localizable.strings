@@ -3,7 +3,6 @@
 
 /* Вкладки */
 "Music" = "Музыка";
-"Shelf" = "Полка";
 "Clipboard" = "Буфер";
 "Snippets" = "Заготовки";
 "Calendar" = "Календарь";
@@ -26,7 +25,6 @@
 "Copy" = "Копировать";
 "Open" = "Открыть";
 "Show in Finder" = "Показать в Finder";
-"Remove from Shelf" = "Убрать с полки";
 
 /* Музыка */
 "Nothing is playing" = "Ничего не играет";
@@ -86,3 +84,86 @@
 "Show" = "Показать";
 "Hide" = "Скрыть";
 "All" = "Всё";
+
+/* Выбор из буфера с клавиатуры: ⌘⌥V, стрелки, Return. */
+"Allow Automatic Pasting…" = "Разрешить автовставку…";
+"Copied. Allow Accessibility to paste automatically." = "Скопировано. Разрешите Универсальный доступ для автовставки.";
+
+/* Подписи к клавишам в подвале, со строчной: они читаются вместе с клавишей. */
+"select" = "выбор";
+"paste" = "вставить";
+"delete" = "удалить";
+"close" = "закрыть";
+
+/* Один список на копии, файлы и картинки — полка и буфер, слитые воедино. */
+"Buffer" = "Буфер";
+"Buffer is empty" = "Буфер пуст";
+"Copy something, or drop files here" = "Скопируй что-нибудь или перетащи сюда файлы";
+"Remove" = "Удалить";
+"Open Buffer" = "Открыть буфер";
+"Open Buffer (%@)" = "Открыть буфер (%@)";
+
+/* Настройки — вкладкой в панели. */
+"Settings" = "Настройки";
+"Shortcuts" = "Горячие клавиши";
+"Size" = "Размеры";
+"General" = "Общее";
+"Entries kept" = "Хранить записей";
+"Keep text after a restart" = "Хранить текст после перезапуска";
+"Copied text is written to disk. Files always are." = "Скопированный текст пишется на диск. Файлы — всегда.";
+"Save copied images" = "Сохранять скопированные картинки";
+"Kept in ~/Pictures/Cyclop, otherwise they are not recorded." = "Лежат в ~/Pictures/Cyclop, иначе не записываются вовсе.";
+"Open the buffer" = "Открыть буфер";
+"Open the panel" = "Открыть панель";
+"Hold modifiers and press a key. Esc cancels, \U232B clears." = "Зажми модификаторы и нажми клавишу. Esc — отмена, \U232B — сбросить.";
+"Press keys\U2026" = "Нажми сочетание\U2026";
+"None" = "Нет";
+"Panel width" = "Ширина панели";
+"Panel height" = "Высота панели";
+"Notch width" = "Ширина челки";
+"Notch width applies to Macs without a cutout." = "Ширина челки — для Маков без выреза.";
+"Covers what the panel holds, for a shared screen." = "Закрывает содержимое панели, если экран показывают.";
+"Automatic pasting needs Accessibility." = "Автовставке нужен Универсальный доступ.";
+"Allow\U2026" = "Разрешить\U2026";
+"Reset Size and Shortcuts" = "Сбросить размеры и клавиши";
+
+/* Универсальный доступ, когда его нет. Вторая строка — про ad-hoc случай:
+   галочка стоит для сборки, которую с тех пор заменили. */
+"Restart" = "Перезапустить";
+"Already ticked? Remove Cyclop from the list, restart, and allow again." = "Галочка уже стоит? Удали Cyclop из списка, перезапусти и разреши заново.";
+
+/* Снимок экрана: выделить область, порисовать, вытащить оттуда текст. */
+"Take Screenshot" = "Снимок экрана";
+"Take Screenshot (%@)" = "Снимок экрана (%@)";
+"Screenshots" = "Снимки экрана";
+"Take a screenshot" = "Сделать снимок экрана";
+"Recognise text in" = "Распознавать текст на";
+"Recognise Text" = "Распознать текст";
+"Recognised Text" = "Распознанный текст";
+"No text found here." = "Текста здесь не нашлось.";
+"Language of the text to recognise" = "Язык распознаваемого текста";
+"Automatic" = "Автоматически";
+"Translating\U2026" = "Перевожу\U2026";
+"Copy Translation" = "Копировать перевод";
+"Copy to the buffer and close" = "Скопировать в буфер и закрыть";
+"Screenshots need Screen Recording." = "Снимкам нужна Запись экрана.";
+"Press \"C\" to copy" = "«C» — копировать";
+
+/* Инструменты рисования. */
+"Move" = "Перемещать";
+"Rectangle" = "Прямоугольник";
+"Ellipse" = "Овал";
+"Arrow" = "Стрелка";
+"Line" = "Линия";
+"Pen" = "Карандаш";
+"Highlighter" = "Маркер";
+"Pixelate" = "Пикселизация";
+"Undo" = "Отменить";
+"Save" = "Сохранить";
+"Cancel" = "Отмена";
+"Thickness" = "Толщина";
+"Copied" = "Скопировано";
+"Reading\U2026" = "Распознаю\U2026";
+"Close" = "Закрыть";
+"Open the panel on hover" = "Раскрывать панель наведением";
+"Off: it opens on a click on the notch, or by its shortcut." = "Выключено — раскрывается кликом по челке или сочетанием клавиш.";

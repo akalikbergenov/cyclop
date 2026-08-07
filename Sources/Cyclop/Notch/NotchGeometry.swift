@@ -11,13 +11,23 @@ struct NotchGeometry {
     /// True when the display actually has a notch cut into it.
     let isPhysical: Bool
 
-    /// Size of the fully expanded panel body.
-    let expandedSize = CGSize(width: 620, height: 208)
+    /// Size of the fully expanded panel body. Read from Settings when the
+    /// geometry is measured, and frozen into this struct afterwards: every rect
+    /// below is derived from it and the window's frame is built from those, so
+    /// a size that could change underneath would describe a window that no
+    /// longer exists. Changing it rebuilds the panel instead.
+    let expandedSize: CGSize
     /// Slack around the panel so the concave shoulders and shadow are not clipped.
     let windowPadding = NSEdgeInsets(top: 0, left: 40, bottom: 44, right: 40)
 
+    /// Measured on the main actor, because the sizes now come from Settings —
+    /// which is where the user's numbers live, and those are main-actor state
+    /// like everything else the panel is built from.
+    @MainActor
     static func current() -> NotchGeometry {
         let screen = NSScreen.screens.first { $0.safeAreaInsets.top > 0 } ?? NSScreen.main ?? NSScreen.screens[0]
+        let settings = Settings.shared
+        let expanded = CGSize(width: settings.panelWidth, height: settings.panelHeight)
 
         if screen.safeAreaInsets.top > 0,
            let left = screen.auxiliaryTopLeftArea,
@@ -27,7 +37,8 @@ struct NotchGeometry {
                 screen: screen,
                 notchSize: CGSize(width: width, height: screen.safeAreaInsets.top),
                 notchCenterX: screen.frame.minX + left.width + width / 2,
-                isPhysical: true
+                isPhysical: true,
+                expandedSize: expanded
             )
         }
 
@@ -44,9 +55,16 @@ struct NotchGeometry {
         let menuBarHeight = screen.frame.maxY - screen.visibleFrame.maxY
         return NotchGeometry(
             screen: screen,
-            notchSize: CGSize(width: 180, height: max(menuBarHeight, NSStatusBar.system.thickness, 24)),
+            // The width is the user's on a Mac without a cutout: there is no
+            // physical fact to measure, only a shape the panel folds into, and
+            // how wide that should be depends on how crowded their menu bar is.
+            notchSize: CGSize(
+                width: settings.notchWidth,
+                height: max(menuBarHeight, NSStatusBar.system.thickness, 24)
+            ),
             notchCenterX: screen.frame.midX,
-            isPhysical: false
+            isPhysical: false,
+            expandedSize: expanded
         )
     }
 
@@ -59,6 +77,7 @@ struct NotchGeometry {
             && notchSize == other.notchSize
             && notchCenterX == other.notchCenterX
             && isPhysical == other.isPhysical
+            && expandedSize == other.expandedSize
     }
 
     // MARK: - Derived frames

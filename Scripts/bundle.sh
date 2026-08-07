@@ -72,7 +72,26 @@ clang -dynamiclib -fobjc-arc -O2 \
     -o "$APP/Contents/Resources/libcyclopmedia.dylib" \
     "$ROOT/Sources/CyclopMediaHelper/helper.m"
 
-echo "==> ad-hoc signing"
+# Чем подписывать. Ad-hoc — запасной вариант, а не первый выбор, и вот почему:
+# у ad-hoc подписи нет устойчивого designated requirement, поэтому TCC привязывает
+# выданные разрешения к хешу конкретного бинарника. Пересобрал — хеш другой, и
+# галочка «Универсальный доступ», которую пользователь уже поставил, относится к
+# приложению, которого больше нет. Со стороны это выглядит как «я разрешил, а оно
+# снова спрашивает».
+#
+# Порядок: явно заданная личность, затем Developer ID, затем любая самоподписанная
+# с именем Cyclop, и только потом ad-hoc.
+IDENTITY="${CODESIGN_IDENTITY:-}"
+if [ -z "$IDENTITY" ]; then
+    IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null \
+        | sed -n 's/.*"\(Developer ID Application[^"]*\)".*/\1/p' | head -1)"
+fi
+if [ -z "$IDENTITY" ]; then
+    IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null \
+        | sed -n 's/.*"\(Cyclop[^"]*\)".*/\1/p' | head -1)"
+fi
+
+echo "==> signing"
 # Расширенные атрибуты снимаются первыми. iCloud вешает на файлы
 # com.apple.FinderInfo, а codesign отказывается подписывать что-либо с ним —
 # «resource fork, Finder information, or similar detritus not allowed». Папка
@@ -85,7 +104,14 @@ xattr -cr "$APP"
 # бандл, про который codesign говорит «code object is not signed at all».
 # Заметить это можно было только по возвращающимся запросам TCC — то есть у
 # того, кто уже поставил приложение.
-codesign --force --deep --sign - "$APP" || {
+if [ -n "$IDENTITY" ]; then
+    echo "    личность: $IDENTITY"
+else
+    echo "    ad-hoc (устойчивой личности не нашлось)"
+    IDENTITY="-"
+fi
+
+codesign --force --deep --sign "$IDENTITY" "$APP" || {
     echo "!!! codesign не смог подписать бандл — см. вывод выше" >&2
     exit 1
 }
@@ -93,5 +119,25 @@ codesign --verify --strict "$APP" || {
     echo "!!! подпись не прошла проверку" >&2
     exit 1
 }
+
+if [ "$IDENTITY" = "-" ]; then
+    cat <<'NOTE'
+
+    Подписано ad-hoc. Это работает, но выданные приложению разрешения
+    (Универсальный доступ для автовставки) переживут ровно до следующей
+    пересборки: TCC привязывает их к хешу бинарника, а он меняется каждый раз.
+    Симптом — «галочка стоит, а окно с запросом всё равно вылезает».
+
+    Лечится устойчивой личностью подписи. Самоподписанной достаточно, если
+    приложение никуда не уезжает с этой машины:
+
+        Связка ключей → Ассистент сертификации → Создать сертификат…
+        имя: Cyclop, тип: Подписывание кода, самоподписанный
+
+    Скрипт подхватит её сам. Для раздачи другим людям нужен Apple Developer ID
+    и нотаризация — самоподписанная Gatekeeper не убеждает.
+
+NOTE
+fi
 
 echo "==> done: $APP"

@@ -78,10 +78,8 @@ struct NotchContentView: View {
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(Theme.tertiary)
             }
-        case .shelf:
-            counter(vm.shelf.items.count)
-        case .clipboard:
-            counter(vm.clipboard.items.count)
+        case .buffer:
+            counter(vm.buffer.items.count)
         case .snippets:
             counter(vm.snippets.items.count)
         case .calendar:
@@ -96,6 +94,8 @@ struct NotchContentView: View {
             EmptyView()
         case .notes:
             NotesCounter(notes: vm.notes)
+        case .settings:
+            HotKeyBadge(settings: vm.settings)
         }
     }
 
@@ -145,10 +145,8 @@ struct NotchContentView: View {
         switch vm.tab {
         case .media:
             MediaPane(media: vm.media)
-        case .shelf:
-            ShelfPane(shelf: vm.shelf, isTargeted: vm.isDropTargeted)
-        case .clipboard:
-            ClipboardPane(clipboard: vm.clipboard, privacy: vm.privacy)
+        case .buffer:
+            BufferPane(buffer: vm.buffer, privacy: vm.privacy, isTargeted: vm.isDropTargeted)
         case .calendar:
             CalendarPane(calendar: vm.calendar, privacy: vm.privacy)
         case .snippets:
@@ -157,6 +155,29 @@ struct NotchContentView: View {
             TranslatePane(translator: vm.translator, wantsKeyboard: $vm.wantsKeyboard)
         case .notes:
             NotesPane(notes: vm.notes, privacy: vm.privacy, wantsKeyboard: $vm.wantsKeyboard)
+        case .settings:
+            SettingsPane(
+                settings: vm.settings,
+                buffer: vm.buffer,
+                privacy: vm.privacy,
+                wantsKeyboard: $vm.wantsKeyboard
+            )
+        }
+    }
+}
+
+/// The shortcut that opens the buffer, in the strip: it is the one thing on
+/// this tab worth knowing without reading the tab. Watches Settings itself,
+/// because a shortcut recorded a second ago is exactly what this has to show,
+/// and the view model deliberately forwards only the stores that feed counters.
+private struct HotKeyBadge: View {
+    @ObservedObject var settings: Settings
+
+    var body: some View {
+        if let combo = settings.bufferHotKey {
+            Text(combo.label)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(Theme.tertiary)
         }
     }
 }

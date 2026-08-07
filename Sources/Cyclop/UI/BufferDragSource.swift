@@ -1,16 +1,16 @@
 import AppKit
 import SwiftUI
 
-/// Drag handle for shelf cards.
+/// Drag handle for the file rows of the buffer.
 ///
 /// SwiftUI's `onDrag` hands back a single `NSItemProvider`, so it can never
 /// carry more than one file. Dragging a selection needs an AppKit dragging
 /// session with one `NSDraggingItem` per URL, which is what this overlay
 /// starts. It also owns the click handling, because selection and dragging
 /// come from the same mouse-down.
-struct ShelfDragSource: NSViewRepresentable {
-    /// Files to drag: the whole selection if this card is part of it, else
-    /// just this card.
+struct BufferDragSource: NSViewRepresentable {
+    /// Files to drag: the whole selection if this row is part of it, else
+    /// just this row.
     var urls: () -> [URL]
     var onClick: (NSEvent.ModifierFlags) -> Void
     var onDoubleClick: () -> Void

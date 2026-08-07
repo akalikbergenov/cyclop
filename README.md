@@ -2,44 +2,153 @@
 
 *English · [Русский](README.ru.md)*
 
-The MacBook notch as a working tool. A native SwiftUI/AppKit app: invisible at
-rest, and on hover it unfolds downwards into a panel with a player, a shelf for
-files, clipboard history and your next meetings.
+> ### A modified version
+>
+> This is a fork of [akalikbergenov/cyclop](https://github.com/akalikbergenov/cyclop).
+> The original app is by [@akalikbergenov](https://github.com/akalikbergenov), who
+> deserves the credit for the idea, the notch panel, the player, the calendar and
+> the translator. What this fork adds is a keyboard-driven clipboard, a screenshot
+> editor with text recognition, a settings tab and a few other things —
+> [full list below](#what-this-version-adds).
+>
+> Upstream: <https://github.com/akalikbergenov/cyclop> · Same licence, MIT.
 
-[![build](https://github.com/akalikbergenov/cyclop/actions/workflows/build.yml/badge.svg)](https://github.com/akalikbergenov/cyclop/actions/workflows/build.yml)
-[![Buy Me a Coffee](https://img.shields.io/badge/buy%20me%20a%20coffee-%E2%98%95-FFDD00?style=flat-square&labelColor=000000)](https://buymeacoffee.com/akalikbergenov)
+The MacBook notch as a tool. A native SwiftUI/AppKit app: invisible at rest, it
+unfolds downwards into a panel with a player, one buffer for copies and files,
+screenshots, notes and the next meetings.
 
 ![The Cyclop panel](docs/panel.png)
 
-**[Download the latest version](https://github.com/akalikbergenov/cyclop/releases/latest)** —
-macOS 15 or newer. The first launch needs one permission granted by hand,
-[here is how](#installation).
+**To build:** `./Scripts/dmg.sh` — the image lands in `build/`.
+macOS 15 or newer, Swift 6. See [Building](#building) and [Installation](#installation).
 
 ```
-0.0 % CPU at rest  ·  ≈40 MB + 14 MB helper  ·  2.1 MB bundle  ·  one permission, and only on a button
+0.0 % CPU at rest  ·  ≈40 MB + 14 MB helper  ·  ~2 MB bundle  ·  permissions only on a button press
 ```
 
-The track in the screenshot is playing in a browser tab — Cyclop reads it from
-macOS itself, with no permissions and nothing to configure in the browser. How
-that works is below.
+## What this version adds
+
+Everything below sits on top of the original; anything not named here works as
+its author wrote it.
+
+**A keyboard-driven clipboard — ⌘⌥V.** The recent copies open as a list in the
+middle of the screen: arrows choose, Return pastes into whatever you were typing
+in. ⌘1…⌘9 jump, ⌫ drops an entry, esc closes, and pressing ⌘⌥V again steps down
+the list. The automatic paste needs Accessibility; without it the entry still
+lands on the clipboard.
+
+**The shelf and the clipboard became one list.** Copied text used to live in one
+tab and files and pictures in another. Now there is one Buffer tab holding text,
+links, files, pictures and video, with QuickLook thumbnails, drag-out and
+⌘-click for a group. Old shelf entries migrate themselves.
+
+**Screenshots with an editor — ⌘⇧A.** The screen freezes, you pick a region (or a
+window in one click, rounded corners and all; or the whole screen by clicking the
+menu bar) and draw on it: rectangle, ellipse, arrow, line, pen, highlighter,
+text, pixelation. What is drawn stays an object — movable, resizable by its
+grips, recolourable, undoable. ⌘C copies, ⌘S saves to `~/Pictures/Cyclop`.
+
+**Text recognition and translation.** A button on the shot toolbar reads the text
+out of the chosen region with Vision — on the device, nothing uploaded. The
+result opens in its own window: the crop on the left, the text on the right with
+a language menu, a copy button and a translation through the same offline
+translator the Translate tab uses.
+
+**A settings tab.** Buffer size, whether copied text survives a restart, saving
+copied images, three shortcuts recorded by pressing them, panel and notch size,
+launch at login, hide-contents, and whether the panel opens on hover or on a
+click.
+
+**Fixes in the original code.** The copy history no longer disappears when a
+monitor is plugged in — the store used to live inside the panel, and the panel is
+rebuilt on any change of screen arrangement.
+
+**Building.** `Scripts/bundle.sh` signs with a stable identity when one exists
+(`CODESIGN_IDENTITY`, a Developer ID, or a self-signed certificate named
+"Cyclop"), and spells out what ad-hoc costs: TCC keys granted permissions to the
+binary's hash, so they lapse on every rebuild.
+
+Per-version detail lives in [`docs/releases`](docs/releases).
 
 ## What it does
 
 | Tab | What it does |
 |---|---|
 | **Music** | Artwork, track, artist, a scrubber that seeks, prev / play-pause / next. The source is **anything**: a player, a browser tab, any app macOS itself can see |
-| **Shelf** | Drag files into the notch and they stay there until needed; drag a card out and the file goes wherever it is dropped. A click selects a card, ⌘-click selects several, and then the whole group is dragged. A screenshot taken to the clipboard is saved as a file and lands here too — including one taken on an iPhone, if you copy it there |
-| **Clipboard** | The last 40 copies; a click puts an entry back on the clipboard |
+| **Buffer** | Everything copied or dropped in, one list: text, links, files, pictures. A click puts an entry back on the clipboard. Files can be dragged straight out into a Finder window — ⌘-click several and the whole group goes. A picture copied to the clipboard is saved as a file and kept, including one copied on an iPhone. **⌘⌥V** opens the same list under the keyboard: arrows to choose, Return to paste it into whatever you were typing in |
 | **Snippets** | A hand-kept list of what you are tired of retyping: an address, a phone number, an email. Added with a button in the panel, removed with the cross on a card; a click puts the text on the clipboard. The same list lives in `~/Library/Application Support/Cyclop/snippets.json` and can be edited there instead |
 | **Calendar** | The next meeting a week ahead: how long until it starts and a button that joins the call — Zoom, Meet, Teams and others. The rest of the meetings as a list |
 | **Translate** | Type on the left, the translation appears on the right — by itself, offline, using macOS's own facilities. English goes to Russian, Russian to English; the direction comes from the script the text is written in. macOS does not preinstall language packs, so the first time you have to download one: System Settings → General → Language & Region → "Translation Languages…" |
 | **Notes** | Scratch, on the right rail of icons: jot something down, come back, delete it or carry it off through the clipboard. Hovering lands with the caret ready; blank notes sweep themselves out |
+| **Screenshot** | **⌘⇧A** freezes the screen, you drag out a region and draw on it — rectangles, ellipses, arrows, lines, pen, highlighter, text, pixelation — and everything drawn can be picked up and moved or resized afterwards. ⏎ copies it, and the buffer catches it like any other copied picture. The other half is reading: point it at a region and it turns the text in the picture into text you can paste, in any language Vision knows, and translates it on the spot |
+| **Settings** | How many entries the buffer keeps, whether copied text survives a restart, both shortcuts, the size of the panel and of the notch it folds into |
 
 The panel opens when the pointer reaches the notch and collapses when it leaves.
 Tabs switch on hover as well — but only if the pointer has come to rest on the
 icon: one passing through switches nothing. During a file drag the panel opens by
-itself and goes straight to the shelf. The menu bar icon toggles the panel,
+itself and goes straight to the buffer. The menu bar icon toggles the panel,
 enables launch at login, and quits.
+
+**⌘⌥V — the clipboard without the pointer.** The list appears in the middle of
+the screen with the newest copy already selected, and never takes focus away
+from the app you were typing in.
+
+| Key | |
+|---|---|
+| `↑` `↓` | move through the history; it wraps at both ends |
+| `⇥` / `⇧⇥` | the same, for the hand that is already there |
+| `⇞` `⇟` `↖` `↘` | a screenful at a time, or the top and the bottom |
+| `⌘1`…`⌘9` | straight to one of the first nine entries |
+| `⌥⌘V` again | one step down the list, the way ⌘⇥ walks the app switcher |
+| `⏎` | put it on the clipboard and paste it where the caret is — text as text, a picture as a picture, a file as a file |
+| `⌫` | drop the entry from the history and stay on the list |
+| `esc` | close, changing nothing |
+
+**⌘⇧A — the screenshot.** The screen freezes on the shortcut, so what gets
+picked is the frame you were looking at rather than whatever has moved on by
+the time you finish dragging. A loupe follows the crosshair with the size and
+the colour under it; `C` copies that colour.
+
+| Key | |
+|---|---|
+| hover a window | it is outlined in dashed blue; one click takes it whole, rounded corners and all |
+| hover the menu bar | the whole screen is offered instead |
+| drag | pick the region; the grips re-crop it, and a press anywhere outside starts a new one |
+| `⌘C` / `⏎` | copy the shot and close |
+| `⌘S` | save it to `~/Pictures/Cyclop` without touching the clipboard |
+| `⌫` | delete the selected annotation |
+| `⌘Z` / `⇧⌘Z` | undo, redo |
+| Move tool, press inside | drags the crop itself; press on something drawn and it moves instead |
+| `esc` | leave the text field being typed in; a second press closes the shot |
+| `C` | copy the colour under the crosshair, while picking |
+
+The **Move** tool is what makes the drawing worth doing: an arrow that landed
+in the wrong place is caught by its shaft and dragged, a box by its edge, and
+the grips resize whatever is selected — eight around a box, two on an arrow,
+being its tail and its head. Whatever is selected also follows the palette and
+the thickness slider, so recolouring what you just drew is not a matter of
+deleting it. The shape you have this moment finished drawing is selected and can
+be moved straight away, without switching tools. Nothing is baked in until the
+shot is copied or saved.
+
+**Reading text out of the picture** is the other half. Pick the region, press
+the text button, and what was pixels comes back as text — Vision, on the
+device, nothing uploaded. What it read opens in its own window:
+the crop on the left, the text on the right, with a language menu, a copy
+button and a translation that has its own. "Automatic" follows your own
+preferred languages and is right most of the time; naming a language is what
+rescues the case it is not — Cyrillic read as Latin comes back as confident
+nonsense rather than as an error — and changing it re-reads the same picture.
+The translation runs through the same offline translator the Translate tab
+uses.
+
+All three shortcuts are yours to change, in Settings — including a second one that
+opens the panel itself, which ships unset.
+
+Pasting for you means pressing ⌘V for you, and that is the one thing macOS will
+not let an app do unasked — see [Permissions](#permissions). Until the box is
+ticked the shortcut still does everything else: the entry lands on the
+clipboard, and the last ⌘V is yours to press.
 
 ## Requirements
 
@@ -124,15 +233,42 @@ that is the link to hand to people instead of a file.
 
 ## Permissions
 
-**None** — until you open the calendar. The app asks for no Automation, no
-Accessibility, no Screen Recording, and needs nothing configured in the browser.
-The pointer position is read through `NSEvent.mouseLocation`, the clipboard
-through the public `NSPasteboard`, Now Playing through a helper (see below).
+**None** — until you open the calendar, and none for the panel itself. The app
+asks for no Automation and no Screen Recording, and needs nothing configured in
+the browser. The pointer position is read through `NSEvent.mouseLocation`, the
+clipboard through the public `NSPasteboard`, Now Playing through a helper (see
+below). ⌘⌥V itself is registered with the window server, which tells the app
+when that one combination is pressed and nothing else about what is typed —
+so the shortcut works on a fresh install, with nothing to tick.
 
 Calendar access is the only permission Cyclop ever requests. It is needed by the
 Calendar tab alone, and the system dialog appears neither at launch nor when the
 tab is opened, but on an explicit press of a button on a screen that explains
 why. Don't use the calendar and the app stays without permissions entirely.
+
+**Screen Recording** is what the screenshot tool needs, and it needs it for the
+obvious reason: it cannot photograph the screen without being allowed to read
+the screen. Asked for the first time ⌘⇧A is pressed, never at launch. Don't
+take screenshots and the app never asks.
+
+**Accessibility** is asked for by one thing only: the automatic paste at the end
+of ⌘⌥V. Typing a ⌘V into another application is input synthesis, and macOS gates
+it. The prompt appears the first time an entry is chosen — not at launch — and
+refusing it costs exactly one key press: the entry is on the clipboard either
+way and ⌘V finishes the job. The permission is granted to the app on disk, so
+macOS needs Cyclop restarted once after the box is ticked. There is a
+"Allow Automatic Pasting…" item in the menu bar for as long as it is missing.
+
+> **Ticked the box and still asked?** That is the ad-hoc signature, not a bug in
+> the permission. An ad-hoc signed build has no stable designated requirement,
+> so macOS keys the grant to the exact code hash of the binary — and every
+> rebuild produces a different one. The row left in the list belongs to the app
+> that used to be there. Remove Cyclop from Privacy & Security → Accessibility
+> with the "−" button, restart it, and allow again. To stop it happening on
+> every rebuild, sign with a stable identity: `Scripts/bundle.sh` picks up a
+> Developer ID automatically, or any self-signed code-signing certificate named
+> "Cyclop" (Keychain Access → Certificate Assistant → Create a Certificate),
+> or whatever `CODESIGN_IDENTITY` names.
 
 Permissions would only be needed by the fallback path, if the main one ever stops
 working: Automation for Apple Music and Spotify, and Accessibility for the media
@@ -188,7 +324,7 @@ because the text view claims mouseDown before SwiftUI does.
 
 **A screenshot from the iPhone.** The Action button on the phone runs a shortcut
 of two steps: "Take Screenshot" and "Copy to Clipboard". Continuity carries the
-copy to the Mac, and the screenshot lands on the shelf. Not one tap, no cloud, no
+copy to the Mac, and the screenshot lands in the buffer. Not one tap, no cloud, no
 shared network: the link is direct, like AirDrop's, and encrypted the same way.
 
 There is no shorter path, and the others were tried. Syncing through Photos would
@@ -205,7 +341,7 @@ returned nothing, and the screenshot vanished entirely, without an error and
 without a trace. An announced but not yet delivered picture is now waited for:
 the poll repeats for up to six seconds and stops as soon as the clipboard moves
 on, because a copy made meanwhile is the newer intention, and finishing a
-superseded transfer would put the wrong thing on the shelf. If the picture never
+superseded transfer would put the wrong thing in the buffer. If the picture never
 arrives, the text that lay beside it is recorded instead — otherwise a copy that
 merely offered an image would disappear from the history altogether.
 
@@ -408,10 +544,10 @@ no leaks: `leaks` against the live process finds zero.
   is unfit for the App Store.
 - Apple has deprecated the scripting runtimes (perl among them) and will remove
   them from the system one day. The helper survives exactly until that moment.
-- The shelf references files rather than copying them: move the original and the
+- The buffer references files rather than copying them: move the original and the
   card disappears on the next launch. The exception is clipboard screenshots,
   which are saved into `~/Pictures/Cyclop` and are never deleted automatically,
-  even when the card leaves the shelf. Only the user clears that folder: the
+  even when the entry leaves the buffer. Only the user clears that folder: the
   “Clear Screenshots Folder” menu bar item sends its contents to the Trash —
   a hand too, not a schedule.
 - Entries typed `org.nspasteboard.ConcealedType` (password managers) never enter
@@ -440,14 +576,26 @@ Sources/Cyclop
 │   ├── NotchPanel.swift       the NSPanel above the menu bar
 │   ├── NotchRootView.swift    panel hit-testing + drag & drop destination
 │   ├── PointerWatcher.swift   pointer sampling: hover and click-through
-│   └── NotchController.swift  window assembly, opening and closing
-├── Model/NotchViewModel.swift
+│   ├── NotchController.swift  window assembly, opening and closing
+│   ├── BufferPickerPanel.swift       the ⌘⌥V window and its key codes
+│   └── BufferPickerController.swift  the list: hot key, keys, pasting
+├── Model/
+│   ├── NotchViewModel.swift
+│   └── ShotDocument.swift     annotations: hit-testing, moving, undo
+├── Shot/
+│   ├── ShotController.swift   shortcut, overlays, what the result becomes
+│   ├── ShotPanel.swift        the full-screen overlay and the loupe
+│   └── ShotCanvasView.swift   choosing, drawing, dragging what was drawn
 ├── Services/
 │   ├── MediaController.swift  picks the Now Playing source
 │   ├── NowPlayingFeed.swift   runs the helper in perl, parses its stdout
 │   ├── PlayerBridge.swift     fallback: AppleScript + media keys
-│   ├── ShelfStore.swift
-│   ├── ClipboardStore.swift
+│   ├── BufferStore.swift      one history: copies, files and pictures
+│   ├── ScreenCapture.swift    the frozen frame behind the shot editor
+│   ├── TextRecognizer.swift   Vision: pixels back into text
+│   ├── Settings.swift         what the user can change, and what watches it
+│   ├── HotKey.swift           system-wide shortcuts, no permission needed
+│   ├── Paster.swift           the synthesised ⌘V and the right to send it
 │   ├── ScreenshotVault.swift  clipboard screenshots onto disk
 │   ├── SnippetStore.swift     snippets: reading and writing snippets.json
 │   ├── NoteStore.swift        scratch notes: notes.json
