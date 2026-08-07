@@ -288,6 +288,14 @@ final class NotchController {
                     // clicks in other applications only sometimes, and never
                     // hears the ones the window server swallows.
                     guard !Settings.shared.opensOnHover, self.viewModel?.isOpen == true else { return }
+                    // Unless the pointer is still on the panel. The panel gives
+                    // the keyboard up by itself whenever a tab that has no
+                    // field is selected — and the rail selects tabs as the
+                    // pointer crosses it — so "lost the keyboard" and "the user
+                    // has gone elsewhere" are not the same event. Where the
+                    // pointer is settles which one this is.
+                    guard let geometry = self.viewModel?.geometry,
+                          !geometry.expandedHoverRect.contains(NSEvent.mouseLocation) else { return }
                     self.closeAfterClick()
                 }
             }

@@ -354,7 +354,7 @@ final class ShotController {
         if let png = png(from: image) {
             pasteboard.setData(png, forType: .png)
         }
-        dismiss()
+        confirmAndDismiss()
     }
 
     /// Save writes the file itself and puts it in the buffer, without going
@@ -365,7 +365,25 @@ final class ShotController {
         if let url = ScreenshotVault.save(png) {
             BufferStore.shared.add([url])
         }
-        dismiss()
+        confirmAndDismiss()
+    }
+
+    /// Says the shot was taken, then puts the editor away.
+    ///
+    /// The order matters: the blink has to be over the region while the region
+    /// is still on screen, so the editor stays up for exactly as long as it
+    /// lasts. Cancelling skips all of this — nothing happened, and nothing
+    /// should be confirmed.
+    private func confirmAndDismiss() {
+        ShotSound.play()
+        canvas?.flashSelection()
+        // The toolbar goes at once: it is not part of the picture and has no
+        // business being in the last thing the user sees of it.
+        toolbar?.removeFromSuperview()
+        toolbar = nil
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) { [weak self] in
+            self?.dismiss()
+        }
     }
 
     private func png(from image: CGImage) -> Data? {

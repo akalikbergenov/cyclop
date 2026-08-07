@@ -219,6 +219,31 @@ final class ShotCanvasView: NSView {
 
     // MARK: - Drawing
 
+    /// A white blink over the region that was just taken.
+    ///
+    /// Short, and over the crop only. A full-screen flash is what phone cameras
+    /// do and it is far too much for a desktop, where a shot is usually a
+    /// corner of one window; blinking exactly the rectangle that was taken says
+    /// *which* rectangle, which is the part worth confirming.
+    func flashSelection() {
+        guard !selection.isEmpty else { return }
+        let flash = CALayer()
+        flash.frame = selection
+        flash.backgroundColor = NSColor.white.cgColor
+        flash.cornerRadius = cornerRadius
+        flash.opacity = 0
+        // Added to the view's own layer, which puts it above both the picture
+        // and the overlay — the one place a sublayer is what is wanted here.
+        layer?.addSublayer(flash)
+
+        let animation = CABasicAnimation(keyPath: "opacity")
+        animation.fromValue = 0.6
+        animation.toValue = 0
+        animation.duration = 0.22
+        animation.timingFunction = CAMediaTimingFunction(name: .easeOut)
+        flash.add(animation, forKey: "flash")
+    }
+
     /// Repaints one region rather than the whole screen. The margin covers the
     /// grips, the border and the size badge, all of which sit outside the
     /// rectangle they belong to.

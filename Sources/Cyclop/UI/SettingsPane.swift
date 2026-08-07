@@ -187,6 +187,8 @@ struct SettingsPane: View {
                 .frame(width: 130)
             }
 
+            toggleRow(localized("Shutter sound"), note: nil, isOn: $settings.shotSound)
+
             if !canCapture {
                 HStack(spacing: 8) {
                     Image(systemName: "exclamationmark.triangle.fill")

@@ -86,6 +86,15 @@ final class Settings: ObservableObject {
         didSet { defaults.set(opensOnHover, forKey: "panel.opensOnHover") }
     }
 
+    /// Whether taking a screenshot makes the shutter sound.
+    ///
+    /// On, because the sound is the confirmation: the editor vanishes at the
+    /// same moment, and without either a noise or a flash there is nothing to
+    /// tell a shot that was taken from one that was cancelled.
+    @Published var shotSound: Bool {
+        didSet { defaults.set(shotSound, forKey: "shot.sound") }
+    }
+
     // MARK: - Size
 
     /// The expanded panel's body. Bounds are what the layout survives: the
@@ -149,6 +158,9 @@ final class Settings: ObservableObject {
         panelHotKey = Self.read("hotkey.panel")
         shotHotKey = Self.read("hotkey.shot") ?? HotKeyCombo.defaultShot
         ocrLanguage = defaults.string(forKey: "ocr.language") ?? ""
+        shotSound = defaults.object(forKey: "shot.sound") == nil
+            ? true
+            : defaults.bool(forKey: "shot.sound")
 
         // Coalesced, because the size controls are held down: a stepper repeats
         // while pressed and a rebuild per repeat would tear the panel down and
