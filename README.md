@@ -19,12 +19,39 @@ screenshots, notes and the next meetings.
 
 ![The Cyclop panel](docs/panel.png)
 
-**To build:** `./Scripts/dmg.sh` — the image lands in `build/`.
-macOS 15 or newer, Swift 6. See [Building](#building) and [Installation](#installation).
-
 ```
 0.0 % CPU at rest  ·  ≈40 MB + 14 MB helper  ·  ~2 MB bundle  ·  permissions only on a button press
 ```
+
+## Installation
+
+**[⬇ Download the latest version](https://github.com/marmeladov98/cyclop/releases/latest)** ·
+macOS 15 or newer · ~1.2 MB
+
+1. Open the downloaded `Cyclop-<version>.dmg` and drag **Cyclop** into Applications.
+2. Launch it. The first time macOS will refuse: the image is signed ad-hoc,
+   without a Developer ID. Go to **System Settings → Privacy & Security**, where
+   a line about Cyclop and an **"Open Anyway"** button are waiting at the bottom.
+   Or, in one command:
+   ```bash
+   xattr -dr com.apple.quarantine /Applications/Cyclop.app
+   ```
+3. That is all. An eye appears in the menu bar; the panel opens on hover.
+
+Two permissions are asked for by the app itself, and only when they are needed:
+**Accessibility** to paste the entry chosen with ⌘⌥V, and **Screen Recording**
+to take a screenshot with ⌘⇧A. Use neither feature and neither is ever asked
+for. After granting one, restart the app once.
+
+Updating works the same way: open the new image, replace the app. The version is
+the first line of the menu.
+
+> **No image in the releases yet?** Then build one — it is a single command:
+> ```bash
+> git clone https://github.com/marmeladov98/cyclop && cd cyclop && ./Scripts/dmg.sh
+> ```
+> Needs macOS 15 and the Command Line Tools (`xcode-select --install`). The
+> resulting `build/Cyclop-<version>.dmg` opens exactly as above.
 
 ## What this version adds
 
@@ -161,7 +188,7 @@ area at the top centre of the screen as one.
 ## Building
 
 ```bash
-git clone https://github.com/akalikbergenov/cyclop.git
+git clone https://github.com/marmeladov98/cyclop.git
 cd cyclop
 ./Scripts/bundle.sh          # swift build + assemble the .app + ad-hoc sign
 open build/Cyclop.app
@@ -172,34 +199,6 @@ The icon is generated in code, with no graphics editor involved:
 ```bash
 swift Scripts/make-icon.swift "$PWD/Resources/AppIcon.icns"
 ```
-
-## Installation
-
-Open `Cyclop-<version>.dmg` and drag the app into Applications.
-
-The first launch **will not work**: macOS will say the app cannot be verified.
-That is expected — the image is ad-hoc signed, without a Developer ID, and not
-notarised. It has to be allowed once:
-
-**System Settings → Privacy & Security**, where a line about Cyclop and an
-**"Open Anyway"** button will be waiting near the bottom.
-
-Or, if one command is easier:
-
-```bash
-xattr -dr com.apple.quarantine /Applications/Cyclop.app
-```
-
-In macOS 15 the familiar Control-click route no longer works for this case, so it
-is one of those two. The requirement itself only goes away with a paid Apple
-Developer ID and notarisation.
-
-Updating works the same way: open the new image and replace the app. Allowing it
-again is not necessary. The version is the first line of the menu bar menu.
-
-Releases come often, and a star does not announce them — it is a bookmark, not a
-subscription. To hear about updates: the **Watch** button at the top right →
-**Custom** → tick **Releases**. Only releases will arrive, no issues or pushes.
 
 ### Building the image yourself
 
@@ -228,7 +227,7 @@ into the app's `Info.plist`, into the image name and into the tag, so they canno
 drift apart. The script also refuses to run on a dirty tree, on unpushed commits,
 or when the tag already exists.
 
-Built images live on the [releases page](https://github.com/akalikbergenov/cyclop/releases) —
+Built images live on the [releases page](https://github.com/marmeladov98/cyclop/releases) —
 that is the link to hand to people instead of a file.
 
 ## Permissions
