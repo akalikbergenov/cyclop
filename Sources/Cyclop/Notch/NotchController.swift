@@ -43,6 +43,21 @@ final class NotchController {
             }
             .store(in: &lifetimeCancellables)
 
+        // The switch that chooses between hovering and clicking lives inside
+        // the panel, so it is always thrown while the panel is open — and each
+        // mode's way of closing is set up at the moment of opening. Switched
+        // mid-flight, the panel kept the machinery of the mode it was opened in
+        // and had none of the new one's: in click mode nothing was watching for
+        // the click that would close it, and in hover mode the pointer had
+        // already been written off. Either way it stood there.
+        Settings.shared.$opensOnHover
+            .dropFirst()
+            .removeDuplicates()
+            .sink { [weak self] hover in
+                MainActor.assumeIsolated { self?.modeChanged(toHover: hover) }
+            }
+            .store(in: &lifetimeCancellables)
+
         NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.activeSpaceDidChangeNotification,
             object: nil,
@@ -319,7 +334,12 @@ final class NotchController {
             setOpen(true)
             pointer.setInside(true)
         }
-        panel?.acceptsKeyboard = wants
+        // In click mode an open panel holds the keyboard whatever tab is
+        // showing. Tabs without a field give it up on their own, and giving it
+        // up there would take away both of the ways this panel closes: losing
+        // key status is the signal, and Esc needs the keys.
+        let holdsForClickMode = !Settings.shared.opensOnHover && viewModel?.isOpen == true
+        panel?.acceptsKeyboard = wants || holdsForClickMode
         // What was typed stays: clicking away to look something up should not
         // be the same as throwing the text out. Esc and the ✕ do that.
         if !wants { scheduleCollapseIfPointerAway() }
@@ -386,6 +406,30 @@ final class NotchController {
         let work = DispatchWorkItem { [weak self] in self?.applyActiveRect(open: false) }
         closeActiveRectWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.45, execute: work)
+    }
+
+    /// Re-arms an open panel for the mode it has just been switched into.
+    private func modeChanged(toHover: Bool) {
+        guard let vm = viewModel, vm.isOpen else {
+            stopWatchingForClickOutside()
+            return
+        }
+
+        if toHover {
+            // The pointer is in charge again, and it decides from where it
+            // actually is — not from where the watcher last recorded it.
+            stopWatchingForClickOutside()
+            let inside = vm.geometry.expandedHoverRect.contains(NSEvent.mouseLocation)
+            pointer.setInside(inside)
+            if !inside { setOpen(false) }
+        } else {
+            // This panel was opened by hovering, so it has none of what closes
+            // a clicked one. Give it both: the keyboard, whose loss is the
+            // signal that something else was clicked, and the monitor that
+            // catches the clicks that make no window key at all.
+            panel?.acceptsKeyboard = true
+            watchForClickOutside()
+        }
     }
 
     /// Opens the panel because the notch was clicked.
