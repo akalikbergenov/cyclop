@@ -56,13 +56,23 @@ final class NotchPanel: NSPanel {
     /// A tap gesture on the text editor never fires — the text view claims the
     /// mouse down first — so the one place a click on the field can reliably
     /// be noticed is here, where every event the window receives passes.
-    var onPress: (() -> Void)?
+    var onPress: ((NSPoint) -> Void)?
+    /// Esc, when the panel holds the keyboard. In click-to-open mode it is the
+    /// way out that needs no aim at all.
+    var onCancel: (() -> Void)?
+
+    override func cancelOperation(_ sender: Any?) {
+        onCancel?()
+    }
 
     override func sendEvent(_ event: NSEvent) {
         if event.type == .keyDown, editingAction(for: event) != nil, perform(event) { return }
         // Before `super`, so the window is already key by the time the click
         // reaches the field and places a caret.
-        if event.type == .leftMouseDown { onPress?() }
+        // Screen coordinates, because what the controller wants to know is
+        // whether the press landed on the notch — and the notch is a fact
+        // about the display, not about this window.
+        if event.type == .leftMouseDown { onPress?(NSEvent.mouseLocation) }
         super.sendEvent(event)
     }
 

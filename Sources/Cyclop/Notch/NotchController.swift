@@ -19,6 +19,7 @@ final class NotchController {
     private var lifetimeCancellables = Set<AnyCancellable>()
     /// Live only while a click-opened panel is on screen.
     private var clickOutsideMonitor: Any?
+    private var isClosingAfterClick = false
     /// Monotonic stamp for the deferred half of closing: any newer open or
     /// close outdates the one still in flight.
     private var openGeneration = 0
@@ -124,7 +125,12 @@ final class NotchController {
         guard let viewModel else { return }
         setOpen(!viewModel.isOpen)
         pointer.setInside(viewModel.isOpen)
-        if viewModel.isOpen, !Settings.shared.opensOnHover { watchForClickOutside() }
+        // The shortcut opens it the same way a click does, so it closes the
+        // same way too.
+        if viewModel.isOpen, !Settings.shared.opensOnHover {
+            viewModel.wantsKeyboard = true
+            watchForClickOutside()
+        }
     }
 
     // MARK: - Construction
@@ -199,17 +205,26 @@ final class NotchController {
         // The same press is also what opens the panel when hover-to-open is
         // switched off: collapsed, the only thing under the pointer is the
         // notch strip, and a click there is unambiguous.
-        panel.onPress = { [weak self] in
+        panel.onPress = { [weak self] location in
             guard let self, let vm = self.viewModel else { return }
             if !vm.isOpen {
                 guard !Settings.shared.opensOnHover else { return }
-                self.pointer.setInside(true)
-                self.setOpen(true)
-                self.watchForClickOutside()
+                self.openByClick()
+                return
+            }
+            // Open already, and the press landed back on the notch: that is
+            // the same switch being thrown the other way.
+            if !Settings.shared.opensOnHover, vm.geometry.hoverRect.contains(location) {
+                self.closeAfterClick()
                 return
             }
             guard vm.tab.needsKeyboard else { return }
             vm.wantsKeyboard = true
+        }
+
+        panel.onCancel = { [weak self] in
+            guard let self, Settings.shared.opensOnHover == false else { return }
+            self.closeAfterClick()
         }
 
         panel.contentView = root
@@ -263,7 +278,18 @@ final class NotchController {
         // stays as it was — only the claim on the keyboard is dropped.
         NotificationCenter.default.publisher(for: NSWindow.didResignKeyNotification, object: panel)
             .sink { [weak self] _ in
-                MainActor.assumeIsolated { self?.viewModel?.wantsKeyboard = false }
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    self.viewModel?.wantsKeyboard = false
+                    // A click-opened panel closes when the keyboard goes, and
+                    // the keyboard goes the moment anything else is clicked.
+                    // This is what a popover does, and it is the only signal
+                    // that arrives reliably: a global mouse monitor hears
+                    // clicks in other applications only sometimes, and never
+                    // hears the ones the window server swallows.
+                    guard !Settings.shared.opensOnHover, self.viewModel?.isOpen == true else { return }
+                    self.closeAfterClick()
+                }
             }
             .store(in: &cancellables)
 
@@ -354,7 +380,38 @@ final class NotchController {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.45, execute: work)
     }
 
-    /// Closes a click-opened panel when the next click lands anywhere else.
+    /// Opens the panel because the notch was clicked.
+    ///
+    /// Taking the keyboard is the point, not a side effect: it is what makes
+    /// the panel close again when anything else is clicked. Everywhere else
+    /// this app goes to great lengths *not* to take focus — but that is for a
+    /// panel one merely hovers, and this one was asked for by name.
+    private func openByClick() {
+        guard let vm = viewModel else { return }
+        pointer.setInside(true)
+        setOpen(true)
+        vm.wantsKeyboard = true
+        watchForClickOutside()
+    }
+
+    private func closeAfterClick() {
+        // Dropping the keyboard makes the panel resign key, which is the very
+        // notification that brought us here — so without a latch this closes
+        // itself in a circle.
+        guard !isClosingAfterClick else { return }
+        isClosingAfterClick = true
+        defer { isClosingAfterClick = false }
+
+        stopWatchingForClickOutside()
+        viewModel?.wantsKeyboard = false
+        panel?.acceptsKeyboard = false
+        setOpen(false)
+        pointer.setInside(false)
+    }
+
+    /// A second way home for the click-opened panel, for the case where losing
+    /// key status does not happen — a click on the desktop, say, which makes
+    /// no window key at all.
     ///
     /// A global monitor, which for *mouse* events needs no permission — only
     /// keyboard monitoring does. It is the only way to hear about a click in

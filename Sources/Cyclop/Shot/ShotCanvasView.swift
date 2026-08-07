@@ -219,6 +219,13 @@ final class ShotCanvasView: NSView {
 
     // MARK: - Drawing
 
+    /// Repaints one region rather than the whole screen. The margin covers the
+    /// grips, the border and the size badge, all of which sit outside the
+    /// rectangle they belong to.
+    private func invalidate(_ rect: CGRect) {
+        setNeedsDisplay(rect.insetBy(dx: -48, dy: -48))
+    }
+
     /// Every `needsDisplay` in this file means "repaint what is drawn over the
     /// picture", and that is the overlay's job now.
     override func setNeedsDisplay(_ invalidRect: NSRect) {
@@ -754,6 +761,7 @@ final class ShotCanvasView: NSView {
             if hypot(point.x - anchor.x, point.y - anchor.y) > 3 { didDrag = true }
             cornerRadius = 0
             snapTarget = nil
+            let previous = selection
             selection = CGRect(
                 x: min(anchor.x, point.x),
                 y: min(anchor.y, point.y),
@@ -762,11 +770,18 @@ final class ShotCanvasView: NSView {
             )
             onSelectionChanged?(selection)
             onPointerMoved?(point)
-            needsDisplay = true
+            // Only the band that changed. Everything this view paints is
+            // clipped to the invalid rectangle anyway, so narrowing it turns a
+            // full-screen repaint per mouse event into a repaint of the strip
+            // the edge swept across — which is the difference between smooth
+            // and not on a machine that is already busy sending the screen
+            // somewhere else.
+            invalidate(previous.union(selection))
             return
         }
 
         if movingSelection, let selectionAnchor, let anchor {
+            let previous = selection
             let delta = CGSize(width: point.x - anchor.x, height: point.y - anchor.y)
             var moved = selectionAnchor.offsetBy(dx: delta.width, dy: delta.height)
             // Kept on the display: a crop dragged off the edge would come back
@@ -775,7 +790,7 @@ final class ShotCanvasView: NSView {
             moved.origin.y = max(0, min(moved.origin.y, bounds.maxY - moved.height))
             selection = moved
             onSelectionChanged?(selection)
-            needsDisplay = true
+            invalidate(previous.union(selection))
             return
         }
 
