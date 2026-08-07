@@ -10,17 +10,40 @@ final class NowPlayingFeed {
         var artist = ""
         var album = ""
         var duration: TimeInterval = 0
+        /// Position **as of `stamped`**, not as of now. See `livePosition`.
         var elapsed: TimeInterval = 0
         var rate: Double = 0
-        /// When `elapsed` was read. MediaRemote reports a reading, not a
-        /// running clock — without this the reading cannot be aged.
-        var takenAt: Date?
+        /// When the player last told the system where it was. Absent only if
+        /// the record carried no timestamp, in which case `elapsed` has to be
+        /// taken at face value.
+        var stamped: Date?
+        /// When the helper read the record, so the wait in the pipe does not
+        /// get counted twice.
+        var read: Date = .init()
         /// Only present on the update where the track changed.
         var artwork: Data?
         /// Name of the app owning the session, resolved from its pid.
         var source: String?
+        /// Bundle id of that app — the transport uses it to decide whether the
+        /// owner is a player it can script.
+        var bundleID: String?
 
         var isEmpty: Bool { title.isEmpty }
+
+        /// Where the playhead stands now.
+        ///
+        /// `elapsed` is a reading taken at `stamped` and left there; the system
+        /// does not advance it, so on a track that has been playing a while it
+        /// is simply wrong — 0 while the song is three minutes in. The playhead
+        /// has moved by the time since that reading, scaled by the rate the
+        /// player reported, and that is what the bar has to be told.
+        var livePosition: TimeInterval {
+            guard let stamped else { return elapsed }
+            guard rate > 0 else { return elapsed }
+            let age = max(0, read.timeIntervalSince(stamped))
+            let value = elapsed + age * rate
+            return duration > 0 ? min(value, duration) : value
+        }
     }
 
     enum Command: Int {
@@ -116,7 +139,7 @@ final class NowPlayingFeed {
 
     func refresh() { write("get") }
     func send(_ command: Command) { write("cmd \(command.rawValue)") }
-    func seek(to seconds: TimeInterval) { write("seek \(Int(seconds))") }
+    func seek(to seconds: TimeInterval) { write(String(format: "seek %.3f", seconds)) }
 
     private func write(_ line: String) {
         guard let input, let data = (line + "\n").data(using: .utf8) else { return }
@@ -184,16 +207,23 @@ final class NowPlayingFeed {
         snapshot.duration = object["duration"] as? Double ?? 0
         snapshot.elapsed = object["elapsed"] as? Double ?? 0
         snapshot.rate = object["rate"] as? Double ?? 0
-        if let seconds = object["timestamp"] as? Double, seconds > 0 {
-            snapshot.takenAt = Date(timeIntervalSince1970: seconds)
+        if let stamp = object["timestamp"] as? Double, stamp > 0 {
+            snapshot.stamped = Date(timeIntervalSince1970: stamp)
         }
+        if let read = object["now"] as? Double, read > 0 {
+            snapshot.read = Date(timeIntervalSince1970: read)
+        }
+        // The size gate survives the merge: the helper feeds us over a pipe,
+        // and a runaway payload should be dropped, not decoded.
         if let base64 = object["artwork"] as? String,
            base64.count <= Self.maxArtworkBytes / 3 * 4 + 4,
            let artwork = Data(base64Encoded: base64), artwork.count <= Self.maxArtworkBytes {
             snapshot.artwork = artwork
         }
-        if let pid = object["pid"] as? Int, pid > 0 {
-            snapshot.source = NSRunningApplication(processIdentifier: pid_t(pid))?.localizedName
+        if let pid = object["pid"] as? Int, pid > 0,
+           let app = NSRunningApplication(processIdentifier: pid_t(pid)) {
+            snapshot.source = app.localizedName
+            snapshot.bundleID = app.bundleIdentifier
         }
         onUpdate?(snapshot)
     }

@@ -21,13 +21,14 @@ typedef void (*MRGetInfoFn)(dispatch_queue_t, void (^)(CFDictionaryRef));
 typedef void (*MRGetBoolFn)(dispatch_queue_t, void (^)(Boolean));
 typedef void (*MRRegisterFn)(dispatch_queue_t);
 typedef Boolean (*MRSendCommandFn)(int, CFDictionaryRef);
-typedef void (*MRSetElapsedFn)(double);
 typedef void (*MRGetPIDFn)(dispatch_queue_t, void (^)(int));
+
+/// kMRMediaRemoteCommandSeekToPlaybackPosition.
+static const int kSeekCommand = 45;
 
 static MRGetInfoFn sGetInfo;
 static MRGetBoolFn sGetIsPlaying;
 static MRSendCommandFn sSendCommand;
-static MRSetElapsedFn sSetElapsed;
 static MRGetPIDFn sGetPID;
 static int sOwnerPID;
 static dispatch_queue_t sQueue;
@@ -70,10 +71,17 @@ static void publish(void) {
             out[@"rate"] = info[@"kMRMediaRemoteNowPlayingInfoPlaybackRate"] ?: @0;
             out[@"pid"] = @(sOwnerPID);
 
-            id stamp = info[@"kMRMediaRemoteNowPlayingInfoTimestamp"];
-            out[@"timestamp"] = [stamp isKindOfClass:NSDate.class]
-                ? @([(NSDate *)stamp timeIntervalSince1970])
-                : @0;
+            // Elapsed time is a reading taken at Timestamp, not a live clock:
+            // the daemon stores what the player last told it and never advances
+            // it. A track can play for minutes with elapsed frozen at 0. Both
+            // halves have to travel together or the number means nothing — the
+            // reader turns them back into a position by counting forward from
+            // the stamp. `now` is sent with them so that counting starts from
+            // the moment the record was read rather than the moment the line
+            // was parsed, and so a reader can tell how stale its copy is.
+            NSDate *stamp = info[@"kMRMediaRemoteNowPlayingInfoTimestamp"];
+            if ([stamp isKindOfClass:NSDate.class]) out[@"timestamp"] = @(stamp.timeIntervalSince1970);
+            out[@"now"] = @(NSDate.date.timeIntervalSince1970);
 
             NSString *artworkID = info[@"kMRMediaRemoteNowPlayingInfoArtworkIdentifier"] ?: title;
             NSData *artwork = info[@"kMRMediaRemoteNowPlayingInfoArtworkData"];
@@ -88,15 +96,36 @@ static void publish(void) {
     });
 }
 
+/// Reads the record a moment from now. Publishing in the same breath as a
+/// command only ever reports the state the command was meant to change, since
+/// nothing downstream has acted on it yet.
+static void publishSoon(void) {
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.35 * NSEC_PER_SEC)), sQueue, ^{
+        publish();
+    });
+}
+
 static void handleCommand(NSString *line) {
     if ([line isEqualToString:@"get"]) {
         publish();
     } else if ([line hasPrefix:@"cmd "]) {
         if (sSendCommand) sSendCommand([line substringFromIndex:4].intValue, NULL);
-        publish();
+        publishSoon();
     } else if ([line hasPrefix:@"seek "]) {
-        if (sSetElapsed) sSetElapsed([line substringFromIndex:5].doubleValue);
-        publish();
+        // Deliberately not MRMediaRemoteSetElapsedTime. That call writes a
+        // position into the daemon's own record without asking the player to
+        // move; the bar jumps, the music carries on where it was, and every
+        // later reading is offset by the difference until the track changes.
+        // Measured on macOS 26.5.2: one call left the record 29.6 s adrift of
+        // Spotify for the rest of the song. The seek command at least asks the
+        // player, which is the only thing that can actually move the playhead.
+        if (sSendCommand) {
+            double position = [line substringFromIndex:5].doubleValue;
+            sSendCommand(kSeekCommand, (__bridge CFDictionaryRef)@{
+                @"kMRMediaRemoteOptionPlaybackPosition": @(position)
+            });
+        }
+        publishSoon();
     }
 }
 
@@ -112,7 +141,6 @@ static void startFeed(void) {
         sGetInfo = (MRGetInfoFn)dlsym(handle, "MRMediaRemoteGetNowPlayingInfo");
         sGetIsPlaying = (MRGetBoolFn)dlsym(handle, "MRMediaRemoteGetNowPlayingApplicationIsPlaying");
         sSendCommand = (MRSendCommandFn)dlsym(handle, "MRMediaRemoteSendCommand");
-        sSetElapsed = (MRSetElapsedFn)dlsym(handle, "MRMediaRemoteSetElapsedTime");
         sGetPID = (MRGetPIDFn)dlsym(handle, "MRMediaRemoteGetNowPlayingApplicationPID");
 
         MRRegisterFn registerNotifications =
@@ -124,6 +152,10 @@ static void startFeed(void) {
             @"kMRMediaRemoteNowPlayingApplicationIsPlayingDidChangeNotification",
             @"kMRMediaRemoteNowPlayingApplicationDidChangeNotification",
         ];
+        // Kept because they cost nothing and do fire on some systems — but they
+        // cannot be relied on. On macOS 26.5.2 not one of these arrived across
+        // repeated half-minute windows that contained real track changes, so
+        // `NowPlayingFeed` polls with `get` rather than waiting to be told.
         for (NSString *name in names) {
             [NSNotificationCenter.defaultCenter addObserverForName:name
                                                            object:nil
