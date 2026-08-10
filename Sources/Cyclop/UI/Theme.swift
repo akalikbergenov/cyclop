@@ -48,6 +48,31 @@ extension View {
     }
 }
 
+/// Drawn rather than `NSSwitch`-backed: the panel is a non-activating window
+/// that almost never becomes key (that is what keeps hovering it from
+/// stealing focus from whatever app was in front), and `NSSwitch` renders its
+/// on-state in gray rather than accent blue whenever its window is not key.
+/// A plain `Color` fill has no such state to lose.
+struct NotchToggleStyle: ToggleStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        Button {
+            configuration.isOn.toggle()
+        } label: {
+            Capsule()
+                .fill(configuration.isOn ? Color.accentColor : Theme.surfaceHover)
+                .frame(width: 28, height: 16)
+                .overlay(
+                    Circle()
+                        .fill(.white)
+                        .frame(width: 12, height: 12)
+                        .offset(x: configuration.isOn ? 6 : -6)
+                )
+        }
+        .buttonStyle(.plain)
+        .animation(.easeOut(duration: 0.15), value: configuration.isOn)
+    }
+}
+
 func formatTime(_ seconds: TimeInterval) -> String {
     guard seconds.isFinite, seconds >= 0 else { return "--:--" }
     let total = Int(seconds.rounded())

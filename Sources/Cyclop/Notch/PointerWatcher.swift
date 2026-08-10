@@ -28,7 +28,7 @@ final class PointerWatcher {
     /// Short enough to feel immediate, long enough that a pointer sweeping
     /// across the top of the screen does not trigger the panel.
     var openDelay: TimeInterval = 0.05
-    var closeDelay: TimeInterval = 0.32
+    var closeDelay: TimeInterval = 0.05
 
     /// Band along the top of the screen that switches sampling to full rate.
     /// The pointer has to cross it to reach the notch, so the fast rate is
