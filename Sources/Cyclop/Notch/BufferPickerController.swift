@@ -40,12 +40,15 @@ final class BufferPickerController {
     /// that is the price of a system-wide shortcut, and the reason the settings
     /// tab can move it.
     func installHotKey() {
-        applyHotKey()
+        apply(settings.bufferHotKey)
+        // The delivered value, not the property: `@Published` announces from
+        // `willSet`, so reading it back here would hand out the combination
+        // that was just replaced. See `ShotController.installHotKey`.
         settings.$bufferHotKey
             .dropFirst()
             .removeDuplicates()
-            .sink { [weak self] _ in
-                MainActor.assumeIsolated { self?.applyHotKey() }
+            .sink { [weak self] combo in
+                MainActor.assumeIsolated { self?.apply(combo) }
             }
             .store(in: &cancellables)
     }
@@ -53,10 +56,10 @@ final class BufferPickerController {
     /// The old registration goes first, always. Carbon keeps both otherwise,
     /// and the combination the user has just moved away from would go on
     /// opening the list for the rest of the session.
-    private func applyHotKey() {
+    private func apply(_ combo: HotKeyCombo?) {
         hotKey?.unregister()
         hotKey = nil
-        guard let combo = settings.bufferHotKey else { return }
+        guard let combo else { return }
         hotKey = HotKey(combo: combo) { [weak self] in
             self?.hotKeyPressed()
         }

@@ -31,6 +31,11 @@ struct BufferItem: Identifiable, Equatable {
     /// identical PNG icons is useless when what it holds is screenshots. Starts
     /// as the file-type icon.
     var icon: NSImage?
+    /// Where it came from: the application that was in front when the copy
+    /// happened. Half of what identifies an entry in a long list is where it
+    /// came from — two identical-looking snippets of code are told apart by one
+    /// being from the terminal and the other from the browser.
+    var source: BufferSource?
 
     var url: URL? {
         guard case .file(let url) = payload else { return nil }
@@ -71,6 +76,40 @@ struct BufferItem: Identifiable, Equatable {
     /// thing twice moves the one entry back to the top instead of laying a
     /// second copy on the first.
     static func == (lhs: BufferItem, rhs: BufferItem) -> Bool { lhs.payload == rhs.payload }
+}
+
+/// The application an entry came from.
+///
+/// Named and identified separately: the name is what the row shows and is
+/// stored with the entry, and the bundle identifier is what finds the icon
+/// again after a relaunch — an app's icon is far too big to keep in a list of
+/// copies, and looking it up costs a path lookup the system has cached anyway.
+struct BufferSource: Equatable, Codable {
+    var name: String
+    var bundleID: String?
+
+    /// The frontmost application right now, which at the moment a copy is
+    /// noticed is the one it came from.
+    ///
+    /// Nil for our own copies: an entry put back on the pasteboard from the
+    /// buffer, or a screenshot taken by the shot editor, did not come from
+    /// anywhere the user would call a source.
+    @MainActor
+    static func current() -> BufferSource? {
+        guard let app = NSWorkspace.shared.frontmostApplication,
+              app.bundleIdentifier != Bundle.main.bundleIdentifier,
+              let name = app.localizedName else { return nil }
+        return BufferSource(name: name, bundleID: app.bundleIdentifier)
+    }
+
+    /// The application's icon, or nil when it is not installed any more.
+    @MainActor
+    var icon: NSImage? {
+        guard let bundleID,
+              let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID)
+        else { return nil }
+        return NSWorkspace.shared.icon(forFile: url.path)
+    }
 }
 
 /// The buffer: everything copied or dropped in, newest first.
@@ -154,9 +193,10 @@ final class BufferStore: ObservableObject {
     }
 
     /// Files dropped onto the notch, or an image just written to disk.
-    func add(_ urls: [URL]) {
+    func add(_ urls: [URL], source: BufferSource? = nil) {
+        let source = source ?? BufferSource.current()
         for url in urls.reversed() {
-            record(BufferItem(payload: .file(url), date: Date()))
+            record(BufferItem(payload: .file(url), date: Date(), source: source))
         }
         persist()
     }
@@ -278,15 +318,17 @@ final class BufferStore: ObservableObject {
 
         // A copied file arrives as a URL, not as image data, so URLs win first.
         let options: [NSPasteboard.ReadingOptionKey: Any] = [.urlReadingFileURLsOnly: true]
+        let source = BufferSource.current()
+
         if let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: options) as? [URL],
            !urls.isEmpty {
-            add(urls)
+            add(urls, source: source)
             return
         }
 
         if settings.saveImages {
             if let png = pngFromPasteboard(pasteboard) {
-                saveImage(png)
+                saveImage(png, source: source)
                 return
             }
 
@@ -304,7 +346,7 @@ final class BufferStore: ObservableObject {
 
         guard let string = pasteboard.string(forType: .string),
               !string.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        record(BufferItem(payload: .text(string), date: Date()))
+        record(BufferItem(payload: .text(string), date: Date(), source: source))
         persist()
     }
 
@@ -332,7 +374,7 @@ final class BufferStore: ObservableObject {
                 let pasteboard = NSPasteboard.general
                 guard pasteboard.changeCount == changeCount else { return }
                 if let png = self.pngFromPasteboard(pasteboard) {
-                    self.saveImage(png)
+                    self.saveImage(png, source: BufferSource.current())
                     return
                 }
                 self.awaitImage(at: changeCount, attempt: attempt + 1)
@@ -348,9 +390,9 @@ final class BufferStore: ObservableObject {
         return rep.representation(using: .png, properties: [:])
     }
 
-    private func saveImage(_ png: Data) {
+    private func saveImage(_ png: Data, source: BufferSource? = nil) {
         guard let url = ScreenshotVault.save(png) else { return }
-        add([url])
+        add([url], source: source)
     }
 
     // MARK: - Insertion
@@ -402,6 +444,7 @@ final class BufferStore: ObservableObject {
         var kind: String
         var value: String
         var date: Date
+        var source: BufferSource?
     }
 
     private func persist() {
@@ -409,10 +452,10 @@ final class BufferStore: ObservableObject {
         for item in items {
             switch item.payload {
             case .file(let url):
-                stored.append(Stored(kind: "file", value: url.path, date: item.date))
+                stored.append(Stored(kind: "file", value: url.path, date: item.date, source: item.source))
             case .text(let string):
                 guard settings.keepTextBetweenLaunches else { continue }
-                stored.append(Stored(kind: "text", value: string, date: item.date))
+                stored.append(Stored(kind: "text", value: string, date: item.date, source: item.source))
             }
         }
         guard let data = try? JSONEncoder().encode(stored) else { return }
@@ -444,11 +487,12 @@ final class BufferStore: ObservableObject {
                     return BufferItem(
                         payload: .file(url),
                         date: entry.date,
-                        icon: NSWorkspace.shared.icon(forFile: url.path)
+                        icon: NSWorkspace.shared.icon(forFile: url.path),
+                        source: entry.source
                     )
                 case "text":
                     guard settings.keepTextBetweenLaunches else { return nil }
-                    return BufferItem(payload: .text(entry.value), date: entry.date)
+                    return BufferItem(payload: .text(entry.value), date: entry.date, source: entry.source)
                 default:
                     return nil
                 }

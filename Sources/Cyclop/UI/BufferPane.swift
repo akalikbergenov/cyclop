@@ -161,13 +161,16 @@ private struct BufferRow: View {
     private var isSelected: Bool { buffer.isSelected(item) }
 
     var body: some View {
-        HStack(spacing: 9) {
+        HStack(spacing: 10) {
             thumbnail
-            SpoilerText(
-                text: item.preview.replacingOccurrences(of: "\n", with: " "),
-                hidden: hidden,
-                seed: UInt64(bitPattern: Int64(item.id.uuidString.hashValue))
-            )
+            VStack(alignment: .leading, spacing: 2) {
+                SpoilerText(
+                    text: item.preview.replacingOccurrences(of: "\n", with: " "),
+                    hidden: hidden,
+                    seed: UInt64(bitPattern: Int64(item.id.uuidString.hashValue))
+                )
+                sourceLine
+            }
             Spacer(minLength: 6)
             if isHovered {
                 if privacy.covers(.clipboard) {
@@ -182,7 +185,10 @@ private struct BufferRow: View {
             }
         }
         .padding(.horizontal, 9)
-        .frame(height: 30)
+        // Tall enough for a picture worth looking at. The list used to be a
+        // column of 20-point stamps, which for a buffer full of screenshots
+        // told you only that they were screenshots.
+        .frame(height: 44)
         .background(
             RoundedRectangle(cornerRadius: 7, style: .continuous)
                 .fill(background)
@@ -193,7 +199,12 @@ private struct BufferRow: View {
                 .allowsHitTesting(false)
         )
         .contentShape(Rectangle())
-        .overlay(clickHandling)
+        // Inset on the trailing side, where the reveal eye and the ✕ live. The
+        // handler is a view laid over the whole row — for files an AppKit one,
+        // which claims every click in its frame — so without this it swallowed
+        // the presses aimed at those buttons and copied the row instead of
+        // deleting it.
+        .overlay(clickHandling.padding(.trailing, isHovered ? 46 : 0))
         .contextMenu {
             if item.isFile {
                 Button("Copy") { copy() }
@@ -207,38 +218,61 @@ private struct BufferRow: View {
         .animation(Theme.contentAnimation, value: justCopied)
     }
 
+    private static let thumbnailSize = CGSize(width: 46, height: 32)
+
     /// Files get their preview, text a glyph. The tick that says "copied"
     /// replaces either for a moment — it is the answer to the click, and it has
     /// to land where the eye already is.
     @ViewBuilder
     private var thumbnail: some View {
+        let size = Self.thumbnailSize
         if justCopied {
             Image(systemName: "checkmark")
-                .font(.system(size: 10, weight: .medium))
+                .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(Color.green)
-                .frame(width: 26, height: 20)
+                .frame(width: size.width, height: size.height)
         } else if let icon = item.icon, item.isFile {
             Image(nsImage: icon)
                 .resizable()
                 .aspectRatio(contentMode: .fit)
-                .frame(width: 26, height: 20)
-                .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+                .frame(width: size.width, height: size.height)
+                .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
                 // Covered means covered: a thumbnail is the contents of the
                 // entry as surely as its text is, and a screenshot of a bank
-                // page gives itself away at 26 points wide.
+                // page gives itself away at any size.
                 .opacity(hidden ? 0 : 1)
                 .overlay {
                     if hidden {
                         SpoilerField(seed: UInt64(bitPattern: Int64(item.id.uuidString.hashValue)))
-                            .frame(width: 26, height: 20)
-                            .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+                            .frame(width: size.width, height: size.height)
+                            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
                     }
                 }
         } else {
             Image(systemName: item.symbol)
-                .font(.system(size: 10, weight: .medium))
+                .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(Theme.tertiary)
-                .frame(width: 26, height: 20)
+                .frame(width: size.width, height: size.height)
+        }
+    }
+
+    /// Where the entry came from, in small type under it — the application's
+    /// own icon and its name. Kept quiet: it is what tells two similar entries
+    /// apart at a glance, not something to read first.
+    @ViewBuilder
+    private var sourceLine: some View {
+        if let source = item.source {
+            HStack(spacing: 4) {
+                if let icon = source.icon {
+                    Image(nsImage: icon)
+                        .resizable()
+                        .frame(width: 11, height: 11)
+                }
+                Text(source.name)
+                    .font(.system(size: 9))
+                    .foregroundStyle(Theme.tertiary)
+                    .lineLimit(1)
+            }
         }
     }
 

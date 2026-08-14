@@ -39,12 +39,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         picker.installHotKey()
         self.picker = picker
 
-        applyPanelHotKey()
+        applyPanelHotKey(Settings.shared.panelHotKey)
+        // The delivered value, not the property — see
+        // `ShotController.installHotKey` for why reading it back is wrong.
         Settings.shared.$panelHotKey
             .dropFirst()
             .removeDuplicates()
-            .sink { [weak self] _ in
-                MainActor.assumeIsolated { self?.applyPanelHotKey() }
+            .sink { [weak self] combo in
+                MainActor.assumeIsolated { self?.applyPanelHotKey(combo) }
             }
             .store(in: &cancellables)
     }
@@ -52,10 +54,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// The optional shortcut that opens the panel itself. Unset by default —
     /// hovering the notch is how the panel opens, and a combination taken from
     /// every other app on the machine should be something the user asked for.
-    private func applyPanelHotKey() {
+    private func applyPanelHotKey(_ combo: HotKeyCombo?) {
         panelHotKey?.unregister()
         panelHotKey = nil
-        guard let combo = Settings.shared.panelHotKey else { return }
+        guard let combo else { return }
         panelHotKey = HotKey(combo: combo) { [weak self] in
             self?.controller?.toggle()
         }

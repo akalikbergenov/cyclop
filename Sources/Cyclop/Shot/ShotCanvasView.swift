@@ -244,18 +244,26 @@ final class ShotCanvasView: NSView {
         flash.add(animation, forKey: "flash")
     }
 
-    /// Repaints one region rather than the whole screen. The margin covers the
-    /// grips, the border and the size badge, all of which sit outside the
-    /// rectangle they belong to.
+    /// Repaints everything drawn over the picture.
+    ///
+    /// Whole-view, deliberately, after a spell of repainting only the band the
+    /// dragged edge swept through. That was faster and wrong: what is painted
+    /// here is not independent per region — the dim, the grid and the hole in
+    /// them are one figure that changes shape as the selection moves, so a
+    /// partial repaint leaves the rest of the screen showing the figure from a
+    /// previous shape. The grid turning up as a band around the selection and
+    /// nowhere else was exactly that. The picture underneath is a layer and
+    /// costs nothing either way; this is a fill and some lines.
+    ///
+    /// `super` is deliberately not called: this view's own contents is the
+    /// frozen screenshot, set once as layer contents, and asking AppKit to
+    /// re-render a view whose `draw` is empty would wipe it.
     private func invalidate(_ rect: CGRect) {
-        setNeedsDisplay(rect.insetBy(dx: -48, dy: -48))
+        overlay?.needsDisplay = true
     }
 
-    /// Every `needsDisplay` in this file means "repaint what is drawn over the
-    /// picture", and that is the overlay's job now.
     override func setNeedsDisplay(_ invalidRect: NSRect) {
-        super.setNeedsDisplay(invalidRect)
-        overlay?.setNeedsDisplay(invalidRect)
+        overlay?.needsDisplay = true
     }
 
     func drawOverlay(_ dirtyRect: NSRect) {

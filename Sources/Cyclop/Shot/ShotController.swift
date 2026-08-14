@@ -34,12 +34,20 @@ final class ShotController {
     // MARK: - Shortcut
 
     func installHotKey() {
-        applyHotKey()
+        apply(settings.shotHotKey)
+        // The *delivered* value, not the property.
+        //
+        // `@Published` announces a change from `willSet` — before the property
+        // holds the new value — so a handler that reads the property back gets
+        // the old one and dutifully re-registers the shortcut that was just
+        // replaced. That is why a newly recorded combination only started
+        // working after a restart, or after something else happened to
+        // re-register it.
         settings.$shotHotKey
             .dropFirst()
             .removeDuplicates()
-            .sink { [weak self] _ in
-                MainActor.assumeIsolated { self?.applyHotKey() }
+            .sink { [weak self] combo in
+                MainActor.assumeIsolated { self?.apply(combo) }
             }
             .store(in: &cancellables)
     }
@@ -50,10 +58,10 @@ final class ShotController {
         dismiss()
     }
 
-    private func applyHotKey() {
+    private func apply(_ combo: HotKeyCombo?) {
         hotKey?.unregister()
         hotKey = nil
-        guard let combo = settings.shotHotKey else { return }
+        guard let combo else { return }
         hotKey = HotKey(combo: combo) { [weak self] in
             self?.begin()
         }

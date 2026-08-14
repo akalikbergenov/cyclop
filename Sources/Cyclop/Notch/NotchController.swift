@@ -53,6 +53,11 @@ final class NotchController {
         Settings.shared.$opensOnHover
             .dropFirst()
             .removeDuplicates()
+            // Delivered one pass later, so that everything this ends up
+            // calling — and much of it reads the setting again — sees the new
+            // value. `@Published` fires from `willSet`, so without the hop the
+            // panel would be re-armed for the mode it had just left.
+            .receive(on: RunLoop.main)
             .sink { [weak self] hover in
                 MainActor.assumeIsolated { self?.modeChanged(toHover: hover) }
             }

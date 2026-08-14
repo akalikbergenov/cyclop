@@ -287,14 +287,23 @@ private struct SnippetRow: View {
         )
         .contentShape(Rectangle())
         .onHover { hovering = $0 }
-        .onTapGesture {
-            snippets.copy(item)
-            justCopied = true
-            // Emptying the search lets go of the panel: nothing is being typed
-            // any more, so nothing needs to hold it open.
-            snippets.query = ""
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.1) { justCopied = false }
-        }
+        // Behind the row rather than over it. A tap gesture on the row competes
+        // with the ✕ inside it and wins, so deleting a snippet copied it
+        // instead; from behind, anything the buttons claim reaches them first
+        // and everything else — the label, the text, the empty middle — falls
+        // through to here.
+        .background(
+            Color.clear
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    snippets.copy(item)
+                    justCopied = true
+                    // Emptying the search lets go of the panel: nothing is
+                    // being typed any more, so nothing needs to hold it open.
+                    snippets.query = ""
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.1) { justCopied = false }
+                }
+        )
         .animation(Theme.contentAnimation, value: hovering)
         .animation(Theme.contentAnimation, value: justCopied)
     }

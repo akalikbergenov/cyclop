@@ -45,6 +45,33 @@ final class ShotTextWindow: NSPanel {
         close()
     }
 
+    /// ⌘C, ⌘A and friends, dispatched by hand.
+    ///
+    /// These are ordinarily key equivalents of the Edit menu, and an
+    /// `.accessory` app has no menu bar to carry them — so selecting the
+    /// recognised text and pressing ⌘C did nothing at all, and the only way
+    /// out was the button. Same fix as `NotchPanel` makes for its text fields,
+    /// and for the same reason: caught in `sendEvent`, because
+    /// `performKeyEquivalent` is only ever called for `NSApplication`'s key
+    /// window and an inactive app considers itself to have none.
+    override func sendEvent(_ event: NSEvent) {
+        if event.type == .keyDown, let action = editingAction(for: event),
+           let responder = firstResponder, responder.tryToPerform(action, with: self) {
+            return
+        }
+        super.sendEvent(event)
+    }
+
+    private func editingAction(for event: NSEvent) -> Selector? {
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        guard flags == .command else { return nil }
+        switch event.keyCode {
+        case 0: return #selector(NSText.selectAll(_:))   // A
+        case 8: return #selector(NSText.copy(_:))        // C
+        default: return nil
+        }
+    }
+
     /// Grows when a translation appears and shrinks when it goes.
     ///
     /// Sized to what is in it: plain recognition is one block of text and a
