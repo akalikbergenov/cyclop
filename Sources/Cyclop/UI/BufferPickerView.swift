@@ -205,20 +205,52 @@ struct BufferPickerView: View {
 }
 
 private struct PickerRow: View {
-    /// Pictures get a preview worth looking at, everything else a glyph — the
-    /// same bargain the panel's own list strikes, and for the same reason.
-    static func thumbnailSize(for item: BufferItem) -> CGSize {
-        item.isImage ? CGSize(width: 76, height: 44) : CGSize(width: 24, height: 20)
+    /// One column for what an entry *is*, the same width on every row.
+    ///
+    /// The width is fixed for both kinds and that is the whole point: sized to
+    /// its contents, a picture pushed its filename a good sixty points further
+    /// right than the text on the rows above and below it, and a column of
+    /// text with a ragged left edge reads as a mistake however big the
+    /// pictures are. Pictures fit inside the slot, glyphs sit in the middle of
+    /// it, and every line of text in the list starts at the same place.
+    static let slotWidth: CGFloat = 64
+
+    static func slotHeight(for item: BufferItem) -> CGFloat {
+        item.isImage ? 40 : 20
     }
 
     static func height(for item: BufferItem) -> CGFloat {
-        item.isImage ? 54 : 34
+        item.isImage ? 52 : 34
     }
 
     let item: BufferItem
     let index: Int
     let selected: Bool
     let hidden: Bool
+
+    /// A picture sits on a plate, which is what makes the slot read as a
+    /// deliberate column rather than as an image that happens to be there. A
+    /// glyph gets none: a symbol on a plate looks like a button.
+    @ViewBuilder
+    private var slot: some View {
+        if let icon = item.icon, item.isFile, !hidden {
+            Image(nsImage: icon)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(2)
+                .background(
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .fill(Color.white.opacity(selected ? 0.18 : 0.08))
+                )
+                .frame(width: PickerRow.slotWidth, height: PickerRow.slotHeight(for: item))
+        } else {
+            Image(systemName: item.symbol)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(selected ? .white : Theme.secondary)
+                .frame(width: PickerRow.slotWidth, height: PickerRow.slotHeight(for: item))
+        }
+    }
 
     var body: some View {
         HStack(spacing: 9) {
@@ -242,20 +274,7 @@ private struct PickerRow: View {
             // called "Screenshot 2026-08-06 at 21.03.11" and differ in the
             // seconds. The glyph stays for text and for files QuickLook has no
             // preview of.
-            Group {
-                if let icon = item.icon, item.isFile, !hidden {
-                    Image(nsImage: icon)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
-                } else {
-                    Image(systemName: item.symbol)
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(selected ? .white : Theme.secondary)
-                }
-            }
-            .frame(width: PickerRow.thumbnailSize(for: item).width,
-                   height: PickerRow.thumbnailSize(for: item).height)
+            slot
 
             VStack(alignment: .leading, spacing: 2) {
                 SpoilerText(

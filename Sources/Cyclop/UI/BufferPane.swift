@@ -215,33 +215,40 @@ private struct BufferRow: View {
         .animation(Theme.contentAnimation, value: justCopied)
     }
 
-    /// Pictures get a preview one can actually judge; everything else gets a
-    /// glyph and a compact row. One height for both would either waste half the
-    /// list on text or keep pictures too small to recognise — which is what a
-    /// column of stamps was doing.
-    private var thumbnailSize: CGSize {
-        item.isImage ? CGSize(width: 92, height: 52) : CGSize(width: 26, height: 22)
-    }
+    /// One column for what an entry *is*, the same width on every row — see
+    /// `PickerRow.slotWidth` for why the width is fixed rather than fitted.
+    /// Only the height varies: a picture is worth looking at and a glyph is
+    /// not, so the picture gets the room and text keeps a compact row.
+    private static let slotWidth: CGFloat = 76
 
-    private var rowHeight: CGFloat { item.isImage ? 62 : 38 }
+    private var slotHeight: CGFloat { item.isImage ? 48 : 22 }
+    private var rowHeight: CGFloat { item.isImage ? 60 : 38 }
 
     /// Files get their preview, text a glyph. The tick that says "copied"
     /// replaces either for a moment — it is the answer to the click, and it has
     /// to land where the eye already is.
     @ViewBuilder
     private var thumbnail: some View {
-        let size = thumbnailSize
+        content
+            .frame(width: Self.slotWidth, height: slotHeight)
+    }
+
+    @ViewBuilder
+    private var content: some View {
         if justCopied {
             Image(systemName: "checkmark")
-                .font(.system(size: 12, weight: .medium))
+                .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(Color.green)
-                .frame(width: size.width, height: size.height)
         } else if let icon = item.icon, item.isFile {
             Image(nsImage: icon)
                 .resizable()
                 .aspectRatio(contentMode: .fit)
-                .frame(width: size.width, height: size.height)
-                .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(2)
+                .background(
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .fill(Color.white.opacity(0.08))
+                )
                 // Covered means covered: a thumbnail is the contents of the
                 // entry as surely as its text is, and a screenshot of a bank
                 // page gives itself away at any size.
@@ -249,15 +256,13 @@ private struct BufferRow: View {
                 .overlay {
                     if hidden {
                         SpoilerField(seed: UInt64(bitPattern: Int64(item.id.uuidString.hashValue)))
-                            .frame(width: size.width, height: size.height)
-                            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                            .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
                     }
                 }
         } else {
             Image(systemName: item.symbol)
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(Theme.tertiary)
-                .frame(width: size.width, height: size.height)
         }
     }
 
