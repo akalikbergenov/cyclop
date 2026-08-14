@@ -185,10 +185,7 @@ private struct BufferRow: View {
             }
         }
         .padding(.horizontal, 9)
-        // Tall enough for a picture worth looking at. The list used to be a
-        // column of 20-point stamps, which for a buffer full of screenshots
-        // told you only that they were screenshots.
-        .frame(height: 44)
+        .frame(height: rowHeight)
         .background(
             RoundedRectangle(cornerRadius: 7, style: .continuous)
                 .fill(background)
@@ -218,14 +215,22 @@ private struct BufferRow: View {
         .animation(Theme.contentAnimation, value: justCopied)
     }
 
-    private static let thumbnailSize = CGSize(width: 46, height: 32)
+    /// Pictures get a preview one can actually judge; everything else gets a
+    /// glyph and a compact row. One height for both would either waste half the
+    /// list on text or keep pictures too small to recognise — which is what a
+    /// column of stamps was doing.
+    private var thumbnailSize: CGSize {
+        item.isImage ? CGSize(width: 92, height: 52) : CGSize(width: 26, height: 22)
+    }
+
+    private var rowHeight: CGFloat { item.isImage ? 62 : 38 }
 
     /// Files get their preview, text a glyph. The tick that says "copied"
     /// replaces either for a moment — it is the answer to the click, and it has
     /// to land where the eye already is.
     @ViewBuilder
     private var thumbnail: some View {
-        let size = Self.thumbnailSize
+        let size = thumbnailSize
         if justCopied {
             Image(systemName: "checkmark")
                 .font(.system(size: 12, weight: .medium))

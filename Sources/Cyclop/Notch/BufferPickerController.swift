@@ -161,8 +161,7 @@ final class BufferPickerController {
     /// either — the notch is at the top of the screen and the caret usually is
     /// not, and a list one has to look up at is a list one loses their place in.
     private func frame(for count: Int) -> NSRect {
-        let rows = min(max(count, 1), BufferPickerModel.visibleRows)
-        let body = count == 0 ? 96 : CGFloat(rows) * 34 + 10
+        let body = count == 0 ? 96 : BufferPickerView.bodyHeight(for: model.items)
         let size = CGSize(width: Self.width, height: body + Self.chromeHeight)
 
         let screen = NSScreen.screens.first { $0.frame.contains(NSEvent.mouseLocation) }

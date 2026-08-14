@@ -152,9 +152,16 @@ struct BufferPickerView: View {
     /// Sized to whole rows, so a short history gets a short panel and a long
     /// one always cuts off mid-list rather than at a row's waist — the cut is
     /// the only thing telling the user there is more below.
-    private var rowsHeight: CGFloat {
-        let rows = min(model.items.count, BufferPickerModel.visibleRows)
-        return CGFloat(rows) * 34 + 10
+    /// Summed rather than multiplied: rows are no longer all one height, and
+    /// a list sized by an average cuts the last row in half at one end or
+    /// leaves a gap at the other.
+    private var rowsHeight: CGFloat { Self.bodyHeight(for: model.items) }
+
+    /// Shared with the window, which has to be exactly this tall around it.
+    static func bodyHeight(for items: [BufferItem]) -> CGFloat {
+        items.prefix(BufferPickerModel.visibleRows).reduce(10) {
+            $0 + PickerRow.height(for: $1) + 2
+        }
     }
 
     private var footer: some View {
@@ -198,6 +205,16 @@ struct BufferPickerView: View {
 }
 
 private struct PickerRow: View {
+    /// Pictures get a preview worth looking at, everything else a glyph — the
+    /// same bargain the panel's own list strikes, and for the same reason.
+    static func thumbnailSize(for item: BufferItem) -> CGSize {
+        item.isImage ? CGSize(width: 76, height: 44) : CGSize(width: 24, height: 20)
+    }
+
+    static func height(for item: BufferItem) -> CGFloat {
+        item.isImage ? 54 : 34
+    }
+
     let item: BufferItem
     let index: Int
     let selected: Bool
@@ -230,27 +247,46 @@ private struct PickerRow: View {
                     Image(nsImage: icon)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
-                        .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
                 } else {
                     Image(systemName: item.symbol)
                         .font(.system(size: 10, weight: .medium))
                         .foregroundStyle(selected ? .white : Theme.secondary)
                 }
             }
-            .frame(width: 24, height: 18)
+            .frame(width: PickerRow.thumbnailSize(for: item).width,
+                   height: PickerRow.thumbnailSize(for: item).height)
 
-            SpoilerText(
-                text: item.preview.replacingOccurrences(of: "\n", with: " "),
-                hidden: hidden,
-                font: .system(size: 11, weight: selected ? .medium : .regular),
-                color: selected ? .white : Color.white.opacity(0.75),
-                seed: UInt64(bitPattern: Int64(item.id.uuidString.hashValue))
-            )
+            VStack(alignment: .leading, spacing: 2) {
+                SpoilerText(
+                    text: item.preview.replacingOccurrences(of: "\n", with: " "),
+                    hidden: hidden,
+                    font: .system(size: 11, weight: selected ? .medium : .regular),
+                    color: selected ? .white : Color.white.opacity(0.75),
+                    seed: UInt64(bitPattern: Int64(item.id.uuidString.hashValue))
+                )
+                // The same line the panel shows. Choosing blind from a
+                // keyboard list is exactly where knowing which application an
+                // entry came from earns its place.
+                if let source = item.source {
+                    HStack(spacing: 4) {
+                        if let icon = source.icon {
+                            Image(nsImage: icon)
+                                .resizable()
+                                .frame(width: 10, height: 10)
+                        }
+                        Text(source.name)
+                            .font(.system(size: 9))
+                            .foregroundStyle(selected ? Color.white.opacity(0.7) : Theme.tertiary)
+                            .lineLimit(1)
+                    }
+                }
+            }
 
             Spacer(minLength: 6)
         }
         .padding(.horizontal, 8)
-        .frame(height: 32)
+        .frame(height: PickerRow.height(for: item))
         .background(
             RoundedRectangle(cornerRadius: 7, style: .continuous)
                 .fill(selected ? Color.accentColor.opacity(0.55) : Color.clear)

@@ -44,6 +44,13 @@ struct BufferItem: Identifiable, Equatable {
 
     var isFile: Bool { url != nil }
 
+    /// Whether the entry is something worth *looking* at rather than reading.
+    /// Picture rows are given real room; a line of text does not need it.
+    var isImage: Bool {
+        guard let url, let type = UTType(filenameExtension: url.pathExtension) else { return false }
+        return type.conforms(to: .image)
+    }
+
     var text: String? {
         guard case .text(let string) = payload else { return nil }
         return string
