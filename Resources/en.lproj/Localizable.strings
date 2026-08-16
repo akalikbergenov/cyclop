@@ -99,3 +99,21 @@
 "Paste the script here" = "Paste the script here";
 "Ready" = "Ready";
 "Done" = "Done";
+
+/* Utilities */
+"Utilities" = "Utilities";
+"Lock Keyboard" = "Lock Keyboard";
+"Wipe the keys and the screen. Hold Esc or − for %d s to\nunlock; it also unlocks by itself after a minute" = "Wipe the keys and the screen. Hold Esc or − for %d s to\nunlock; it also unlocks by itself after a minute";
+"Allow in Settings" = "Allow in Settings";
+"Input is protected" = "Input is protected";
+"Could not take over input" = "Could not take over input";
+"Still unlocking" = "Still unlocking";
+"Lock ended early" = "Lock ended early";
+"An app turned on secure keyboard entry, so keys stopped\nreaching the lock. It ended instead of pretending" = "An app turned on secure keyboard entry, so keys stopped\nreaching the lock. It ended instead of pretending";
+"The previous lock is still being taken down.\nPress again in a moment" = "The previous lock is still being taken down.\nPress again in a moment";
+"An app is holding secure keyboard entry — a password field,\na password manager, a terminal. Close it and press again" = "An app is holding secure keyboard entry — a password field,\na password manager, a terminal. Close it and press again";
+"The system refused the event tap. Re-granting Accessibility\nusually fixes it — the permission is tied to the app's signature" = "The system refused the event tap. Re-granting Accessibility\nusually fixes it — the permission is tied to the app's signature";
+"Cyclop needs Accessibility to swallow keys and clicks.\nSystem Settings → Privacy & Security → Accessibility" = "Cyclop needs Accessibility to swallow keys and clicks.\nSystem Settings → Privacy & Security → Accessibility";
+"Keyboard and trackpad are locked" = "Keyboard and trackpad are locked";
+"Hold Esc or − for %d s" = "Hold Esc or − for %d s";
+"Unlocks by itself in %d s" = "Unlocks by itself in %d s";

@@ -4,7 +4,7 @@ import Combine
 @MainActor
 final class NotchViewModel: ObservableObject {
     enum Tab: String, CaseIterable, Identifiable {
-        case media, shelf, clipboard, snippets, calendar, translate, notes, teleprompter, settings
+        case media, shelf, clipboard, snippets, calendar, translate, notes, teleprompter, utilities, settings
         var id: String { rawValue }
 
         var symbol: String {
@@ -17,6 +17,7 @@ final class NotchViewModel: ObservableObject {
             case .translate: return "translate"
             case .notes: return "note.text"
             case .teleprompter: return "text.viewfinder"
+            case .utilities: return "wrench.and.screwdriver.fill"
             case .settings: return "gearshape.fill"
             }
         }
@@ -31,6 +32,7 @@ final class NotchViewModel: ObservableObject {
             case .translate: return localized("Translate")
             case .notes: return localized("Notes")
             case .teleprompter: return localized("Teleprompter")
+            case .utilities: return localized("Utilities")
             case .settings: return localized("Settings")
             }
         }
@@ -49,7 +51,7 @@ final class NotchViewModel: ObservableObject {
         /// past on the way to a track or a calendar, so it sits last,
         /// furthest from the tabs people actually rest on.
         static let leftRail: [Tab] = [.media, .shelf, .clipboard, .snippets, .calendar, .translate]
-        static let rightRail: [Tab] = [.notes, .teleprompter, .settings]
+        static let rightRail: [Tab] = [.notes, .teleprompter, .utilities, .settings]
     }
 
     @Published var isOpen = false
@@ -115,8 +117,17 @@ final class NotchViewModel: ObservableObject {
 
     private var cancellables = Set<AnyCancellable>()
 
-    init(geometry: NotchGeometry) {
+    /// Owned by the controller, not by this model.
+    ///
+    /// Everything else here is panel state, and the model is thrown away and
+    /// rebuilt whenever the display geometry changes — fine for a selected tab
+    /// and fatal for a lock: plugging in a monitor mid-wipe would drop the tap
+    /// and the cover while the cloth was still on the keys.
+    let keyboardLock: KeyboardLock
+
+    init(geometry: NotchGeometry, keyboardLock: KeyboardLock) {
         self.geometry = geometry
+        self.keyboardLock = keyboardLock
         self.media = MediaController()
         self.shelf = ShelfStore()
         self.clipboard = ClipboardStore()

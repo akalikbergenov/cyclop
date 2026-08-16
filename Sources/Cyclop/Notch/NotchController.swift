@@ -8,6 +8,10 @@ final class NotchController {
     private var rootView: NotchRootView?
     private var viewModel: NotchViewModel?
     private let pointer = PointerWatcher()
+    private let cleaning = CleaningOverlay()
+    /// Lives here rather than in the view model, which is rebuilt on every
+    /// change of display geometry. See `NotchViewModel.keyboardLock`.
+    private let keyboardLock = KeyboardLock()
     private var closeActiveRectWork: DispatchWorkItem?
     private var cancellables = Set<AnyCancellable>()
     /// Monotonic stamp for the deferred half of closing: any newer open or
@@ -78,6 +82,9 @@ final class NotchController {
 
     func teardown() {
         pointer.stop()
+        // Quitting mid-wipe must not leave the tap installed.
+        keyboardLock.unlock()
+        cleaning.hide()
         viewModel?.stop()
         panel?.acceptsKeyboard = false
         panel?.orderOut(nil)
@@ -109,7 +116,7 @@ final class NotchController {
 
     private func build() {
         let geometry = NotchGeometry.current()
-        let vm = NotchViewModel(geometry: geometry)
+        let vm = NotchViewModel(geometry: geometry, keyboardLock: keyboardLock)
         viewModel = vm
 
         let panel = NotchPanel(contentRect: geometry.windowFrame)
@@ -216,6 +223,27 @@ final class NotchController {
             .removeDuplicates()
             .sink { [weak self] wants in
                 MainActor.assumeIsolated { self?.setKeyboard(wants) }
+            }
+            .store(in: &cancellables)
+
+        // The lock covers every display and swallows the pointer, so the panel
+        // has no business standing open underneath it — and hover tracking has
+        // nothing to track until the pointer can move again.
+        keyboardLock.$isLocked
+            .removeDuplicates()
+            .sink { [weak self] locked in
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    if locked {
+                        self.setOpen(false)
+                        self.pointer.setInside(false)
+                        self.pointer.stop()
+                        self.cleaning.show(lock: self.keyboardLock)
+                    } else {
+                        self.cleaning.hide()
+                        self.pointer.start()
+                    }
+                }
             }
             .store(in: &cancellables)
 
