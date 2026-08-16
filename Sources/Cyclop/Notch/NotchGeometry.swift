@@ -10,6 +10,15 @@ struct NotchGeometry {
     let notchCenterX: CGFloat
     /// True when the display actually has a notch cut into it.
     let isPhysical: Bool
+    /// True when a working menu bar lies under the notch we drew.
+    ///
+    /// This, and not the absence of a real notch, is what the collapsed target
+    /// is narrowed for. A physical notch is a hole with nothing beneath it; a
+    /// display that shows no menu bar at all — a second monitor without
+    /// separate Spaces — is the same case, and there the caution costs
+    /// everything and buys nothing: the panel draws a notch 24 pt tall and
+    /// answers the pointer in the top 8 of it.
+    let guardsMenuBar: Bool
 
     /// Metrics of the tab rail that do not depend on the notch. `railIconHeight`
     /// is not among them — see below.
@@ -124,7 +133,8 @@ struct NotchGeometry {
                 screen: screen,
                 notchSize: CGSize(width: width, height: screen.safeAreaInsets.top),
                 notchCenterX: screen.frame.minX + left.width + width / 2,
-                isPhysical: true
+                isPhysical: true,
+                guardsMenuBar: false
             )
         }
 
@@ -139,11 +149,19 @@ struct NotchGeometry {
         // measured, not assumed. It collapses to zero when the bar auto-hides,
         // which is what the floor is for.
         let menuBarHeight = screen.frame.maxY - screen.visibleFrame.maxY
+        // Zero height means either of two things, and they want opposite
+        // treatment: a display that carries no menu bar at all — a second
+        // monitor without separate Spaces — or one whose bar is merely hidden
+        // and comes back the moment the pointer arrives. The display that owns
+        // the menu bar is `screens.first`, the one marked primary in
+        // Arrangement, and it carries one whether it is showing or not.
+        let ownsMenuBar = screen.displayID == NSScreen.screens.first?.displayID
         return NotchGeometry(
             screen: screen,
             notchSize: CGSize(width: 180, height: max(menuBarHeight, NSStatusBar.system.thickness, 24)),
             notchCenterX: screen.frame.midX,
-            isPhysical: false
+            isPhysical: false,
+            guardsMenuBar: menuBarHeight > 0 || ownsMenuBar
         )
     }
 
@@ -156,6 +174,7 @@ struct NotchGeometry {
             && notchSize == other.notchSize
             && notchCenterX == other.notchCenterX
             && isPhysical == other.isPhysical
+            && guardsMenuBar == other.guardsMenuBar
     }
 
     // MARK: - Derived frames
@@ -204,14 +223,18 @@ struct NotchGeometry {
     /// Depth of the collapsed target, measured down from the top edge.
     ///
     /// A real notch is a hole: the whole of it can be claimed, because there is
-    /// nothing underneath to claim it from. A synthetic one is cut out of a
-    /// working menu bar — and the middle of the bar is where status items pile
-    /// up once there are a few (measured on a 13" M1: they start at x≈757 while
-    /// the synthetic notch spans 630…810). Claiming the full bar height there
-    /// puts the panel in front of icons the user is aiming at. A strip along the
-    /// very top edge is reached by throwing the pointer up — the same gesture as
-    /// ever — while a pointer travelling to an icon stays below it.
-    var collapsedDepth: CGFloat { isPhysical ? notchSize.height : 8 }
+    /// nothing underneath to claim it from. A synthetic one cut out of a
+    /// working menu bar is the opposite — the middle of the bar is where status
+    /// items pile up once there are a few (measured on a 13" M1: they start at
+    /// x≈757 while the synthetic notch spans 630…810), and claiming the full
+    /// bar height there puts the panel in front of icons the user is aiming at.
+    /// A strip along the very top edge is reached by throwing the pointer up —
+    /// the same gesture as ever — while a pointer travelling to an icon stays
+    /// below it.
+    ///
+    /// A display with no menu bar has neither problem, so it is treated like
+    /// the hole: the notch answers everywhere it is drawn.
+    var collapsedDepth: CGFloat { guardsMenuBar ? 8 : notchSize.height }
 
     /// Size of the collapsed target: the notch itself, or the strip above.
     var collapsedSize: CGSize { CGSize(width: notchSize.width, height: collapsedDepth) }
@@ -219,11 +242,15 @@ struct NotchGeometry {
     /// Hover target while collapsed, in global screen coordinates. Slightly
     /// taller than the notch so the panel opens just before the pointer lands.
     var hoverRect: CGRect {
-        includingTopEdge(CGRect(
+        // The slack goes wherever the full depth does: it is what makes the
+        // panel open just before the pointer lands, and it is only withheld
+        // where a menu bar underneath would feel it.
+        let slack: CGFloat = guardsMenuBar ? 0 : 4
+        return includingTopEdge(CGRect(
             x: notchCenterX - notchSize.width / 2 - 6,
-            y: screen.frame.maxY - collapsedDepth - (isPhysical ? 4 : 0),
+            y: screen.frame.maxY - collapsedDepth - slack,
             width: notchSize.width + 12,
-            height: collapsedDepth + (isPhysical ? 4 : 0)
+            height: collapsedDepth + slack
         ))
     }
 
