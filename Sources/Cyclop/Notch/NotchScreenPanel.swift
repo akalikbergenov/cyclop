@@ -146,11 +146,11 @@ final class NotchScreenPanel {
         // straight into a body twice as deep as the rest.
         pointer.closeRect = geometry.hoverRect(for: state.openBodySize)
         // Nothing under the notch means opening the moment the pointer arrives
-        // costs nothing. A notch drawn over a working menu bar is the other
-        // case: a pointer crossing the middle of the bar is usually on its way
-        // somewhere else, and unfolding the panel over what it was reaching for
-        // is the whole complaint. There, staying put is what asks for the panel.
-        pointer.openDelay = geometry.guardsMenuBar ? 0.3 : 0.05
+        // costs nothing. A notch with menu bar icons under it is the other
+        // case: a pointer crossing them is usually on its way to one of them,
+        // and unfolding the panel over what it was reaching for is the whole
+        // complaint. There, staying put is what asks for the panel.
+        pointer.openDelay = geometry.guardsIcons ? 0.3 : 0.05
         pointer.isDragging = { [weak root] in root?.isReceivingDrag ?? false }
         pointer.isPanelOpen = { [weak state] in state?.isOpen ?? false }
         pointer.onChange = { [weak self] inside in

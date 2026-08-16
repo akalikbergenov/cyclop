@@ -351,6 +351,21 @@ General → Language & Region → "Translation Languages…".
 `safeAreaInsets.top`. On the MacBook Air M4 it was developed on, that is
 179 × 32 pt.
 
+**The collapsed target.** A real notch is a hole, so the panel can claim all of
+it: there is nothing underneath to take a click away from. A synthetic one is
+drawn over a working menu bar, and where the icons reach it the claim shrinks to
+a strip along the very top edge — reached by throwing the pointer up, the same
+gesture as ever, while a pointer travelling to an icon stays below it.
+
+Which of the two applies is measured per display, not assumed from the machine.
+Status items are windows at the status level, and a window's frame is public
+even though its picture is not, so the leftmost of them can simply be read: they
+begin at x≈757 on one 13-inch Mac and at x≈1158 on another, and on a 1920-point
+external display the notch sits some 550 pt clear of them. A notch the icons do
+not reach behaves like the real one — full depth, and the same 50 ms delay
+instead of 300. The measurement is retaken whenever the panel folds, because
+icons come and go with the apps that own them.
+
 **Now Playing.** In macOS 15.4 the `mediaremoted` daemon began answering only
 clients it trusts. For an ordinary app that looks like this (checked on 15.7.5
 with music playing):

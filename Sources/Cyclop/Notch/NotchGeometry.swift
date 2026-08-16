@@ -10,15 +10,16 @@ struct NotchGeometry {
     let notchCenterX: CGFloat
     /// True when the display actually has a notch cut into it.
     let isPhysical: Bool
-    /// True when a working menu bar lies under the notch we drew.
+    /// True when menu bar icons lie under the notch we drew.
     ///
     /// This, and not the absence of a real notch, is what the collapsed target
-    /// is narrowed for. A physical notch is a hole with nothing beneath it; a
-    /// display that shows no menu bar at all — a second monitor without
-    /// separate Spaces — is the same case, and there the caution costs
-    /// everything and buys nothing: the panel draws a notch 24 pt tall and
-    /// answers the pointer in the top 8 of it.
-    let guardsMenuBar: Bool
+    /// is narrowed for. A synthetic notch on a narrow display lands in the
+    /// middle of the bar where the icons pile up; on a wide one the same notch
+    /// sits hundreds of points clear of them, and the caution then costs
+    /// everything and buys nothing — a notch drawn 25 pt tall that answers the
+    /// pointer in the top 8 of it. Measured per display, because it is a fact
+    /// about that display and not about this Mac.
+    let guardsIcons: Bool
 
     /// Metrics of the tab rail that do not depend on the notch. `railIconHeight`
     /// is not among them — see below.
@@ -134,7 +135,7 @@ struct NotchGeometry {
                 notchSize: CGSize(width: width, height: screen.safeAreaInsets.top),
                 notchCenterX: screen.frame.minX + left.width + width / 2,
                 isPhysical: true,
-                guardsMenuBar: false
+                guardsIcons: false
             )
         }
 
@@ -155,14 +156,44 @@ struct NotchGeometry {
         // and comes back the moment the pointer arrives. The display that owns
         // the menu bar is `screens.first`, the one marked primary in
         // Arrangement, and it carries one whether it is showing or not.
-        let ownsMenuBar = screen.displayID == NSScreen.screens.first?.displayID
+        let hasMenuBar = menuBarHeight > 0 || screen.displayID == NSScreen.screens.first?.displayID
+        // The right edge of the collapsed target, icons permitting.
+        let reach = screen.frame.midX + 90 + 6
         return NotchGeometry(
             screen: screen,
             notchSize: CGSize(width: 180, height: max(menuBarHeight, NSStatusBar.system.thickness, 24)),
             notchCenterX: screen.frame.midX,
             isPhysical: false,
-            guardsMenuBar: menuBarHeight > 0 || ownsMenuBar
+            guardsIcons: hasMenuBar && (iconsBegin(on: screen) ?? .infinity) < reach
         )
+    }
+
+    /// Where the menu bar icons start on this display, in screen coordinates,
+    /// or nil when it carries none.
+    ///
+    /// Status items are windows at the status level, and a window's frame is
+    /// public even though its picture is not — so this is a measurement, and
+    /// it needs no permission to take. Measured rather than guessed from the
+    /// width of the display, because how far left the icons reach is a fact
+    /// about how many the person has, and that is not something to assume:
+    /// they start at x≈757 on one 13" Mac and at x≈1158 on another.
+    private static func iconsBegin(on screen: NSScreen) -> CGFloat? {
+        guard let primaryTop = NSScreen.screens.first?.frame.maxY else { return nil }
+        let level = Int(CGWindowLevelForKey(.statusWindow))
+        let windows = CGWindowListCopyWindowInfo(
+            [.optionOnScreenOnly, .excludeDesktopElements],
+            kCGNullWindowID
+        ) as? [[String: Any]] ?? []
+        return windows.compactMap { window -> CGFloat? in
+            guard window[kCGWindowLayer as String] as? Int == level,
+                  let bounds = window[kCGWindowBounds as String] as? [String: CGFloat],
+                  let x = bounds["X"], let y = bounds["Y"], let height = bounds["Height"]
+            else { return nil }
+            // Quartz counts downward from the top of the primary display,
+            // screens upward from its bottom.
+            let middle = CGPoint(x: x, y: primaryTop - y - height / 2)
+            return screen.frame.contains(middle) ? x : nil
+        }.min()
     }
 
     /// True when nothing that affects the panel has moved. Screen-parameter
@@ -174,7 +205,7 @@ struct NotchGeometry {
             && notchSize == other.notchSize
             && notchCenterX == other.notchCenterX
             && isPhysical == other.isPhysical
-            && guardsMenuBar == other.guardsMenuBar
+            && guardsIcons == other.guardsIcons
     }
 
     // MARK: - Derived frames
@@ -232,9 +263,9 @@ struct NotchGeometry {
     /// the same gesture as ever — while a pointer travelling to an icon stays
     /// below it.
     ///
-    /// A display with no menu bar has neither problem, so it is treated like
-    /// the hole: the notch answers everywhere it is drawn.
-    var collapsedDepth: CGFloat { guardsMenuBar ? 8 : notchSize.height }
+    /// A notch the icons do not reach has neither problem, so it is treated
+    /// like the hole: it answers everywhere it is drawn.
+    var collapsedDepth: CGFloat { guardsIcons ? 8 : notchSize.height }
 
     /// Size of the collapsed target: the notch itself, or the strip above.
     var collapsedSize: CGSize { CGSize(width: notchSize.width, height: collapsedDepth) }
@@ -245,7 +276,7 @@ struct NotchGeometry {
         // The slack goes wherever the full depth does: it is what makes the
         // panel open just before the pointer lands, and it is only withheld
         // where a menu bar underneath would feel it.
-        let slack: CGFloat = guardsMenuBar ? 0 : 4
+        let slack: CGFloat = guardsIcons ? 0 : 4
         return includingTopEdge(CGRect(
             x: notchCenterX - notchSize.width / 2 - 6,
             y: screen.frame.maxY - collapsedDepth - slack,
