@@ -17,6 +17,9 @@
 /* Вкладка настроек */
 "General" = "Общее";
 "Launch at Login" = "Запускать при входе";
+"Displays" = "Дисплеи";
+"Show on All Displays" = "Показывать на всех дисплеях";
+
 "Screenshots" = "Скриншоты";
 "Save Clipboard Screenshots" = "Сохранять скриншоты из буфера";
 "Show Screenshots Folder" = "Показать папку скриншотов";

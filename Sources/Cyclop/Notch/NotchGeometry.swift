@@ -72,9 +72,50 @@ struct NotchGeometry {
     /// Slack around the panel so the concave shoulders and shadow are not clipped.
     let windowPadding = NSEdgeInsets(top: 0, left: 40, bottom: 44, right: 40)
 
-    static func current() -> NotchGeometry {
-        let screen = NSScreen.screens.first { $0.safeAreaInsets.top > 0 } ?? NSScreen.main ?? NSScreen.screens[0]
+    /// Stable name for the display this geometry was cut from. AppKit hands
+    /// out a fresh `NSScreen` for the same monitor on every reconfiguration,
+    /// so this is the one thing worth keying a panel on — an index into
+    /// `NSScreen.screens` is not, because that array reorders too.
+    var displayID: CGDirectDisplayID? { screen.displayID }
 
+    /// Persisted switch for every display past the first. Defaults to on: the
+    /// panel is meant to be wherever the pointer is, so this is the way to
+    /// pull it back to one screen, not the way to ask for the rest.
+    static let allDisplaysKey = "showOnAllDisplays"
+    /// Posted when that switch changes, so the panels are rebuilt at once
+    /// rather than at the next relaunch.
+    static let allDisplaysChanged = Notification.Name("CyclopShowOnAllDisplaysChanged")
+
+    static var showsOnAllDisplays: Bool {
+        get {
+            let defaults = UserDefaults.standard
+            guard defaults.object(forKey: allDisplaysKey) != nil else { return true }
+            return defaults.bool(forKey: allDisplaysKey)
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: allDisplaysKey)
+            NotificationCenter.default.post(name: allDisplaysChanged, object: nil)
+        }
+    }
+
+    /// Every display the panel should stand on.
+    ///
+    /// Switched off, that is the screen with a physical notch if one is
+    /// attached and the main display otherwise — the rule from before there
+    /// was more than one screen to choose between.
+    static func all() -> [NotchGeometry] {
+        // A mirrored display repeats another one's picture, so a panel of its
+        // own would be a second copy of the same notch, drawn in the same
+        // place, with a second pointer timer behind it.
+        let screens = NSScreen.screens.filter { !$0.isMirroring }
+        guard showsOnAllDisplays else {
+            let primary = screens.first { $0.safeAreaInsets.top > 0 } ?? NSScreen.main ?? screens.first
+            return primary.map { [current(on: $0)] } ?? []
+        }
+        return screens.map(current(on:))
+    }
+
+    static func current(on screen: NSScreen) -> NotchGeometry {
         if screen.safeAreaInsets.top > 0,
            let left = screen.auxiliaryTopLeftArea,
            let right = screen.auxiliaryTopRightArea {
@@ -211,5 +252,19 @@ struct NotchGeometry {
             width: body.width + 24,
             height: body.height + 12
         ))
+    }
+}
+
+extension NSScreen {
+    /// The display behind this screen, named the way the window server names
+    /// it — the same number across every reconfiguration.
+    var displayID: CGDirectDisplayID? {
+        (deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value
+    }
+
+    /// True when this screen only repeats what another display already shows.
+    var isMirroring: Bool {
+        guard let displayID else { return false }
+        return CGDisplayMirrorsDisplay(displayID) != kCGNullDirectDisplay
     }
 }

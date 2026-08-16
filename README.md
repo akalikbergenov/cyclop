@@ -145,10 +145,23 @@ keys.
 
 ## How it works
 
-**The window.** A single `NSPanel` — borderless, non-activating, one level above
-the menu bar, `canJoinAllSpaces`. It is always the same size (that of the
-expanded panel) and never changes its frame: only the content animates. That is
-what makes the animation smooth without the window geometry jerking about.
+**The window.** One `NSPanel` per display — borderless, non-activating, one
+level above the menu bar, `canJoinAllSpaces`. It is always the same size (that of
+the expanded panel) and never changes its frame: only the content animates. That
+is what makes the animation smooth without the window geometry jerking about.
+
+**Displays.** Every connected display gets a notch of its own, so the panel is
+always the one at the top of the screen being looked at rather than the one on
+some other machine's idea of the main display. The split follows the pointer: it
+is on exactly one display at a time, so open, drop-targeted and holding-the-
+keyboard belong to a screen (`PanelState`) while the tab, the stores and the
+running services are shared by all of them (`NotchViewModel`) — one clipboard
+history, one Now Playing helper, one of everything that costs something.
+Displays are reconciled by `CGDirectDisplayID` rather than by position in
+`NSScreen.screens`, which hands out fresh instances and reorders them on every
+reconfiguration; a display whose notch has not moved keeps its panel untouched.
+Mirrored displays are skipped — a second panel drawn over the same picture.
+Settings → Displays folds it all back to one screen.
 
 **Click-through.** The window frame is 700 × 252 pt at the top centre of the
 screen, and most of the time almost all of it is transparent. Returning `nil`
@@ -445,7 +458,9 @@ Sources/Cyclop
 │   ├── NotchPanel.swift       the NSPanel above the menu bar
 │   ├── NotchRootView.swift    panel hit-testing + drag & drop destination
 │   ├── PointerWatcher.swift   pointer sampling: hover and click-through
-│   └── NotchController.swift  window assembly, opening and closing
+│   ├── PanelState.swift       one display's share: open, dragged onto, typing
+│   ├── NotchScreenPanel.swift the panel as it stands on one display
+│   └── NotchController.swift  one model, one panel per display
 ├── Model/NotchViewModel.swift
 ├── Services/
 │   ├── MediaController.swift  picks the Now Playing source
