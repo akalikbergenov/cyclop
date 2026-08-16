@@ -118,14 +118,17 @@ struct NotchGeometry {
         // own would be a second copy of the same notch, drawn in the same
         // place, with a second pointer timer behind it.
         let screens = NSScreen.screens.filter { !$0.isMirroring }
+        // Read once for all of them: it is one round trip to the window server,
+        // and every screen asks the same question of the same answer.
+        let icons = statusItemFrames()
         guard showsOnAllDisplays else {
             let primary = screens.first { $0.safeAreaInsets.top > 0 } ?? NSScreen.main ?? screens.first
-            return primary.map { [current(on: $0)] } ?? []
+            return primary.map { [current(on: $0, icons: icons)] } ?? []
         }
-        return screens.map(current(on:))
+        return screens.map { current(on: $0, icons: icons) }
     }
 
-    static func current(on screen: NSScreen) -> NotchGeometry {
+    static func current(on screen: NSScreen, icons: [CGRect] = statusItemFrames()) -> NotchGeometry {
         if screen.safeAreaInsets.top > 0,
            let left = screen.auxiliaryTopLeftArea,
            let right = screen.auxiliaryTopRightArea {
@@ -157,43 +160,57 @@ struct NotchGeometry {
         // the menu bar is `screens.first`, the one marked primary in
         // Arrangement, and it carries one whether it is showing or not.
         let hasMenuBar = menuBarHeight > 0 || screen.displayID == NSScreen.screens.first?.displayID
+        // Only the icons in *this* display's menu bar count. A status-level
+        // window is not necessarily one of them — anything can ask for that
+        // level, and a floating utility panel in the middle of the screen
+        // would otherwise read as an icon reaching all the way there.
+        let bar = CGRect(
+            x: screen.frame.minX,
+            y: screen.frame.maxY - max(menuBarHeight, NSStatusBar.system.thickness),
+            width: screen.frame.width,
+            height: max(menuBarHeight, NSStatusBar.system.thickness)
+        )
+        let leftmost = icons.filter(bar.intersects).map(\.minX).min()
         // The right edge of the collapsed target, icons permitting.
         let reach = screen.frame.midX + 90 + 6
+        // An empty scan is not evidence of an empty menu bar — Control Center
+        // alone puts several windows up there — so it reads as "could not
+        // measure", and the cautious strip is what that falls back to.
+        let crowded = icons.isEmpty || (leftmost ?? .infinity) < reach
         return NotchGeometry(
             screen: screen,
             notchSize: CGSize(width: 180, height: max(menuBarHeight, NSStatusBar.system.thickness, 24)),
             notchCenterX: screen.frame.midX,
             isPhysical: false,
-            guardsIcons: hasMenuBar && (iconsBegin(on: screen) ?? .infinity) < reach
+            guardsIcons: hasMenuBar && crowded
         )
     }
 
-    /// Where the menu bar icons start on this display, in screen coordinates,
-    /// or nil when it carries none.
+    /// Frames of every menu bar icon on this Mac, in screen coordinates.
     ///
     /// Status items are windows at the status level, and a window's frame is
     /// public even though its picture is not — so this is a measurement, and
     /// it needs no permission to take. Measured rather than guessed from the
     /// width of the display, because how far left the icons reach is a fact
-    /// about how many the person has, and that is not something to assume:
-    /// they start at x≈757 on one 13" Mac and at x≈1158 on another.
-    private static func iconsBegin(on screen: NSScreen) -> CGFloat? {
-        guard let primaryTop = NSScreen.screens.first?.frame.maxY else { return nil }
+    /// about how many the person has: they start at x≈757 on one 13" Mac and
+    /// at x≈1158 on another.
+    static func statusItemFrames() -> [CGRect] {
+        guard let primaryTop = NSScreen.screens.first?.frame.maxY else { return [] }
         let level = Int(CGWindowLevelForKey(.statusWindow))
         let windows = CGWindowListCopyWindowInfo(
             [.optionOnScreenOnly, .excludeDesktopElements],
             kCGNullWindowID
         ) as? [[String: Any]] ?? []
-        return windows.compactMap { window -> CGFloat? in
+        return windows.compactMap { window in
             guard window[kCGWindowLayer as String] as? Int == level,
                   let bounds = window[kCGWindowBounds as String] as? [String: CGFloat],
-                  let x = bounds["X"], let y = bounds["Y"], let height = bounds["Height"]
+                  let x = bounds["X"], let y = bounds["Y"],
+                  let width = bounds["Width"], let height = bounds["Height"]
             else { return nil }
             // Quartz counts downward from the top of the primary display,
             // screens upward from its bottom.
-            let middle = CGPoint(x: x, y: primaryTop - y - height / 2)
-            return screen.frame.contains(middle) ? x : nil
-        }.min()
+            return CGRect(x: x, y: primaryTop - y - height, width: width, height: height)
+        }
     }
 
     /// True when nothing that affects the panel has moved. Screen-parameter
