@@ -54,10 +54,20 @@ final class CurrencyStore: ObservableObject {
     /// Quiet while both ends of a swap are rewritten, so the intermediate
     /// equal-codes moment never fires a convert against the wrong rate table.
     private var suppressSideEffects = false
-    private let refreshInterval: TimeInterval = 3 * 60 * 60
+    private let refreshInterval: TimeInterval = 60 * 60
     private let defaults = UserDefaults.standard
     private let sourceKey = "currency.source"
     private let targetKey = "currency.target"
+    /// Own session rather than `URLSession.shared`: jsDelivr sends
+    /// `max-age=604800` on these files, and the shared cache would keep
+    /// serving yesterday's rates for a week no matter how often we "refresh".
+    private let session: URLSession = {
+        let config = URLSessionConfiguration.ephemeral
+        config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        config.urlCache = nil
+        config.timeoutIntervalForRequest = 20
+        return URLSession(configuration: config)
+    }()
 
     private static let primaryHost = "https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1"
     private static let fallbackHost = "https://latest.currency-api.pages.dev/v1"
@@ -86,9 +96,14 @@ final class CurrencyStore: ObservableObject {
     func start() {
         Task { await bootstrap() }
         timer?.invalidate()
-        timer = Timer.scheduledTimer(withTimeInterval: refreshInterval, repeats: true) { [weak self] _ in
+        let timer = Timer(timeInterval: refreshInterval, repeats: true) { [weak self] _ in
             Task { @MainActor in await self?.refreshRates(force: true) }
         }
+        // Common Mode, not just the default one: while a tracking loop or a
+        // scroll is running the default mode pauses, and a currency refresh
+        // queued for "in an hour" would quietly slip past.
+        RunLoop.main.add(timer, forMode: .common)
+        self.timer = timer
     }
 
     func stop() {
@@ -96,11 +111,11 @@ final class CurrencyStore: ObservableObject {
         timer = nil
     }
 
-    /// Called when the tab is shown: a stale cache from hours ago is fine for
-    /// a glance, but opening the tab is a good moment to ask again without
-    /// waiting for the timer.
+    /// Opening the tab always asks the network again. Skipping when a table is
+    /// already in memory is what made yesterday's rates look permanent: the
+    /// timer alone is not enough if the app was quit overnight.
     func refreshIfNeeded() {
-        Task { await refreshRates(force: false) }
+        Task { await refreshRates(force: true) }
     }
 
     // MARK: - Amounts
@@ -161,7 +176,7 @@ final class CurrencyStore: ObservableObject {
     }
 
     private func refreshRates(force: Bool) async {
-        if !force, rateBase == sourceCode, !rates.isEmpty { return }
+        if !force, rateBase == sourceCode, !rates.isEmpty, !isStaleDate { return }
         do {
             if currencies.isEmpty { try await loadCurrencies() }
             try await loadRates(for: sourceCode)
@@ -172,6 +187,21 @@ final class CurrencyStore: ObservableObject {
             // there is nothing to convert with.
             if rates.isEmpty { failure = error.localizedDescription }
         }
+    }
+
+    /// Upstream publishes once a day. A table whose `date` is not today is the
+    /// one case where skipping a refresh is definitely wrong.
+    private var isStaleDate: Bool {
+        guard let rateDate else { return true }
+        return rateDate != Self.todayStamp()
+    }
+
+    private static func todayStamp() -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: Date())
     }
 
     private func loadCurrencies() async throws {
@@ -223,8 +253,12 @@ final class CurrencyStore: ObservableObject {
         var lastError: Error?
         for host in [Self.primaryHost, Self.fallbackHost] {
             guard let url = URL(string: "\(host)/\(endpoint)") else { continue }
+            var request = URLRequest(url: url)
+            request.cachePolicy = .reloadIgnoringLocalCacheData
+            request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
+            request.setValue("no-cache", forHTTPHeaderField: "Pragma")
             do {
-                let (data, response) = try await URLSession.shared.data(from: url)
+                let (data, response) = try await session.data(for: request)
                 if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
                     throw URLError(.badServerResponse)
                 }
