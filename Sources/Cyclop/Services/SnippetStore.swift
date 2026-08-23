@@ -1,11 +1,38 @@
 import AppKit
 
 struct Snippet: Identifiable, Codable, Equatable {
-    var id: String { label.isEmpty ? text : label }
+    /// Name and value together, not the name alone.
+    ///
+    /// The name by itself made two snippets called the same thing one snippet:
+    /// SwiftUI lists rows by identity, so the newer silently replaced the older
+    /// — and a password and a staging password both called `nox-password` is a
+    /// perfectly reasonable pair to want.
+    ///
+    /// A separate stored id would do the same job, but this file is meant to be
+    /// opened and edited by hand — hence the pretty printing and the unescaped
+    /// slashes — and technical ids in it would be one more thing to keep
+    /// correct while doing that, plus something hand-written rows would lack.
+    /// A full duplicate, same name and same value, still collapses into one,
+    /// which is the only case where collapsing is right.
+    var id: String { isGroup ? "group\u{0}\(label)" : "\(label)\u{0}\(text)" }
     /// Optional name. Without one the row shows the value itself, which is
     /// usually enough for an address or a phone number.
     var label: String = ""
     var text: String
+
+    /// Present only on a group, and then it holds the group's rows.
+    ///
+    /// Optional rather than merely empty, because "a group with nothing in it
+    /// yet" and "not a group" are different things, and an array cannot tell
+    /// them apart. In the file the key is simply there or not, which keeps the
+    /// hand-edited format honest: a row is what it always was, a group is a row
+    /// with `items`.
+    ///
+    /// One level deep. A group inside a group would have to be drawn inside a
+    /// panel five rows tall, and what it would be for nobody could say.
+    var items: [Snippet]?
+
+    var isGroup: Bool { items != nil }
 
     /// Guessed from the value, so a row is recognisable before it is read.
     var symbol: String {
@@ -17,11 +44,18 @@ struct Snippet: Identifiable, Codable, Equatable {
         return "text.alignleft"
     }
 
-    private enum CodingKeys: String, CodingKey { case label, text }
+    private enum CodingKeys: String, CodingKey { case label, text, items }
 
     init(label: String = "", text: String) {
         self.label = label
         self.text = text
+    }
+
+    /// A group: a name and the rows under it.
+    init(group label: String, items: [Snippet]) {
+        self.label = label
+        self.text = ""
+        self.items = items
     }
 
     /// `label` may be absent from the file — the documented format allows it,
@@ -32,7 +66,14 @@ struct Snippet: Identifiable, Codable, Equatable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         label = try container.decodeIfPresent(String.self, forKey: .label) ?? ""
-        text = try container.decode(String.self, forKey: .text)
+        // A group carries no value of its own, so `text` is required only for
+        // an ordinary row — demanding it of a group would make a perfectly
+        // reasonable hand-written file unreadable.
+        let nested = try container.decodeIfPresent([Snippet].self, forKey: .items)
+        text = try container.decodeIfPresent(String.self, forKey: .text) ?? ""
+        // Flattened on the way in, so depth cannot arrive from the file even if
+        // somebody nests by hand.
+        items = nested.map { $0.map { Snippet(label: $0.label, text: $0.text) } }
     }
 
     /// An unnamed snippet is written without the key rather than with an empty
@@ -41,7 +82,11 @@ struct Snippet: Identifiable, Codable, Equatable {
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         if !label.isEmpty { try container.encode(label, forKey: .label) }
-        try container.encode(text, forKey: .text)
+        if let items {
+            try container.encode(items, forKey: .items)
+        } else {
+            try container.encode(text, forKey: .text)
+        }
     }
 }
 
@@ -67,7 +112,13 @@ final class SnippetStore: ObservableObject {
     var filtered: [Snippet] {
         let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !needle.isEmpty else { return items }
-        return items.filter { $0.label.matches(needle) || $0.text.matches(needle) }
+        // A group matches by its own name or by anything under it: looking for
+        // "пароль" should find the group that holds one, not just rows called
+        // that at the top level.
+        return items.filter { item in
+            if item.label.matches(needle) || item.text.matches(needle) { return true }
+            return item.items?.contains { $0.label.matches(needle) || $0.text.matches(needle) } ?? false
+        }
     }
 
     /// `~/Library/Application Support/Cyclop/snippets.json`. A plain array of
@@ -114,9 +165,10 @@ final class SnippetStore: ObservableObject {
             NSLog("Cyclop: refusing to write over an unreadable snippets.json")
             return
         }
-        // Identity is the name, or the value when there is no name. Two rows
-        // sharing one identity is not a duplicate to tidy up later — SwiftUI
-        // lists them by it, so the newer simply replaces the older.
+        // Only an exact duplicate — same name and same value — is dropped, and
+        // it is dropped because two identical rows are indistinguishable in the
+        // list anyway. Two snippets sharing a name but not a value are kept
+        // apart: see `Snippet.id`.
         items.removeAll { $0.id == snippet.id }
         items.insert(snippet, at: 0)
         persist()
@@ -124,6 +176,144 @@ final class SnippetStore: ObservableObject {
 
     func remove(_ snippet: Snippet) {
         items.removeAll { $0.id == snippet.id }
+        persist()
+    }
+
+    // MARK: - Groups
+    //
+    // Every one of these edits a row inside a group, so they share a shape:
+    // find the group, hand its rows to a closure, write the file. Spelled out
+    // once here rather than four times below.
+
+    /// Creates a group with its first row. A group is never made empty: an
+    /// empty one is a name with nothing under it, and the only thing to do with
+    /// it is fill it or delete it.
+    func addGroup(label: String, itemLabel: String, itemText: String) {
+        let value = itemText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let name = label.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty, !name.isEmpty else { return }
+        reload()
+        guard !fileBroken else {
+            NSLog("Cyclop: refusing to write over an unreadable snippets.json")
+            return
+        }
+        let group = Snippet(
+            group: name,
+            items: [Snippet(label: itemLabel.trimmingCharacters(in: .whitespacesAndNewlines), text: value)]
+        )
+        items.removeAll { $0.id == group.id }
+        items.insert(group, at: 0)
+        persist()
+    }
+
+    func addToGroup(_ group: Snippet, label: String, text: String) {
+        let value = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty else { return }
+        let row = Snippet(label: label.trimmingCharacters(in: .whitespacesAndNewlines), text: value)
+        editGroup(group) { rows in
+            rows.removeAll { $0.id == row.id }
+            rows.append(row)
+        }
+    }
+
+    func update(_ row: Snippet, in group: Snippet, label: String, text: String) {
+        let value = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty else { return }
+        let edited = Snippet(label: label.trimmingCharacters(in: .whitespacesAndNewlines), text: value)
+        guard edited != row else { return }
+        editGroup(group) { rows in
+            guard let index = rows.firstIndex(where: { $0.id == row.id }) else { return }
+            rows.removeAll { $0.id == edited.id && $0.id != row.id }
+            rows[min(index, rows.count - 1)] = edited
+        }
+    }
+
+    /// Removing the last row removes the group with it — see `addGroup`.
+    func remove(_ row: Snippet, from group: Snippet) {
+        editGroup(group) { rows in rows.removeAll { $0.id == row.id } }
+    }
+
+    func move(_ row: Snippet, to index: Int, in group: Snippet) {
+        editGroup(group) { rows in
+            guard let current = rows.firstIndex(where: { $0.id == row.id }) else { return }
+            let target = max(0, min(index, rows.count - 1))
+            guard target != current else { return }
+            rows.insert(rows.remove(at: current), at: target)
+        }
+    }
+
+    /// Renames a group, keeping its place and its rows.
+    func rename(_ group: Snippet, to label: String) {
+        let name = label.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty, name != group.label else { return }
+        // The namesake goes first, and only then is the place looked up: an
+        // index taken before the removal points into a list that has since
+        // shifted, and the write landed on the neighbour — renaming `target` to
+        // `prod` in [prod, target, x, y] overwrote `x` and left `target` as it
+        // was.
+        items.removeAll { $0.id == "group\u{0}\(name)" }
+        guard let index = items.firstIndex(where: { $0.id == group.id }),
+              let rows = items[index].items else { return }
+        items[index] = Snippet(group: name, items: rows)
+        persist()
+    }
+
+    private func editGroup(_ group: Snippet, _ change: (inout [Snippet]) -> Void) {
+        guard let index = items.firstIndex(where: { $0.id == group.id }),
+              var rows = items[index].items else { return }
+        change(&rows)
+        if rows.isEmpty {
+            items.remove(at: index)
+        } else {
+            items[index] = Snippet(group: items[index].label, items: rows)
+        }
+        persist()
+    }
+
+    /// Moves a snippet to another position and writes the new order.
+    ///
+    /// The order is the file's order, so dragging a row is a real edit and not
+    /// a view-only arrangement — the one people reach for is meant to end up on
+    /// top and stay there.
+    ///
+    /// Unlike `add` and `update`, this does not re-read the file first: a drag
+    /// is a continuous gesture, and re-reading mid-gesture would swap the list
+    /// out from under the row being dragged.
+    func move(_ snippet: Snippet, to index: Int) {
+        guard let current = items.firstIndex(where: { $0.id == snippet.id }) else { return }
+        let target = max(0, min(index, items.count - 1))
+        guard target != current else { return }
+        items.insert(items.remove(at: current), at: target)
+        persist()
+    }
+
+    /// Edits a snippet in place, keeping its position in the list.
+    ///
+    /// Not `remove` plus `add`: identity here is the name, so renaming makes a
+    /// different snippet as far as the list is concerned, and adding puts it on
+    /// top. A row edited in place would then jump to the front the moment its
+    /// name changed — while the person is still looking at it.
+    ///
+    /// An emptied value cancels the edit rather than deleting the row. Deleting
+    /// already has its own ✕, and losing a snippet to a stray ⌘A is a poor
+    /// trade for saving a press.
+    func update(_ snippet: Snippet, label: String, text: String) {
+        let value = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty else { return }
+        let edited = Snippet(label: label.trimmingCharacters(in: .whitespacesAndNewlines), text: value)
+        guard edited != snippet else { return }
+
+        reload()
+        // A file that could not be read must not be written over.
+        guard !fileBroken else {
+            NSLog("Cyclop: refusing to write over an unreadable snippets.json")
+            return
+        }
+        guard let index = items.firstIndex(where: { $0.id == snippet.id }) else { return }
+        // An edit that turns this row into an exact copy of another one leaves
+        // a single row, for the same reason `add` does.
+        items.removeAll { $0.id == edited.id && $0.id != snippet.id }
+        items[min(index, items.count - 1)] = edited
         persist()
     }
 
