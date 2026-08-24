@@ -54,7 +54,10 @@ jobs:
         # показывается по-английски тому, у кого выбран русский. Ловятся оба
         # пути локализации: явный localized(...) и литералы, которые SwiftUI
         # локализует сам — Text("…"), Button("…"), TextField("…") (#12).
-        # Литералы с интерполяцией — не ключи, они отбрасываются.
+        # Литералы с интерполяцией — не ключи, они отбрасываются. Как и
+        # литералы без единой буквы: "0" в пустом поле ввода и "—" в прочерке
+        # переводить нечем, а проверка требовала для них ключ и красила PR
+        # красным ни за что.
         run: |
           python3 - <<'PY'
           import re, io, pathlib, sys
@@ -63,7 +66,7 @@ jobs:
           for p in pathlib.Path("Sources").rglob("*.swift"):
               for m in pat.finditer(io.open(p, encoding="utf-8").read()):
                   key = m.group(1)
-                  if "\\(" in key:
+                  if "\\(" in key or not any(c.isalpha() for c in key):
                       continue
                   code.add(key.replace("\\n", "\n"))
           bad = False
