@@ -12,7 +12,7 @@ let package = Package(
         .executableTarget(
             name: "Cyclop",
             path: "Sources/Cyclop",
-            swiftSettings: [.swiftLanguageMode(.v5)]
+            swiftSettings: [.swiftLanguageMode(.v6)]
         )
     ]
 )

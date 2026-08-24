@@ -40,7 +40,7 @@ final class NotchController {
 
     /// Sleeping, waking and changing desktop are facts about the session, not
     /// about one display, so every screen hears them.
-    private func onWorkspace(_ name: Notification.Name, _ body: @escaping (NotchScreenPanel) -> Void) {
+    private func onWorkspace(_ name: Notification.Name, _ body: @escaping @MainActor (NotchScreenPanel) -> Void) {
         NSWorkspace.shared.notificationCenter.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.panels.values.forEach(body) }
         }
