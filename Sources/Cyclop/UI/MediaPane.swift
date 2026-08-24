@@ -52,12 +52,28 @@ struct MediaPane: View {
 
     // MARK: - Artwork
 
+    /// Covers arrive at whatever size the source publishes, so squareness is
+    /// a question about proportion, not about exact pixels: a 300x301 cover is
+    /// square to everyone looking at it.
+    private func isSquare(_ image: NSImage) -> Bool {
+        let size = image.size
+        guard size.width > 0, size.height > 0 else { return true }
+        return abs(size.width / size.height - 1) < 0.02
+    }
+
     private func artwork(for track: MediaController.Track) -> some View {
         ZStack {
             if let image = media.artwork {
+                // A square cover fills the box, as it always has. Anything of
+                // another shape is fitted into it instead: `.fill` crops by the
+                // shorter side, and a 16:9 thumbnail — what a video in a
+                // browser tab publishes — loses 44 % of its width that way,
+                // 22 % off each edge. On a video frame those edges are what
+                // says which video it is: a face, a caption, an object (#33).
+                Theme.surface
                 Image(nsImage: image)
                     .resizable()
-                    .aspectRatio(contentMode: .fill)
+                    .aspectRatio(contentMode: isSquare(image) ? .fill : .fit)
                     .transition(.opacity)
             } else {
                 SkeletonBox(cornerRadius: 14)
@@ -66,12 +82,10 @@ struct MediaPane: View {
         .frame(width: 118, height: 118)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         // The same shape again, this time for the pointer. `clipShape` hides
-        // the overflow but does not stop it being touched, and `.fill` on a
-        // cover that is not square overflows a long way: a 16:9 thumbnail —
-        // what a video in a browser tab publishes — comes out 211 pt wide in
-        // this 118 pt box, so 46 pt of invisible picture hangs over each side.
-        // The left side is the tab rail, and the four icons behind that
-        // overhang stopped answering the pointer (#22).
+        // overflow but does not stop it being touched, and that overhang once
+        // reached the tab rail on the left, where four icons stopped answering
+        // the pointer (#22). Fitting non-square covers takes the overflow away
+        // at its source; this stays as the guard it always was.
         .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
