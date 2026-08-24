@@ -131,6 +131,7 @@ struct TeleprompterPane: View {
                     wantsKeyboard = false
                 }
                 .buttonStyle(.plain)
+                .pointerStyle(.default)
                 .font(.system(size: 12, weight: .semibold, design: .rounded))
                 .foregroundStyle(prompter.script.isEmpty ? Theme.tertiary : .white)
                 .disabled(prompter.script.isEmpty)

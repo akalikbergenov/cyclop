@@ -56,6 +56,7 @@ struct SnippetsPane: View {
                         .foregroundStyle(Theme.secondary)
                 }
                 .buttonStyle(.plain)
+                .pointerStyle(.default)
             }
             Button { beginAdding() } label: {
                 Image(systemName: "plus")
@@ -63,6 +64,7 @@ struct SnippetsPane: View {
                     .foregroundStyle(Theme.secondary)
             }
             .buttonStyle(.plain)
+            .pointerStyle(.default)
             .help(localized("Add a snippet"))
         }
         .padding(.horizontal, 9)
@@ -141,6 +143,7 @@ struct SnippetsPane: View {
                     .foregroundStyle(draftText.isEmpty ? Theme.tertiary : Color.green)
             }
             .buttonStyle(.plain)
+            .pointerStyle(.default)
             .disabled(draftText.isEmpty)
 
             Button { cancelAdding() } label: {
@@ -149,6 +152,7 @@ struct SnippetsPane: View {
                     .foregroundStyle(Theme.secondary)
             }
             .buttonStyle(.plain)
+            .pointerStyle(.default)
         }
         .padding(.horizontal, 6)
         .frame(height: 28)
@@ -369,6 +373,7 @@ private struct SnippetRow: View {
                         .foregroundStyle(Theme.secondary)
                 }
                 .buttonStyle(.plain)
+                .pointerStyle(.default)
                 .help(localized("Delete"))
             }
         }

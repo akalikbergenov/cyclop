@@ -58,6 +58,7 @@ struct NotesPane: View {
                         .background(Circle().fill(Color.black.opacity(0.65)))
                 }
                 .buttonStyle(.plain)
+                .pointerStyle(.default)
                 .help(localized("Show"))
             }
         }
@@ -97,6 +98,7 @@ struct NotesPane: View {
                 .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
             }
             .buttonStyle(.plain)
+            .pointerStyle(.default)
 
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 3) {
@@ -286,6 +288,7 @@ private struct NoteRow: View {
                         .foregroundStyle(Theme.secondary)
                 }
                 .buttonStyle(.plain)
+                .pointerStyle(.default)
                 .help(localized("Delete"))
             }
         }
