@@ -23,6 +23,10 @@
 
 "Screenshots" = "Screenshots";
 "Save Clipboard Screenshots" = "Save Clipboard Screenshots";
+"Watch Screenshots Folder" = "Watch Screenshots Folder";
+"Choose Screenshots Folder" = "Choose Screenshots Folder";
+"Cyclop will watch this folder for new screenshots and add them to the shelf." = "Cyclop will watch this folder for new screenshots and add them to the shelf.";
+"Watch" = "Watch";
 "Show Screenshots Folder" = "Show Screenshots Folder";
 "Clear Screenshots Folder" = "Clear Screenshots Folder";
 "Clear Screenshots Folder (%@)" = "Clear Screenshots Folder (%@)";

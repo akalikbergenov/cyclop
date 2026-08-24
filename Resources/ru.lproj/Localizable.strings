@@ -22,6 +22,10 @@
 
 "Screenshots" = "Скриншоты";
 "Save Clipboard Screenshots" = "Сохранять скриншоты из буфера";
+"Watch Screenshots Folder" = "Отслеживать папку снимков";
+"Choose Screenshots Folder" = "Выбор папки для снимков";
+"Cyclop will watch this folder for new screenshots and add them to the shelf." = "Cyclop будет следить за этой папкой и класть новые снимки на полку.";
+"Watch" = "Следить";
 "Show Screenshots Folder" = "Показать папку скриншотов";
 "Clear Screenshots Folder" = "Очистить папку снимков";
 "Clear Screenshots Folder (%@)" = "Очистить папку снимков (%@)";
