@@ -67,7 +67,7 @@ final class Translator: ObservableObject {
         clear()
     }
 
-    func run(_ session: TranslationSession) async {
+    func run(_ session: sending TranslationSession) async {
         let text = trimmed
         guard !text.isEmpty else { clear(); return }
         guard let source = session.sourceLanguage, let target = session.targetLanguage else { return }
