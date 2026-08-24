@@ -58,6 +58,7 @@ struct SnippetsPane: View {
                 .buttonStyle(.plain)
                 .pointerStyle(.default)
             }
+            PrivacySwitch(privacy: privacy, section: .snippets)
             Button { beginAdding() } label: {
                 Image(systemName: "plus")
                     .font(.system(size: 11, weight: .semibold))
