@@ -1,7 +1,20 @@
 import AppKit
 
 struct Snippet: Identifiable, Codable, Equatable {
-    var id: String { label.isEmpty ? text : label }
+    /// Name and value together, not the name alone.
+    ///
+    /// The name by itself made two snippets called the same thing one snippet:
+    /// SwiftUI lists rows by identity, so the newer silently replaced the older
+    /// — and a password for production and one for staging, both called
+    /// `db-password`, is a perfectly reasonable pair to want.
+    ///
+    /// A stored id would do the same job, but this file is meant to be opened
+    /// and edited by hand — hence the pretty printing and the unescaped slashes
+    /// — and technical ids in it would be one more thing to keep correct while
+    /// doing that, plus something hand-written rows would lack. A full
+    /// duplicate, same name and same value, still collapses into one, which is
+    /// the only case where collapsing is right.
+    var id: String { "\(label)\u{0}\(text)" }
     /// Optional name. Without one the row shows the value itself, which is
     /// usually enough for an address or a phone number.
     var label: String = ""
@@ -114,9 +127,10 @@ final class SnippetStore: ObservableObject {
             NSLog("Cyclop: refusing to write over an unreadable snippets.json")
             return
         }
-        // Identity is the name, or the value when there is no name. Two rows
-        // sharing one identity is not a duplicate to tidy up later — SwiftUI
-        // lists them by it, so the newer simply replaces the older.
+        // Only an exact duplicate — same name and same value — is dropped, and
+        // it is dropped because two identical rows are indistinguishable in the
+        // list anyway. Snippets sharing a name but not a value are kept apart:
+        // see `Snippet.id`.
         items.removeAll { $0.id == snippet.id }
         items.insert(snippet, at: 0)
         persist()
