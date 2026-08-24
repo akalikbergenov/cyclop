@@ -1,7 +1,20 @@
 import AppKit
 
 struct Snippet: Identifiable, Codable, Equatable {
-    var id: String { label.isEmpty ? text : label }
+    /// Name and value together, not the name alone.
+    ///
+    /// The name by itself made two snippets called the same thing one snippet:
+    /// SwiftUI lists rows by identity, so the newer silently replaced the older
+    /// — and a password and a staging password both called `nox-password` is a
+    /// perfectly reasonable pair to want.
+    ///
+    /// A separate stored id would do the same job, but this file is meant to be
+    /// opened and edited by hand — hence the pretty printing and the unescaped
+    /// slashes — and technical ids in it would be one more thing to keep
+    /// correct while doing that, plus something hand-written rows would lack.
+    /// A full duplicate, same name and same value, still collapses into one,
+    /// which is the only case where collapsing is right.
+    var id: String { "\(label)\u{0}\(text)" }
     /// Optional name. Without one the row shows the value itself, which is
     /// usually enough for an address or a phone number.
     var label: String = ""
@@ -114,9 +127,10 @@ final class SnippetStore: ObservableObject {
             NSLog("Cyclop: refusing to write over an unreadable snippets.json")
             return
         }
-        // Identity is the name, or the value when there is no name. Two rows
-        // sharing one identity is not a duplicate to tidy up later — SwiftUI
-        // lists them by it, so the newer simply replaces the older.
+        // Only an exact duplicate — same name and same value — is dropped, and
+        // it is dropped because two identical rows are indistinguishable in the
+        // list anyway. Two snippets sharing a name but not a value are kept
+        // apart: see `Snippet.id`.
         items.removeAll { $0.id == snippet.id }
         items.insert(snippet, at: 0)
         persist()
@@ -124,6 +138,53 @@ final class SnippetStore: ObservableObject {
 
     func remove(_ snippet: Snippet) {
         items.removeAll { $0.id == snippet.id }
+        persist()
+    }
+
+    /// Moves a snippet to another position and writes the new order.
+    ///
+    /// The order is the file's order, so dragging a row is a real edit and not
+    /// a view-only arrangement — the one people reach for is meant to end up on
+    /// top and stay there.
+    ///
+    /// Unlike `add` and `update`, this does not re-read the file first: a drag
+    /// is a continuous gesture, and re-reading mid-gesture would swap the list
+    /// out from under the row being dragged.
+    func move(_ snippet: Snippet, to index: Int) {
+        guard let current = items.firstIndex(where: { $0.id == snippet.id }) else { return }
+        let target = max(0, min(index, items.count - 1))
+        guard target != current else { return }
+        items.insert(items.remove(at: current), at: target)
+        persist()
+    }
+
+    /// Edits a snippet in place, keeping its position in the list.
+    ///
+    /// Not `remove` plus `add`: identity here is the name, so renaming makes a
+    /// different snippet as far as the list is concerned, and adding puts it on
+    /// top. A row edited in place would then jump to the front the moment its
+    /// name changed — while the person is still looking at it.
+    ///
+    /// An emptied value cancels the edit rather than deleting the row. Deleting
+    /// already has its own ✕, and losing a snippet to a stray ⌘A is a poor
+    /// trade for saving a press.
+    func update(_ snippet: Snippet, label: String, text: String) {
+        let value = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty else { return }
+        let edited = Snippet(label: label.trimmingCharacters(in: .whitespacesAndNewlines), text: value)
+        guard edited != snippet else { return }
+
+        reload()
+        // A file that could not be read must not be written over.
+        guard !fileBroken else {
+            NSLog("Cyclop: refusing to write over an unreadable snippets.json")
+            return
+        }
+        guard let index = items.firstIndex(where: { $0.id == snippet.id }) else { return }
+        // An edit that turns this row into an exact copy of another one leaves
+        // a single row, for the same reason `add` does.
+        items.removeAll { $0.id == edited.id && $0.id != snippet.id }
+        items[min(index, items.count - 1)] = edited
         persist()
     }
 

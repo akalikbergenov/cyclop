@@ -233,7 +233,15 @@ final class NotchScreenPanel {
         panel?.acceptsKeyboard = wants
         // What was typed stays: clicking away to look something up should not
         // be the same as throwing the text out. Esc and the ✕ do that.
-        if !wants { scheduleCollapseIfPointerAway() }
+        if !wants {
+            // An open panel hands the keyboard back in `collapse`, a pass after
+            // the fold has started — see `NotchPanel.releaseKey`. Closed, there
+            // is no animation to protect, so it goes at once (#44).
+            if !state.isOpen {
+                DispatchQueue.main.async { [weak self] in self?.panel?.releaseKey() }
+            }
+            scheduleCollapseIfPointerAway()
+        }
     }
 
     /// The pointer decides, almost always. A field with something in it does
@@ -287,6 +295,24 @@ final class NotchScreenPanel {
     private func collapse() {
         guard state.isOpen else { return }
         withAnimation(Theme.openAnimation) { state.isOpen = false }
+
+        // The keyboard goes back only now, a pass after the fold has started:
+        // `acceptsKeyboard` no longer does it on its own, precisely because the
+        // window's round trip landed mid-fold and took the repaint with it.
+        //
+        // The repaint is then asked for outright. Even if some future order of
+        // events loses it again, the picture must not be left disagreeing with
+        // the state: that disagreement is what made the panel unclosable and its
+        // buttons dead, since clicks land by state and the drawing said other
+        // (#44).
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            panel?.releaseKey()
+            state.objectWillChange.send()
+            rootView?.needsDisplay = true
+            panel?.displayIfNeeded()
+        }
+
         // Shrink only once the panel has finished collapsing. Doing it
         // while it is still visibly there would leave a window in which
         // clicks land on whatever is behind the panel.

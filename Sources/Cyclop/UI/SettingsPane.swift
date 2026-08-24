@@ -167,8 +167,7 @@ struct SettingsPane: View {
                 .foregroundStyle(.white)
             Spacer(minLength: 8)
             Toggle("", isOn: isOn)
-                .toggleStyle(.switch)
-                .controlSize(.mini)
+                .toggleStyle(NotchToggleStyle())
                 .labelsHidden()
         }
         .padding(.horizontal, 8)

@@ -145,6 +145,20 @@ final class ShelfStore: ObservableObject {
     // MARK: - Selection
 
     /// Plain click replaces the selection; ⌘ or ⇧ adds to it, matching Finder.
+    ///
+    /// The pasteboard then mirrors whatever ended up selected. ⌘C cannot do this
+    /// job here: the panel only takes the keyboard on tabs with a field, and
+    /// claiming it for the shelf would dim the window underneath for as long as
+    /// the shelf is open. Picking a card is the whole gesture instead — the
+    /// shelf exists to hand a file onward.
+    ///
+    /// Mirroring, precisely: a ⌘-click that drops one card of three rewrites the
+    /// pasteboard with the remaining two, because a selection on screen that
+    /// disagrees with what would be pasted is worse than either. Only clearing
+    /// the selection entirely leaves the pasteboard alone — an empty write would
+    /// take back what was copied and hand over nothing. A double click passes
+    /// through here first, with `clickCount == 1`, so opening a card copies it
+    /// on the way.
     func select(_ item: ShelfItem, modifiers: NSEvent.ModifierFlags) {
         if modifiers.contains(.command) || modifiers.contains(.shift) {
             if selection.contains(item.id) {
@@ -157,6 +171,7 @@ final class ShelfStore: ObservableObject {
         } else {
             selection = [item.id]
         }
+        copySelection()
     }
 
     func isSelected(_ item: ShelfItem) -> Bool { selection.contains(item.id) }
@@ -177,6 +192,24 @@ final class ShelfStore: ObservableObject {
     /// Puts the card back on the pasteboard. Images go as image data as well as
     /// a file reference, so pasting works both in Finder and in an editor.
     func copy(_ item: ShelfItem) {
+        copy([item.url])
+    }
+
+    /// The current selection, as one pasteboard write.
+    func copySelection() {
+        copy(items.filter { selection.contains($0.id) }.map(\.url))
+    }
+
+    /// One pasteboard item per file, plus the paths as plain text.
+    ///
+    /// Picture bytes go along only when a single card was copied. A reader that
+    /// finds an image takes it and looks no further, so attaching a picture to a
+    /// copy of several files turns "four screenshots" into "the first
+    /// screenshot". Left without one, such a reader falls through to the text
+    /// and gets every path; whoever enumerates the items was taking all the
+    /// files either way.
+    private func copy(_ urls: [URL]) {
+        guard !urls.isEmpty else { return }
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         // The file goes on first and everything below is added to the item it
@@ -185,13 +218,15 @@ final class ShelfStore: ObservableObject {
         // the picture on one item and the file on another. One card then
         // arrives as two objects, and an editor that accepts both pastes the
         // screenshot twice.
-        pasteboard.writeObjects([item.url as NSURL])
+        pasteboard.writeObjects(urls.map { $0 as NSURL })
         // Tells ClipboardStore this change came from us, so a copied screenshot
         // is not saved to disk a second time.
         pasteboard.setData(Data(), forType: .cyclopInternal)
-        if let type = UTType(filenameExtension: item.url.pathExtension),
+        pasteboard.setString(urls.map(\.path).joined(separator: "\n"), forType: .string)
+        if urls.count == 1, let url = urls.first,
+           let type = UTType(filenameExtension: url.pathExtension),
            type.conforms(to: .image),
-           let data = try? Data(contentsOf: item.url) {
+           let data = try? Data(contentsOf: url) {
             // Declared as what the bytes are, not renamed to TIFF: consumers
             // that trust the declared type would save a "TIFF" with JPEG
             // inside (#9). The UTI is already the pasteboard type identifier.

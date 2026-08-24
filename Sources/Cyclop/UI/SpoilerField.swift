@@ -156,3 +156,36 @@ struct RevealEye: View {
         .help(hidden ? Text(localized("Show")) : Text(localized("Hide")))
     }
 }
+
+/// Turns covering on or off for one section, from inside the tab it covers.
+///
+/// The menu bar keeps the switch that decides everything at once, in a hurry,
+/// with the camera already running. This is the other half: while the tab is
+/// open anyway, reaching for the menu to cover the very thing on screen is a
+/// trip through two menus for a decision that belongs where it applies.
+///
+/// Inside the tab rather than in the panel header, because that strip lies
+/// directly on the menu bar, where utilities like Ice watch for clicks with a
+/// global monitor and fire on anything interactive placed there.
+struct PrivacySwitch: View {
+    @ObservedObject var privacy: PrivacyMode
+    let section: PrivacyMode.Section
+
+    private var covering: Bool { privacy.covers(section) }
+
+    var body: some View {
+        Button {
+            privacy.setCovering(section, !covering)
+        } label: {
+            Image(systemName: covering ? "eye.slash.fill" : "eye")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(covering ? Color.white.opacity(0.8) : Theme.secondary)
+        }
+        .buttonStyle(.plain)
+        // The switch in the snippets tab stands next to the search field, and a
+        // focused field owns the I-beam over its own area: without a pointer of
+        // its own the button would keep the caret while being clickable.
+        .pointerStyle(.default)
+        .help(covering ? localized("Show") : localized("Hide"))
+    }
+}
