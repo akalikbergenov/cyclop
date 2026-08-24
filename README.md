@@ -145,10 +145,23 @@ keys.
 
 ## How it works
 
-**The window.** A single `NSPanel` — borderless, non-activating, one level above
-the menu bar, `canJoinAllSpaces`. It is always the same size (that of the
-expanded panel) and never changes its frame: only the content animates. That is
-what makes the animation smooth without the window geometry jerking about.
+**The window.** One `NSPanel` per display — borderless, non-activating, one
+level above the menu bar, `canJoinAllSpaces`. It is always the same size (that of
+the expanded panel) and never changes its frame: only the content animates. That
+is what makes the animation smooth without the window geometry jerking about.
+
+**Displays.** Every connected display gets a notch of its own, so the panel is
+always the one at the top of the screen being looked at rather than the one on
+some other machine's idea of the main display. The split follows the pointer: it
+is on exactly one display at a time, so open, drop-targeted and holding-the-
+keyboard belong to a screen (`PanelState`) while the tab, the stores and the
+running services are shared by all of them (`NotchViewModel`) — one clipboard
+history, one Now Playing helper, one of everything that costs something.
+Displays are reconciled by `CGDirectDisplayID` rather than by position in
+`NSScreen.screens`, which hands out fresh instances and reorders them on every
+reconfiguration; a display whose notch has not moved keeps its panel untouched.
+Mirrored displays are skipped — a second panel drawn over the same picture.
+Settings → Displays folds it all back to one screen.
 
 **Click-through.** The window frame is 700 × 252 pt at the top centre of the
 screen, and most of the time almost all of it is transparent. Returning `nil`
@@ -338,6 +351,21 @@ General → Language & Region → "Translation Languages…".
 `safeAreaInsets.top`. On the MacBook Air M4 it was developed on, that is
 179 × 32 pt.
 
+**The collapsed target.** A real notch is a hole, so the panel can claim all of
+it: there is nothing underneath to take a click away from. A synthetic one is
+drawn over a working menu bar, and where the icons reach it the claim shrinks to
+a strip along the very top edge — reached by throwing the pointer up, the same
+gesture as ever, while a pointer travelling to an icon stays below it.
+
+Which of the two applies is measured per display, not assumed from the machine.
+Status items are windows at the status level, and a window's frame is public
+even though its picture is not, so the leftmost of them can simply be read: they
+begin at x≈757 on one 13-inch Mac and at x≈1158 on another, and on a 1920-point
+external display the notch sits some 550 pt clear of them. A notch the icons do
+not reach behaves like the real one — full depth, and the same 50 ms delay
+instead of 300. The measurement is retaken whenever the panel folds, because
+icons come and go with the apps that own them.
+
 **Now Playing.** In macOS 15.4 the `mediaremoted` daemon began answering only
 clients it trusts. For an ordinary app that looks like this (checked on 15.7.5
 with music playing):
@@ -445,7 +473,9 @@ Sources/Cyclop
 │   ├── NotchPanel.swift       the NSPanel above the menu bar
 │   ├── NotchRootView.swift    panel hit-testing + drag & drop destination
 │   ├── PointerWatcher.swift   pointer sampling: hover and click-through
-│   └── NotchController.swift  window assembly, opening and closing
+│   ├── PanelState.swift       one display's share: open, dragged onto, typing
+│   ├── NotchScreenPanel.swift the panel as it stands on one display
+│   └── NotchController.swift  one model, one panel per display
 ├── Model/NotchViewModel.swift
 ├── Services/
 │   ├── MediaController.swift  picks the Now Playing source

@@ -18,6 +18,9 @@
 /* Settings tab */
 "General" = "General";
 "Launch at Login" = "Launch at Login";
+"Displays" = "Displays";
+"Show on All Displays" = "Show on All Displays";
+
 "Screenshots" = "Screenshots";
 "Save Clipboard Screenshots" = "Save Clipboard Screenshots";
 "Show Screenshots Folder" = "Show Screenshots Folder";

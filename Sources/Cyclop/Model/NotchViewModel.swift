@@ -52,8 +52,13 @@ final class NotchViewModel: ObservableObject {
         static let rightRail: [Tab] = [.notes, .teleprompter, .settings]
     }
 
-    @Published var isOpen = false
-    @Published var isDropTargeted = false
+    /// What every screen's panel adds up to, kept by `NotchController`: this
+    /// model is shared by all of them and has no panel of its own. Plain
+    /// properties, because nothing on screen reads them — a view asks its own
+    /// `PanelState` about its own display.
+    var isPanelActive = false
+    var isTyping = false
+
     @Published var tab: Tab = .media {
         didSet {
             // Opening the tab only re-checks the status. The permission prompt
@@ -73,8 +78,9 @@ final class NotchViewModel: ObservableObject {
             // hover to recreate, and a trail of empty cards is the clutter a
             // scratchpad exists to avoid.
             if oldValue == .notes, tab != .notes { notes.leave() }
-            // Leaving the tab that types gives the keyboard straight back.
-            if !tab.needsKeyboard { wantsKeyboard = false }
+            // Leaving the tab that types gives the keyboard straight back —
+            // done per screen, where the claim lives, in `NotchScreenPanel`.
+
             // Leaving the teleprompter stops the scroll and drops the pin, so
             // the panel goes back to obeying the pointer like everything else.
             if oldValue == .teleprompter, tab != .teleprompter { teleprompter.suspend() }
@@ -92,16 +98,6 @@ final class NotchViewModel: ObservableObject {
     /// script runs out, Escape, or a click anywhere outside the panel.
     var holdsOpen: Bool { tab == .teleprompter && teleprompter.isRunning }
 
-    /// Whether the panel currently holds the keyboard.
-    ///
-    /// Tracked apart from `tab` because the two come apart in one direction:
-    /// clicking into another app drops the claim without changing which tab is
-    /// showing, so the text one was typing survives and the panel is free to
-    /// collapse. Landing on a tab that types always raises it again — there is
-    /// no such thing as a panel that shows a field but cannot receive a key.
-    @Published var wantsKeyboard = false
-
-    let geometry: NotchGeometry
     let media: MediaController
     let shelf: ShelfStore
     let clipboard: ClipboardStore
@@ -115,8 +111,7 @@ final class NotchViewModel: ObservableObject {
 
     private var cancellables = Set<AnyCancellable>()
 
-    init(geometry: NotchGeometry) {
-        self.geometry = geometry
+    init() {
         self.media = MediaController()
         self.shelf = ShelfStore()
         self.clipboard = ClipboardStore()
@@ -153,33 +148,11 @@ final class NotchViewModel: ObservableObject {
         ] {
             child
                 .sink { [weak self] _ in
-                    guard let self, self.isOpen || self.isDropTargeted else { return }
+                    guard let self, self.isPanelActive else { return }
                     self.objectWillChange.send()
                 }
                 .store(in: &cancellables)
         }
-    }
-
-    /// Body this tab takes when open — asked whether it is open yet or not.
-    ///
-    /// Separate from `bodySize` because the rects are cut one step before the
-    /// panel is marked open: `setOpen` grows the interactive area first, so
-    /// the pointer never falls through a region the animation has not covered.
-    /// Reading a size that returns the notch until `isOpen` flips would hand
-    /// that step the collapsed size and leave the whole body drawn but deaf to
-    /// the pointer.
-    ///
-    /// One tab is taller than the rest. Type large enough to read at a glance
-    /// leaves room for two lines in the standard body, and two lines is not a
-    /// teleprompter — it is a countdown. The extra height buys the paragraph
-    /// the reader needs to see coming.
-    var openBodySize: CGSize {
-        tab == .teleprompter ? geometry.tallExpandedSize : geometry.expandedSize
-    }
-
-    /// Size of the visible body for the current state.
-    var bodySize: CGSize {
-        isOpen || isDropTargeted ? openBodySize : geometry.notchSize
     }
 
     /// Off switch for people who copy images all day and do not want them kept.
@@ -190,15 +163,6 @@ final class NotchViewModel: ObservableObject {
         let defaults = UserDefaults.standard
         guard defaults.object(forKey: saveClipboardImagesKey) != nil else { return true }
         return defaults.bool(forKey: saveClipboardImagesKey)
-    }
-
-    /// Hover and click both land here. A tab that types takes the keyboard
-    /// either way: showing a field one cannot type into is worse than briefly
-    /// dimming the caret of the window underneath, and the dwell threshold on
-    /// the rail already keeps a passing pointer from arriving here at all.
-    func select(_ tab: Tab) {
-        self.tab = tab
-        if tab.needsKeyboard { wantsKeyboard = true }
     }
 
     func start() {
@@ -243,7 +207,7 @@ final class NotchViewModel: ObservableObject {
     /// waiting.
     func receivedScreenshot(at url: URL) {
         shelf.add([url])
-        guard !wantsKeyboard else { return }
+        guard !isTyping else { return }
         tab = .shelf
     }
 
