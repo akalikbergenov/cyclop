@@ -180,11 +180,15 @@ final class SnippetStore: ObservableObject {
             NSLog("Cyclop: refusing to write over an unreadable snippets.json")
             return
         }
-        guard let index = items.firstIndex(where: { $0.id == snippet.id }) else { return }
         // An edit that turns this row into an exact copy of another one leaves
         // a single row, for the same reason `add` does.
         items.removeAll { $0.id == edited.id && $0.id != snippet.id }
-        items[min(index, items.count - 1)] = edited
+        // Found after the removal, never before it: a copy standing above this
+        // row shifts it up by one, and an index taken beforehand then points at
+        // the neighbour. Written there, the edit destroys a snippet nobody
+        // touched and leaves the edited one exactly as it was.
+        guard let index = items.firstIndex(where: { $0.id == snippet.id }) else { return }
+        items[index] = edited
         persist()
     }
 
