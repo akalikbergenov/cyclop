@@ -220,9 +220,15 @@ struct SnippetsPane: View {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 3) {
                     ForEach(snippets.filtered) { item in
-                        SnippetRow(item: item, snippets: snippets, privacy: privacy)
+                        SnippetRow(
+                            item: item,
+                            snippets: snippets,
+                            privacy: privacy,
+                            wantsKeyboard: $wantsKeyboard
+                        )
                     }
                 }
+                .animation(Theme.contentAnimation, value: snippets.items)
                 .padding(.bottom, 2)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -234,43 +240,130 @@ private struct SnippetRow: View {
     let item: Snippet
     @ObservedObject var snippets: SnippetStore
     @ObservedObject var privacy: PrivacyMode
+    /// Editing needs the keyboard, and the panel only takes it when asked.
+    @Binding var wantsKeyboard: Bool
     @State private var hovering = false
     @State private var justCopied = false
+    /// Set by a double click. While it is on, the row shows two fields instead
+    /// of its text, and the value is shown even under cover — editing what one
+    /// cannot read is not editing.
+    @State private var editing = false
+    @State private var draftLabel = ""
+    @State private var draftText = ""
+    @FocusState private var focus: Field?
 
-    private var hidden: Bool { privacy.hides(.snippets, "snippet.\(item.id)") }
+    private enum Field { case label, text }
+
+    private var hidden: Bool { privacy.hides(.snippets, "snippet.\(item.id)") && !editing }
+    /// Position in the stored list, not in the filtered one: moving is an edit
+    /// of the file's order, and the filter is only a way of looking at it.
+    private var index: Int { snippets.items.firstIndex(where: { $0.id == item.id }) ?? 0 }
+    private var isLast: Bool { index >= snippets.items.count - 1 }
 
     var body: some View {
-        HStack(spacing: 9) {
-            Image(systemName: justCopied ? "checkmark" : item.symbol)
+        HStack(spacing: editing ? 6 : 9) {
+            if !editing {
+                Image(systemName: justCopied ? "checkmark" : item.symbol)
                 .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(justCopied ? Color.green : Theme.tertiary)
-                .frame(width: 14)
+                    .foregroundStyle(justCopied ? Color.green : Theme.tertiary)
+                    .frame(width: 14)
+            }
             // The name stays legible while the value is covered: the row has to
             // say what it copies, or a list of covered rows is a list of
             // identical rows. An unnamed snippet shows its value as its name,
             // so covering the value covers the whole row — which is right,
             // since there is nothing else in it.
-            if !item.label.isEmpty {
-                Text(item.label)
+            if editing {
+                // The same two surfaces as the add form above: a row being
+                // edited and a row being created are the same act, and looking
+                // alike is the whole of saying so. Bare fields inside the row
+                // read as text that had lost its alignment.
+                TextField(localized("Name"), text: $draftLabel)
+                    .textFieldStyle(.plain)
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.white)
-                    .lineLimit(1)
-                    .layoutPriority(1)
+                    .tint(Theme.secondary)
+                    .padding(.horizontal, 7)
+                    .frame(width: 104, height: 20)
+                    .background(
+                        RoundedRectangle(cornerRadius: 5, style: .continuous)
+                            .fill(Theme.surface)
+                    )
+                    .focused($focus, equals: .label)
+                    .onSubmit { commit() }
+
+                TextField(localized("Text"), text: $draftText)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.white)
+                    .tint(Theme.secondary)
+                    .padding(.horizontal, 7)
+                    .frame(height: 20)
+                    .background(
+                        RoundedRectangle(cornerRadius: 5, style: .continuous)
+                            .fill(Theme.surface)
+                    )
+                    .focused($focus, equals: .text)
+                    .onSubmit { commit() }
+
+                Button { commit() } label: {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(draftText.isEmpty ? Theme.tertiary : Color.green)
+                }
+                .buttonStyle(.plain)
+                .disabled(draftText.isEmpty)
+
+                Button { cancel() } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(Theme.secondary)
+                }
+                .buttonStyle(.plain)
+            } else {
+                if !item.label.isEmpty {
+                    Text(item.label)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                        .layoutPriority(1)
+                }
+                SpoilerText(
+                    text: item.text.replacingOccurrences(of: "\n", with: " "),
+                    hidden: hidden,
+                    color: item.label.isEmpty ? .white : Theme.secondary,
+                    seed: UInt64(bitPattern: Int64(item.id.hashValue))
+                )
             }
-            SpoilerText(
-                text: item.text.replacingOccurrences(of: "\n", with: " "),
-                hidden: hidden,
-                color: item.label.isEmpty ? .white : Theme.secondary,
-                seed: UInt64(bitPattern: Int64(item.id.hashValue))
-            )
             Spacer(minLength: 6)
             // Only under the pointer: a row of crosses would compete with the
             // snippets themselves for a glance.
-            if hovering {
+            if hovering, !editing {
                 if privacy.covers(.snippets) {
                     RevealEye(hidden: hidden) { privacy.toggle("snippet.\(item.id)") }
                 }
-                Button { snippets.remove(item) } label: {
+                // Order is priority: the one reached for most often belongs on
+                // top. Arrows rather than dragging — the list is a few rows
+                // long, and a drag here brought more edge cases than movement:
+                // where a row lands under a live filter, what happens past the
+                // ends, and how it coexists with the taps that copy and edit.
+                Button { move(to: index - 1) } label: {
+                    Image(systemName: "chevron.up")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(index == 0 ? Theme.tertiary : Theme.secondary)
+                }
+                .buttonStyle(.plain)
+                .disabled(index == 0)
+
+                Button { move(to: index + 1) } label: {
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(isLast ? Theme.tertiary : Theme.secondary)
+                }
+                .buttonStyle(.plain)
+                .disabled(isLast)
+
+                Button { remove() } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 9, weight: .semibold))
                         .foregroundStyle(Theme.secondary)
@@ -279,14 +372,19 @@ private struct SnippetRow: View {
                 .help(localized("Delete"))
             }
         }
-        .padding(.horizontal, 9)
-        .frame(height: 26)
+        .padding(.horizontal, editing ? 6 : 9)
+        .frame(height: editing ? 28 : 26)
         .background(
             RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .fill(hovering ? Theme.surfaceHover : Theme.surface)
+                .fill(editing || hovering ? Theme.surfaceHover : Theme.surface)
         )
         .contentShape(Rectangle())
         .onHover { hovering = $0 }
+        // Double first: SwiftUI hands a tap to the last matching gesture, and
+        // with the single one declared first a double click would only ever
+        // copy. The first click of a double still copies — harmless, and the
+        // alternative is delaying every single click to see if a second lands.
+        .onTapGesture(count: 2) { beginEditing() }
         .onTapGesture {
             snippets.copy(item)
             // Emptying the search lets go of the panel: nothing is being typed
@@ -296,5 +394,43 @@ private struct SnippetRow: View {
         }
         .animation(Theme.contentAnimation, value: hovering)
         .animation(Theme.contentAnimation, value: justCopied)
+        .animation(Theme.contentAnimation, value: editing)
+        .onExitCommand { cancel() }
+        // Losing the focus saves: clicking away from a row one has just edited
+        // is not a way of throwing the edit out — Esc is.
+        .onChange(of: focus) { _, now in
+            if editing, now == nil { commit() }
+        }
+        // The panel folds by itself when the pointer leaves, and the row goes
+        // with it. Whatever was typed by then has to survive that.
+        .onDisappear { if editing { commit() } }
+    }
+
+    private func beginEditing() {
+        draftLabel = item.label
+        draftText = item.text
+        editing = true
+        focus = item.label.isEmpty ? .text : .label
+        wantsKeyboard = true
+    }
+
+    private func move(to index: Int) {
+        snippets.move(item, to: index)
+    }
+
+    private func remove() {
+        snippets.remove(item)
+    }
+
+    private func cancel() {
+        editing = false
+        focus = nil
+    }
+
+    private func commit() {
+        guard editing else { return }
+        editing = false
+        focus = nil
+        snippets.update(item, label: draftLabel, text: draftText)
     }
 }
