@@ -1,19 +1,60 @@
 import AppKit
 
-struct SavedPost: Identifiable, Codable, Equatable {
+struct SavedPost: Identifiable, Equatable {
     let id: UUID
-    var url: URL
-    /// Without the `@`. Absent when the copied link was an `/i/status/…` form.
-    var handle: String?
-    var statusID: String
-    var savedAt: Date
+    let url: URL
+    /// Without the `@`. Absent when the link was an `/i/status/…` form.
+    let handle: String?
+    let statusID: String
+    let savedAt: Date
     var note: String
     var isRead: Bool
+
+    init(link: PostLink, id: UUID = UUID(), savedAt: Date = Date(), note: String = "", isRead: Bool = false) {
+        self.id = id
+        self.url = link.url
+        self.handle = link.handle
+        self.statusID = link.statusID
+        self.savedAt = savedAt
+        self.note = note
+        self.isRead = isRead
+    }
 
     /// What the row leads with: the author when the URL named one.
     var title: String {
         if let handle { return "@\(handle)" }
         return localized("Post")
+    }
+}
+
+/// The URL is the record: the author and the id live inside it, so storing
+/// them alongside would be three fields for one fact, free to disagree after
+/// a hand edit. The file keeps the address; the rest is re-read from it.
+extension SavedPost: Codable {
+    private enum CodingKeys: String, CodingKey { case id, url, savedAt, note, isRead }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        url = try container.decode(URL.self, forKey: .url)
+        savedAt = try container.decode(Date.self, forKey: .savedAt)
+        note = try container.decode(String.self, forKey: .note)
+        isRead = try container.decode(Bool.self, forKey: .isRead)
+        // An address edited into something that is no longer a post link
+        // keeps its row rather than breaking the file: no author, and the
+        // whole address as its own identity.
+        let link = PostLink.parse(url.absoluteString)
+        handle = link?.handle
+        statusID = link?.statusID ?? url.absoluteString
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(url, forKey: .url)
+        try container.encode(savedAt, forKey: .savedAt)
+        try container.encode(note, forKey: .note)
+        try container.encode(isRead, forKey: .isRead)
     }
 }
 
@@ -41,17 +82,20 @@ final class PostStore: ObservableObject {
     /// the user's back until the list is this long.
     private let limit = 200
 
-    /// Off switch, shared with the Settings tab: off removes the tab from the
-    /// rail and stops capture with it — a feature switched off should not keep
-    /// collecting in the background.
-    static let enabledKey = "posts.enabled"
-
-    /// Defaults to on: the tab is how anyone learns the feature exists.
+    /// The off switch, owned here end to end: the Settings tab writes it, the
+    /// view model reads it for the rail, and `capture` asks it for itself —
+    /// so no future caller can collect for a tab that is switched off.
     static var isEnabled: Bool {
-        let defaults = UserDefaults.standard
-        guard defaults.object(forKey: enabledKey) != nil else { return true }
-        return defaults.bool(forKey: enabledKey)
+        get {
+            let defaults = UserDefaults.standard
+            // Defaults to on: the tab is how anyone learns the feature exists.
+            guard defaults.object(forKey: enabledKey) != nil else { return true }
+            return defaults.bool(forKey: enabledKey)
+        }
+        set { UserDefaults.standard.set(newValue, forKey: enabledKey) }
     }
+
+    private static let enabledKey = "posts.enabled"
 
     init() {
         load()
@@ -77,23 +121,29 @@ final class PostStore: ObservableObject {
     ///
     /// A link already saved bubbles back to the top with its note and read
     /// state intact — copying it again means it matters again, not that the
-    /// annotation stopped being true.
+    /// annotation stopped being true. One exception to "intact": a copy that
+    /// names the author upgrades a post first saved through an anonymous
+    /// `/i/status/…` link.
+    ///
+    /// With the file broken, the link is dropped rather than kept in memory
+    /// as if saved: a list that looks saved and vanishes at relaunch is the
+    /// silent loss the refusal to write exists to prevent.
     func capture(_ text: String) {
-        guard let link = PostLink.parse(text) else { return }
+        guard Self.isEnabled, !fileBroken,
+              let link = PostLink.parse(text) else { return }
         if let index = items.firstIndex(where: { $0.statusID == link.statusID }) {
-            guard index != 0 else { return }
-            items.insert(items.remove(at: index), at: 0)
-        } else {
-            let post = SavedPost(
-                id: UUID(),
-                url: link.url,
-                handle: link.handle,
-                statusID: link.statusID,
-                savedAt: Date(),
-                note: "",
-                isRead: false
+            let known = items[index]
+            let upgrades = known.handle == nil && link.handle != nil
+            guard index != 0 || upgrades else { return }
+            items.remove(at: index)
+            items.insert(
+                upgrades
+                    ? SavedPost(link: link, id: known.id, savedAt: known.savedAt, note: known.note, isRead: known.isRead)
+                    : known,
+                at: 0
             )
-            items.insert(post, at: 0)
+        } else {
+            items.insert(SavedPost(link: link), at: 0)
             if items.count > limit { items.removeLast(items.count - limit) }
         }
         scheduleSave()
@@ -137,12 +187,17 @@ final class PostStore: ObservableObject {
         scheduleSave()
     }
 
-    func clear() {
-        items.removeAll()
-        scheduleSave()
-    }
-
     // MARK: - Persistence
+
+    /// Called on the way into the tab, and only to recover from a broken
+    /// file. A healthy file is never re-read — unlike the snippets file it is
+    /// not edited by hand as a habit, and a debounced write may be in flight
+    /// that a re-read would silently roll back.
+    func reload() {
+        guard fileBroken else { return }
+        fileBroken = false
+        load()
+    }
 
     private func load() {
         guard let data = try? Data(contentsOf: Self.file) else {

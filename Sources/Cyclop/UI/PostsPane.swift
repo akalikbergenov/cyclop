@@ -15,8 +15,11 @@ struct PostsPane: View {
             list
         }
         .padding(.top, 2)
+        // Only the release is followed here. Claiming the caret on every
+        // raise would steal it from a note being edited in a row; arrival on
+        // the tab is handled by onAppear, and a click lands its own caret.
         .onChange(of: wantsKeyboard) { _, wants in
-            searching = wants
+            if !wants { searching = false }
         }
     }
 
@@ -81,33 +84,25 @@ struct PostsPane: View {
 
     @ViewBuilder
     private var list: some View {
-        if posts.filtered.isEmpty {
+        let shown = posts.filtered
+        if shown.isEmpty {
             Image(systemName: posts.items.isEmpty ? "bookmark" : "magnifyingglass")
                 .font(.system(size: 20, weight: .light))
                 .foregroundStyle(Theme.tertiary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             ScrollView(showsIndicators: false) {
-                VStack(spacing: 3) {
-                    ForEach(posts.filtered) { post in
+                // Lazy, unlike the clipboard's list: the cap here is 200
+                // rows against its 40, and a search keystroke re-evaluates
+                // the lot — only the dozen on screen are worth building.
+                LazyVStack(spacing: 3) {
+                    ForEach(shown) { post in
                         PostRow(post: post, posts: posts, privacy: privacy, wantsKeyboard: $wantsKeyboard)
                     }
                 }
                 .padding(.vertical, 4)
             }
-            footer
         }
-    }
-
-    private var footer: some View {
-        HStack(spacing: 10) {
-            Spacer()
-            Button("Clear") { posts.clear() }
-                .buttonStyle(.plain)
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(Theme.secondary)
-        }
-        .padding(.top, 2)
     }
 }
 
@@ -217,10 +212,15 @@ private struct PostRow: View {
         .onHover { hovering = $0 }
         // Double first, for the reason stated on the snippet row: declared the
         // other way round, a double click would only ever open.
-        .onTapGesture(count: 2) { beginEditing() }
+        .onTapGesture(count: 2) { if !editing { beginEditing() } }
         // The row is the post: clicking it opens the browser, and the browser
-        // arriving is its own confirmation — no flash needed.
-        .onTapGesture { posts.open(post) }
+        // arriving is its own confirmation — no flash needed. Not while the
+        // row is a text field with margins, and not while it is covered: the
+        // browser would show exactly what the dust is hiding.
+        .onTapGesture {
+            guard !editing, !hidden else { return }
+            posts.open(post)
+        }
         .contextMenu {
             Button(localized("Open")) { posts.open(post) }
             Button(localized("Copy")) { posts.copy(post) }

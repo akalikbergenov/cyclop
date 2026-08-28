@@ -54,7 +54,15 @@ final class PrivacyMode: ObservableObject {
     init() {
         let defaults = UserDefaults.standard
         if let stored = defaults.array(forKey: Self.key) as? [String] {
-            sections = Set(stored.compactMap(Section.init(rawValue:)))
+            var chosen = Set(stored.compactMap(Section.init(rawValue:)))
+            // A section born after the choice was stored joins it only when
+            // everything that existed then was covered: whoever covered all
+            // there was meant "all", and a new tab arriving uncovered on a
+            // stream is exactly the failure this feature exists to prevent.
+            if chosen.isSuperset(of: [.clipboard, .snippets, .calendar, .notes]) {
+                chosen = Set(Section.allCases)
+            }
+            sections = chosen
         } else if defaults.bool(forKey: Self.legacyKey) {
             sections = Set(Section.allCases)
         } else {

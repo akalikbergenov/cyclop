@@ -51,12 +51,13 @@ final class NotchViewModel: ObservableObject {
         /// past on the way to a track or a calendar, so it sits last,
         /// furthest from the tabs people actually rest on.
         static let leftRail: [Tab] = [.media, .shelf, .clipboard, .snippets, .calendar, .translate]
-        static let rightRail: [Tab] = [.notes, .posts, .teleprompter, .settings]
 
-        /// The right rail as configured: posts can be switched off in
-        /// Settings, and a switched-off tab gives its slot back.
+        /// The right rail as configured — the one spelling there is: posts can
+        /// be switched off in Settings, and a switched-off tab gives its slot
+        /// back, so a bare constant would always be the wrong list for someone.
         static func rightRail(showsPosts: Bool) -> [Tab] {
-            showsPosts ? rightRail : rightRail.filter { $0 != .posts }
+            let tabs: [Tab] = [.notes, .posts, .teleprompter, .settings]
+            return showsPosts ? tabs : tabs.filter { $0 != .posts }
         }
     }
 
@@ -86,8 +87,11 @@ final class NotchViewModel: ObservableObject {
             // hover to recreate, and a trail of empty cards is the clutter a
             // scratchpad exists to avoid.
             if oldValue == .notes, tab != .notes { notes.leave() }
-            // Leaving the posts commits a note that was mid-edit to disk now
-            // rather than a debounce later.
+            // Only to recover from a broken file the user has since fixed —
+            // a healthy posts file is never re-read on the way in.
+            if tab == .posts { posts.reload() }
+            // Leaving the posts lands a pending write now, not a debounce
+            // later.
             if oldValue == .posts, tab != .posts { posts.flush() }
             // Leaving the tab that types gives the keyboard straight back —
             // done per screen, where the claim lives, in `NotchScreenPanel`.
@@ -104,7 +108,7 @@ final class NotchViewModel: ObservableObject {
     /// that.
     @Published var showsPosts = PostStore.isEnabled {
         didSet {
-            UserDefaults.standard.set(showsPosts, forKey: PostStore.enabledKey)
+            PostStore.isEnabled = showsPosts
             // The tab is leaving the rail; standing on it would strand the
             // selection on an icon that is no longer there.
             if !showsPosts, tab == .posts { tab = .media }
@@ -208,12 +212,9 @@ final class NotchViewModel: ObservableObject {
         // to PNG in full just to be dropped on this doorstep — pure heat on
         // exactly the machines whose owners turned the feature off.
         clipboard.wantsImages = { Self.saveClipboardImagesEnabled }
-        // Copied post links become saved posts. The switch is asked per copy,
-        // not once here: turning the tab off must also stop the collecting.
-        clipboard.onText = { [weak self] text in
-            guard let self, self.showsPosts else { return }
-            self.posts.capture(text)
-        }
+        // Copied post links become saved posts. The off switch is not asked
+        // here: `capture` asks it for itself, so no caller can forget to.
+        clipboard.onText = { [weak self] text in self?.posts.capture(text) }
         clipboard.onImage = { [weak self] png in
             guard let self, let url = ScreenshotVault.save(png) else { return }
             self.receivedScreenshot(at: url)
