@@ -8,6 +8,9 @@ import ServiceManagement
 /// other than as a menu that grows a new row per feature.
 struct SettingsPane: View {
     @ObservedObject var shelf: ShelfStore
+    /// The view model's switch, not a local copy: the rail reads the same
+    /// value, so flipping it here redraws the rail in the same breath.
+    @Binding var showsPosts: Bool
 
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var saveClipboardImages = NotchViewModel.saveClipboardImagesEnabled
@@ -60,6 +63,19 @@ struct SettingsPane: View {
                 section(localized("Snippets")) {
                     actionRow(symbol: "doc.text", title: localized("Show Snippets File")) {
                         SnippetStore.reveal()
+                    }
+                }
+
+                section(localized("Posts")) {
+                    // One switch for the tab and the collecting: a tab off the
+                    // rail must not keep saving links in the background.
+                    toggleRow(
+                        symbol: "bookmark",
+                        title: localized("Show Posts Tab"),
+                        isOn: $showsPosts
+                    )
+                    actionRow(symbol: "doc.text", title: localized("Show Posts File")) {
+                        PostStore.reveal()
                     }
                 }
             }

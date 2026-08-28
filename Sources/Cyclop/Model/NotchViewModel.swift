@@ -52,6 +52,12 @@ final class NotchViewModel: ObservableObject {
         /// furthest from the tabs people actually rest on.
         static let leftRail: [Tab] = [.media, .shelf, .clipboard, .snippets, .calendar, .translate]
         static let rightRail: [Tab] = [.notes, .posts, .teleprompter, .settings]
+
+        /// The right rail as configured: posts can be switched off in
+        /// Settings, and a switched-off tab gives its slot back.
+        static func rightRail(showsPosts: Bool) -> [Tab] {
+            showsPosts ? rightRail : rightRail.filter { $0 != .posts }
+        }
     }
 
     /// What every screen's panel adds up to, kept by `NotchController`: this
@@ -89,6 +95,19 @@ final class NotchViewModel: ObservableObject {
             // Leaving the teleprompter stops the scroll and drops the pin, so
             // the panel goes back to obeying the pointer like everything else.
             if oldValue == .teleprompter, tab != .teleprompter { teleprompter.suspend() }
+        }
+    }
+
+    /// Whether the posts tab is on the rail and copied links are collected.
+    /// One switch for both on purpose: a tab switched off must also stop its
+    /// background work, and collecting for a list nobody can open is exactly
+    /// that.
+    @Published var showsPosts = PostStore.isEnabled {
+        didSet {
+            UserDefaults.standard.set(showsPosts, forKey: PostStore.enabledKey)
+            // The tab is leaving the rail; standing on it would strand the
+            // selection on an icon that is no longer there.
+            if !showsPosts, tab == .posts { tab = .media }
         }
     }
 
@@ -192,8 +211,8 @@ final class NotchViewModel: ObservableObject {
         // Copied post links become saved posts. The switch is asked per copy,
         // not once here: turning the tab off must also stop the collecting.
         clipboard.onText = { [weak self] text in
-            guard PostStore.isEnabled else { return }
-            self?.posts.capture(text)
+            guard let self, self.showsPosts else { return }
+            self.posts.capture(text)
         }
         clipboard.onImage = { [weak self] png in
             guard let self, let url = ScreenshotVault.save(png) else { return }

@@ -123,7 +123,7 @@ struct NotchContentView: View {
         HStack(spacing: 14) {
             Rail(vm: vm, panel: panel, tabs: NotchViewModel.Tab.leftRail)
             panes
-            Rail(vm: vm, panel: panel, tabs: NotchViewModel.Tab.rightRail)
+            Rail(vm: vm, panel: panel, tabs: NotchViewModel.Tab.rightRail(showsPosts: vm.showsPosts))
         }
         .padding(.horizontal, 14)
         // The body's height is measured from this same number, so the two
@@ -173,7 +173,7 @@ struct NotchContentView: View {
         case .teleprompter:
             TeleprompterPane(prompter: vm.teleprompter, wantsKeyboard: $panel.wantsKeyboard)
         case .settings:
-            SettingsPane(shelf: vm.shelf)
+            SettingsPane(shelf: vm.shelf, showsPosts: $vm.showsPosts)
         }
     }
 }
