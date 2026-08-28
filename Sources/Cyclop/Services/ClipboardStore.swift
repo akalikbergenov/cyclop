@@ -42,6 +42,12 @@ final class ClipboardStore: ObservableObject {
     /// the clipboard, which would otherwise vanish after one paste.
     var onImage: ((Data) -> Void)?
 
+    /// Raised for every copied text that makes it into history. The posts
+    /// store listens here for links to save; taking the text this late means
+    /// it inherits every rule above about what counts as a copy — concealed
+    /// types, Cyclop's own writes — instead of restating them.
+    var onText: ((String) -> Void)?
+
     /// Whether images are worth reading at all. Asked before the TIFF → PNG
     /// encode, not after: with screenshot saving switched off, a copied picture
     /// would otherwise be encoded in full and then thrown away.
@@ -187,6 +193,7 @@ final class ClipboardStore: ObservableObject {
     }
 
     private func record(_ item: ClipItem) {
+        if case .text(let string) = item.payload { onText?(string) }
         items.removeAll { $0 == item }
         items.insert(item, at: 0)
         if items.count > limit { items.removeLast(items.count - limit) }

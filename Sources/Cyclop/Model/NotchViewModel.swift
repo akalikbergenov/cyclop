@@ -106,6 +106,7 @@ final class NotchViewModel: ObservableObject {
     let snippets: SnippetStore
     let notes: NoteStore
     let teleprompter: TeleprompterStore
+    let posts: PostStore
     /// Shared by every pane that shows something worth not showing.
     let privacy = PrivacyMode()
 
@@ -120,6 +121,7 @@ final class NotchViewModel: ObservableObject {
         self.snippets = SnippetStore()
         self.notes = NoteStore()
         self.teleprompter = TeleprompterStore()
+        self.posts = PostStore()
 
         // The panel header reads through to the stores — counters, the source
         // name, the equalizer. Nested ObservableObjects do not propagate on
@@ -182,6 +184,12 @@ final class NotchViewModel: ObservableObject {
         // to PNG in full just to be dropped on this doorstep — pure heat on
         // exactly the machines whose owners turned the feature off.
         clipboard.wantsImages = { Self.saveClipboardImagesEnabled }
+        // Copied post links become saved posts. The switch is asked per copy,
+        // not once here: turning the tab off must also stop the collecting.
+        clipboard.onText = { [weak self] text in
+            guard PostStore.isEnabled else { return }
+            self?.posts.capture(text)
+        }
         clipboard.onImage = { [weak self] png in
             guard let self, let url = ScreenshotVault.save(png) else { return }
             self.receivedScreenshot(at: url)
@@ -195,6 +203,7 @@ final class NotchViewModel: ObservableObject {
         calendar.stop()
         // Whatever was typed makes it to disk even when quitting mid-thought.
         notes.flush()
+        posts.flush()
     }
 
     /// A screenshot that arrived on its own — copied elsewhere, or synced
