@@ -171,6 +171,16 @@ final class PostStore: ObservableObject {
 
     func flush() { saves.flush() }
 
+    /// Selecting a file that is not on disk yet is a silent no-op for Finder,
+    /// so an empty list is written first — the same state `load()` already
+    /// treats as a valid, empty file.
+    static func reveal() {
+        if !FileManager.default.fileExists(atPath: file.path) {
+            try? Data("[]".utf8).write(to: file)
+        }
+        NSWorkspace.shared.activateFileViewerSelecting([file])
+    }
+
     /// Pretty-printed with slashes left alone, and dates as dates: the file is
     /// what SECURITY.md points at when it says what is kept, so it should read
     /// as an answer, not as an encoding.

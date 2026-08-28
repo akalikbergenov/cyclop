@@ -39,7 +39,7 @@ final class NotchViewModel: ObservableObject {
 
         /// Tabs with a field in them. Landing on one hands it the keyboard, so
         /// that arriving and typing is a single move.
-        var needsKeyboard: Bool { self == .translate || self == .snippets || self == .notes }
+        var needsKeyboard: Bool { self == .translate || self == .snippets || self == .notes || self == .posts }
 
         /// Which rail the icon sits on. The left one carries the original six
         /// and is full — icon height is a ceiling now, not a constant (#26,
@@ -80,6 +80,9 @@ final class NotchViewModel: ObservableObject {
             // hover to recreate, and a trail of empty cards is the clutter a
             // scratchpad exists to avoid.
             if oldValue == .notes, tab != .notes { notes.leave() }
+            // Leaving the posts commits a note that was mid-edit to disk now
+            // rather than a debounce later.
+            if oldValue == .posts, tab != .posts { posts.flush() }
             // Leaving the tab that types gives the keyboard straight back —
             // done per screen, where the claim lives, in `NotchScreenPanel`.
 
