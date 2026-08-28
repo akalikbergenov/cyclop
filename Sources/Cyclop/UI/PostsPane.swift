@@ -229,7 +229,7 @@ private struct PostRow: View {
             }
             Button(post.note.isEmpty ? localized("Add Note") : localized("Edit Note")) { beginEditing() }
             Divider()
-            Button(localized("Remove")) { posts.remove(post) }
+            Button(localized("Delete")) { posts.remove(post) }
         }
         .animation(Theme.contentAnimation, value: hovering)
         .animation(Theme.contentAnimation, value: editing)
