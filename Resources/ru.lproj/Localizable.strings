@@ -101,3 +101,15 @@
 "Paste the script here" = "Вставьте сюда сценарий";
 "Ready" = "Готово";
 "Done" = "Готово";
+
+/* Вкладка постов */
+"Posts" = "Посты";
+"Post" = "Пост";
+"Note" = "Заметка";
+"Add Note" = "Добавить заметку";
+"Edit Note" = "Изменить заметку";
+"Mark as Read" = "Отметить прочитанным";
+"Mark as Unread" = "Отметить непрочитанным";
+"Show Posts Tab" = "Показывать вкладку «Посты»";
+"Show Posts File" = "Показать файл постов";
+"posts.json is broken — click to open; nothing is overwritten" = "posts.json не читается — нажми, чтобы открыть; поверх ничего не пишется";

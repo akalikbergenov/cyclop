@@ -99,6 +99,8 @@ struct NotchContentView: View {
             EmptyView()
         case .notes:
             NotesCounter(notes: vm.notes)
+        case .posts:
+            PostsCounter(posts: vm.posts)
         case .teleprompter:
             EmptyView()
         case .settings:
@@ -121,7 +123,7 @@ struct NotchContentView: View {
         HStack(spacing: 14) {
             Rail(vm: vm, panel: panel, tabs: NotchViewModel.Tab.leftRail)
             panes
-            Rail(vm: vm, panel: panel, tabs: NotchViewModel.Tab.rightRail)
+            Rail(vm: vm, panel: panel, tabs: NotchViewModel.Tab.rightRail(showsPosts: vm.showsPosts))
         }
         .padding(.horizontal, 14)
         // The body's height is measured from this same number, so the two
@@ -166,10 +168,27 @@ struct NotchContentView: View {
             TranslatePane(translator: vm.translator, wantsKeyboard: $panel.wantsKeyboard)
         case .notes:
             NotesPane(notes: vm.notes, privacy: vm.privacy, wantsKeyboard: $panel.wantsKeyboard)
+        case .posts:
+            PostsPane(posts: vm.posts, privacy: vm.privacy, wantsKeyboard: $panel.wantsKeyboard)
         case .teleprompter:
             TeleprompterPane(prompter: vm.teleprompter, wantsKeyboard: $panel.wantsKeyboard)
         case .settings:
-            SettingsPane(shelf: vm.shelf)
+            SettingsPane(shelf: vm.shelf, showsPosts: $vm.showsPosts)
+        }
+    }
+}
+
+/// Watches the post store directly, for the same reason as `NotesCounter`
+/// below: the store changes on keystrokes — the filter, a note being typed —
+/// and the view model deliberately does not forward keystroke-driven stores.
+private struct PostsCounter: View {
+    @ObservedObject var posts: PostStore
+
+    var body: some View {
+        if posts.unreadCount > 0 {
+            Text("\(posts.unreadCount)")
+                .font(.system(size: 10, weight: .medium).monospacedDigit())
+                .foregroundStyle(Theme.tertiary)
         }
     }
 }

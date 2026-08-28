@@ -4,7 +4,7 @@ import Combine
 @MainActor
 final class NotchViewModel: ObservableObject {
     enum Tab: String, CaseIterable, Identifiable {
-        case media, shelf, clipboard, snippets, calendar, translate, notes, teleprompter, settings
+        case media, shelf, clipboard, snippets, calendar, translate, notes, posts, teleprompter, settings
         var id: String { rawValue }
 
         var symbol: String {
@@ -16,6 +16,7 @@ final class NotchViewModel: ObservableObject {
             case .calendar: return "calendar"
             case .translate: return "translate"
             case .notes: return "note.text"
+            case .posts: return "bookmark.fill"
             case .teleprompter: return "text.viewfinder"
             case .settings: return "gearshape.fill"
             }
@@ -30,6 +31,7 @@ final class NotchViewModel: ObservableObject {
             case .calendar: return localized("Calendar")
             case .translate: return localized("Translate")
             case .notes: return localized("Notes")
+            case .posts: return localized("Posts")
             case .teleprompter: return localized("Teleprompter")
             case .settings: return localized("Settings")
             }
@@ -37,7 +39,7 @@ final class NotchViewModel: ObservableObject {
 
         /// Tabs with a field in them. Landing on one hands it the keyboard, so
         /// that arriving and typing is a single move.
-        var needsKeyboard: Bool { self == .translate || self == .snippets || self == .notes }
+        var needsKeyboard: Bool { self == .translate || self == .snippets || self == .notes || self == .posts }
 
         /// Which rail the icon sits on. The left one carries the original six
         /// and is full — icon height is a ceiling now, not a constant (#26,
@@ -49,7 +51,14 @@ final class NotchViewModel: ObservableObject {
         /// past on the way to a track or a calendar, so it sits last,
         /// furthest from the tabs people actually rest on.
         static let leftRail: [Tab] = [.media, .shelf, .clipboard, .snippets, .calendar, .translate]
-        static let rightRail: [Tab] = [.notes, .teleprompter, .settings]
+
+        /// The right rail as configured — the one spelling there is: posts can
+        /// be switched off in Settings, and a switched-off tab gives its slot
+        /// back, so a bare constant would always be the wrong list for someone.
+        static func rightRail(showsPosts: Bool) -> [Tab] {
+            let tabs: [Tab] = [.notes, .posts, .teleprompter, .settings]
+            return showsPosts ? tabs : tabs.filter { $0 != .posts }
+        }
     }
 
     /// What every screen's panel adds up to, kept by `NotchController`: this
@@ -78,12 +87,31 @@ final class NotchViewModel: ObservableObject {
             // hover to recreate, and a trail of empty cards is the clutter a
             // scratchpad exists to avoid.
             if oldValue == .notes, tab != .notes { notes.leave() }
+            // Only to recover from a broken file the user has since fixed —
+            // a healthy posts file is never re-read on the way in.
+            if tab == .posts { posts.reload() }
+            // Leaving the posts lands a pending write now, not a debounce
+            // later.
+            if oldValue == .posts, tab != .posts { posts.flush() }
             // Leaving the tab that types gives the keyboard straight back —
             // done per screen, where the claim lives, in `NotchScreenPanel`.
 
             // Leaving the teleprompter stops the scroll and drops the pin, so
             // the panel goes back to obeying the pointer like everything else.
             if oldValue == .teleprompter, tab != .teleprompter { teleprompter.suspend() }
+        }
+    }
+
+    /// Whether the posts tab is on the rail and copied links are collected.
+    /// One switch for both on purpose: a tab switched off must also stop its
+    /// background work, and collecting for a list nobody can open is exactly
+    /// that.
+    @Published var showsPosts = PostStore.isEnabled {
+        didSet {
+            PostStore.isEnabled = showsPosts
+            // The tab is leaving the rail; standing on it would strand the
+            // selection on an icon that is no longer there.
+            if !showsPosts, tab == .posts { tab = .media }
         }
     }
 
@@ -106,6 +134,7 @@ final class NotchViewModel: ObservableObject {
     let snippets: SnippetStore
     let notes: NoteStore
     let teleprompter: TeleprompterStore
+    let posts: PostStore
     /// Shared by every pane that shows something worth not showing.
     let privacy = PrivacyMode()
 
@@ -120,6 +149,7 @@ final class NotchViewModel: ObservableObject {
         self.snippets = SnippetStore()
         self.notes = NoteStore()
         self.teleprompter = TeleprompterStore()
+        self.posts = PostStore()
 
         // The panel header reads through to the stores — counters, the source
         // name, the equalizer. Nested ObservableObjects do not propagate on
@@ -182,6 +212,9 @@ final class NotchViewModel: ObservableObject {
         // to PNG in full just to be dropped on this doorstep — pure heat on
         // exactly the machines whose owners turned the feature off.
         clipboard.wantsImages = { Self.saveClipboardImagesEnabled }
+        // Copied post links become saved posts. The off switch is not asked
+        // here: `capture` asks it for itself, so no caller can forget to.
+        clipboard.onText = { [weak self] text in self?.posts.capture(text) }
         clipboard.onImage = { [weak self] png in
             guard let self, let url = ScreenshotVault.save(png) else { return }
             self.receivedScreenshot(at: url)
@@ -195,6 +228,7 @@ final class NotchViewModel: ObservableObject {
         calendar.stop()
         // Whatever was typed makes it to disk even when quitting mid-thought.
         notes.flush()
+        posts.flush()
     }
 
     /// A screenshot that arrived on its own — copied elsewhere, or synced

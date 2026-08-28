@@ -102,3 +102,15 @@
 "Paste the script here" = "Paste the script here";
 "Ready" = "Ready";
 "Done" = "Done";
+
+/* Posts tab */
+"Posts" = "Posts";
+"Post" = "Post";
+"Note" = "Note";
+"Add Note" = "Add Note";
+"Edit Note" = "Edit Note";
+"Mark as Read" = "Mark as Read";
+"Mark as Unread" = "Mark as Unread";
+"Show Posts Tab" = "Show Posts Tab";
+"Show Posts File" = "Show Posts File";
+"posts.json is broken — click to open; nothing is overwritten" = "posts.json is broken — click to open; nothing is overwritten";
