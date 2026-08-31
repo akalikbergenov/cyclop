@@ -17,6 +17,13 @@ VERSION="$(sed -n 's/^VERSION=//p' "$ROOT/Scripts/version" 2>/dev/null || echo 0
 # Номер сборки живёт отдельно от версии: App Store Connect не примет второй
 # загруженный бинарь с тем же CFBundleVersion, даже если версия не менялась.
 BUILD="${BUILD:-1}"
+# com.cyclop.app занят чужой командой — идентификатор взят в пространстве имён
+# издателя. Меняется переменной, если появится свой.
+BUNDLE_ID="${BUNDLE_ID:-kz.galamat.cyclop}"
+TEAM="${TEAM:-PB2762M9G4}"
+# Профиль обязателен для настоящей отправки и вкладывается в бандл. Без него
+# скрипт всё ещё собирает ad-hoc вариант, годный только чтобы посмотреть.
+PROFILE="${PROFILE:-}"
 # Ad-hoc по умолчанию — этого хватает, чтобы запустить и посмотреть. Для
 # настоящей отправки: IDENTITY="3rd Party Mac Developer Application: …"
 IDENTITY="${IDENTITY:--}"
@@ -40,7 +47,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundleLocalizations</key>
     <array><string>en</string><string>ru</string></array>
     <key>CFBundleDisplayName</key><string>Cyclop</string>
-    <key>CFBundleIdentifier</key><string>com.cyclop.app</string>
+    <key>CFBundleIdentifier</key><string>$BUNDLE_ID</string>
     <key>CFBundleExecutable</key><string>Cyclop</string>
     <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>CFBundlePackageType</key><string>APPL</string>
@@ -65,6 +72,12 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 PLIST
 
 [ -f "$ROOT/Resources/AppIcon.icns" ] && cp "$ROOT/Resources/AppIcon.icns" "$APP/Contents/Resources/"
+
+if [ -n "$PROFILE" ]; then
+    [ -f "$PROFILE" ] || { echo "!!! профиля нет: $PROFILE" >&2; exit 1; }
+    cp "$PROFILE" "$APP/Contents/embedded.provisionprofile"
+    echo "==> профиль вложен"
+fi
 
 echo "==> локализации"
 for lproj in "$ROOT"/Resources/*.lproj; do
@@ -94,8 +107,21 @@ echo "    чисто"
 
 echo "==> подпись ($([ "$IDENTITY" = "-" ] && echo "ad-hoc" || echo "$IDENTITY"))"
 xattr -cr "$APP"
+
+# application-identifier и team-identifier принадлежат конкретной команде и
+# конкретному идентификатору, поэтому их нет в Scripts/appstore.entitlements:
+# тот файл описывает песочницу и переживает смену издателя. Здесь они
+# дописываются во временную копию, которой и подписывается бандл.
+ENTS="$(mktemp -t cyclop-ents)"
+trap 'rm -f "$ENTS"' EXIT
+cp "$ROOT/Scripts/appstore.entitlements" "$ENTS"
+# PlistBuddy, а не plutil: у последнего точка — разделитель пути, и ключ
+# com.apple.application-identifier он понимает как четыре вложенных уровня.
+/usr/libexec/PlistBuddy -c "Add :com.apple.application-identifier string $TEAM.$BUNDLE_ID" "$ENTS" >/dev/null
+/usr/libexec/PlistBuddy -c "Add :com.apple.developer.team-identifier string $TEAM" "$ENTS" >/dev/null
+
 codesign --force --options runtime \
-    --entitlements "$ROOT/Scripts/appstore.entitlements" \
+    --entitlements "$ENTS" \
     --sign "$IDENTITY" "$APP" || {
     echo "!!! codesign не смог подписать бандл" >&2
     exit 1
