@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Обязателен для Mac App Store и не обсуждается. -->
+    <key>com.apple.security.app-sandbox</key><true/>
+
+    <!-- Полка: файл, брошенный в неё, и «показать в Finder». -->
+    <key>com.apple.security.files.user-selected.read-write</key><true/>
+    <!-- Полка переживает перезапуск. Без закладок пути из UserDefaults
+         в сэндбоксе бесполезны: доступ к файлу даётся на один сеанс. -->
+    <key>com.apple.security.files.bookmarks.app-scope</key><true/>
+
+    <!-- ~/Pictures/Cyclop — куда ScreenshotVault кладёт снимки. -->
+    <key>com.apple.security.assets.pictures.read-write</key><true/>
+
+    <!-- Вкладка «Календарь», EventKit. -->
+    <key>com.apple.security.personal-information.calendars</key><true/>
+
+    <!-- Единственный разрешённый способ узнать, что играет. Список закрыт
+         ровно двумя адресатами: чем он короче, тем меньше вопросов на
+         ревью, а больше ни с кем приложение не разговаривает. -->
+    <key>com.apple.security.automation.apple-events</key><true/>
+    <key>com.apple.security.temporary-exception.apple-events</key>
+    <array>
+        <string>com.apple.Music</string>
+        <string>com.spotify.client</string>
+    </array>
+
+    <!-- Сети здесь нет намеренно: CONTRIBUTING обещает, что исходящих
+         соединений у приложения не бывает, кроме описанных в SECURITY.md. -->
+</dict>
+</plist>

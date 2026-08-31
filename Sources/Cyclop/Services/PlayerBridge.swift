@@ -105,6 +105,9 @@ enum PlayerBridge {
 
     /// System-wide media key, used when no scriptable player is running.
     /// Requires Accessibility permission; silently does nothing without it.
+#if !APP_STORE
+    /// Left out of App Store builds: `CGEvent.post` needs Accessibility, which
+    /// a sandboxed app cannot obtain.
     static func postMediaKey(_ key: Int32) {
         for down in [true, false] {
             let flags: Int = down ? 0xA00 : 0xB00
@@ -122,6 +125,7 @@ enum PlayerBridge {
             event.cgEvent?.post(tap: .cghidEventTap)
         }
     }
+#endif
 
     enum MediaKey: Int32 {
         case playPause = 16, next = 17, previous = 18

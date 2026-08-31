@@ -116,7 +116,14 @@ final class MediaController: ObservableObject {
         } else if let activeApp {
             script(activeApp)
         } else {
+            // Nothing scriptable is playing. Outside the store the media keys
+            // are the last resort — they reach whatever the system considers
+            // the active player. A store build has no such resort: posting a
+            // HID event needs Accessibility, which the sandbox does not grant
+            // and which this project promises never to ask for.
+#if !APP_STORE
             PlayerBridge.postMediaKey(key.rawValue)
+#endif
         }
     }
 
