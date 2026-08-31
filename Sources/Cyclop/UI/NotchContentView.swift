@@ -97,6 +97,8 @@ struct NotchContentView: View {
             // Nothing: the columns name both languages already, and the strip
             // is the one part of the panel worth not spending on a repeat.
             EmptyView()
+        case .currency:
+            CurrencyRateDate(currencies: vm.currencies)
         case .notes:
             NotesCounter(notes: vm.notes)
         case .teleprompter:
@@ -164,6 +166,8 @@ struct NotchContentView: View {
             SnippetsPane(snippets: vm.snippets, privacy: vm.privacy, wantsKeyboard: $panel.wantsKeyboard)
         case .translate:
             TranslatePane(translator: vm.translator, wantsKeyboard: $panel.wantsKeyboard)
+        case .currency:
+            CurrencyPane(currencies: vm.currencies, wantsKeyboard: $panel.wantsKeyboard)
         case .notes:
             NotesPane(notes: vm.notes, privacy: vm.privacy, wantsKeyboard: $panel.wantsKeyboard)
         case .teleprompter:
@@ -184,6 +188,21 @@ private struct NotesCounter: View {
     var body: some View {
         if !notes.notes.isEmpty {
             Text("\(notes.notes.count)")
+                .font(.system(size: 10, weight: .medium).monospacedDigit())
+                .foregroundStyle(Theme.tertiary)
+        }
+    }
+}
+
+/// Same reason as `NotesCounter`: rate fetches must not redraw the whole panel
+/// on every keystroke in the amount fields, so the date badge observes the
+/// store on its own.
+private struct CurrencyRateDate: View {
+    @ObservedObject var currencies: CurrencyStore
+
+    var body: some View {
+        if let date = currencies.rateDate {
+            Text(date)
                 .font(.system(size: 10, weight: .medium).monospacedDigit())
                 .foregroundStyle(Theme.tertiary)
         }

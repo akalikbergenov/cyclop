@@ -9,6 +9,7 @@
 "Snippets" = "Snippets";
 "Calendar" = "Calendar";
 "Translate" = "Translate";
+"Currency" = "Currency";
 "Settings" = "Settings";
 
 /* Menu bar */
@@ -59,6 +60,11 @@
 "Retry" = "Retry";
 "The %@ → %@ language pack is not installed." = "The %@ → %@ language pack is not installed.";
 "macOS does not translate this pair of languages." = "macOS does not translate this pair of languages.";
+
+/* Currency */
+"Search currency" = "Search currency";
+"Swap currencies" = "Swap currencies";
+"No currencies match" = "No currencies match";
 
 /* Calendar */
 "Join" = "Join";

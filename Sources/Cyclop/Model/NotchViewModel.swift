@@ -4,7 +4,7 @@ import Combine
 @MainActor
 final class NotchViewModel: ObservableObject {
     enum Tab: String, CaseIterable, Identifiable {
-        case media, shelf, clipboard, snippets, calendar, translate, notes, teleprompter, settings
+        case media, shelf, clipboard, snippets, calendar, translate, currency, notes, teleprompter, settings
         var id: String { rawValue }
 
         var symbol: String {
@@ -15,6 +15,7 @@ final class NotchViewModel: ObservableObject {
             case .snippets: return "pin.fill"
             case .calendar: return "calendar"
             case .translate: return "translate"
+            case .currency: return "dollarsign.circle"
             case .notes: return "note.text"
             case .teleprompter: return "text.viewfinder"
             case .settings: return "gearshape.fill"
@@ -29,6 +30,7 @@ final class NotchViewModel: ObservableObject {
             case .snippets: return localized("Snippets")
             case .calendar: return localized("Calendar")
             case .translate: return localized("Translate")
+            case .currency: return localized("Currency")
             case .notes: return localized("Notes")
             case .teleprompter: return localized("Teleprompter")
             case .settings: return localized("Settings")
@@ -37,19 +39,22 @@ final class NotchViewModel: ObservableObject {
 
         /// Tabs with a field in them. Landing on one hands it the keyboard, so
         /// that arriving and typing is a single move.
-        var needsKeyboard: Bool { self == .translate || self == .snippets || self == .notes }
+        var needsKeyboard: Bool {
+            self == .translate || self == .currency || self == .snippets || self == .notes
+        }
 
         /// Which rail the icon sits on. The left one carries the original six
         /// and is full — icon height is a ceiling now, not a constant (#26,
         /// #27), so a seventh icon would not overflow the panel, but it would
         /// shrink every icon on the rail to make room, which is the same
         /// objection in a quieter voice. Growth continues in a second column
-        /// on the right, which the scratch notes open. Settings joins that
-        /// column rather than the content rail: it is not something to hover
-        /// past on the way to a track or a calendar, so it sits last,
-        /// furthest from the tabs people actually rest on.
+        /// on the right: currency sits first there, right after translate,
+        /// then the scratch notes. Settings joins that column rather than the
+        /// content rail: it is not something to hover past on the way to a
+        /// track or a calendar, so it sits last, furthest from the tabs
+        /// people actually rest on.
         static let leftRail: [Tab] = [.media, .shelf, .clipboard, .snippets, .calendar, .translate]
-        static let rightRail: [Tab] = [.notes, .teleprompter, .settings]
+        static let rightRail: [Tab] = [.currency, .notes, .teleprompter, .settings]
     }
 
     /// What every screen's panel adds up to, kept by `NotchController`: this
@@ -74,6 +79,9 @@ final class NotchViewModel: ObservableObject {
             // prompt. It is asked here, with the shelf on screen, rather than
             // at launch with nothing to explain it.
             if tab == .shelf { shelf.refreshFromDisk() }
+            // Rates update on a timer already; opening the tab asks once more
+            // so a stale cache from the last few hours does not sit there.
+            if tab == .currency { currencies.refreshIfNeeded() }
             // Leaving the notes sweeps out the blank ones — they cost one
             // hover to recreate, and a trail of empty cards is the clutter a
             // scratchpad exists to avoid.
@@ -103,6 +111,7 @@ final class NotchViewModel: ObservableObject {
     let clipboard: ClipboardStore
     let calendar: CalendarStore
     let translator: Translator
+    let currencies: CurrencyStore
     let snippets: SnippetStore
     let notes: NoteStore
     let teleprompter: TeleprompterStore
@@ -117,6 +126,7 @@ final class NotchViewModel: ObservableObject {
         self.clipboard = ClipboardStore()
         self.calendar = CalendarStore()
         self.translator = Translator()
+        self.currencies = CurrencyStore()
         self.snippets = SnippetStore()
         self.notes = NoteStore()
         self.teleprompter = TeleprompterStore()
@@ -134,12 +144,13 @@ final class NotchViewModel: ObservableObject {
         // `isOpen` is itself @Published and its own send does that.
         //
         // The stores with a text field in their pane — the translator, the
-        // snippets and the notes — are deliberately absent. They change on every
-        // keystroke, and redrawing the whole panel per letter costs more than a
-        // stale counter: it rebuilds the field, which drops the focus, so the
-        // first letter typed is also the last one that lands. Their panes
-        // observe them directly, and the header counter refreshes anyway,
-        // because the list is only ever re-read on the way into the tab.
+        // currency converter, the snippets and the notes — are deliberately
+        // absent. They change on every keystroke, and redrawing the whole
+        // panel per letter costs more than a stale counter: it rebuilds the
+        // field, which drops the focus, so the first letter typed is also the
+        // last one that lands. Their panes observe them directly, and the
+        // header counter refreshes anyway, because the list is only ever
+        // re-read on the way into the tab.
         for child in [
             media.objectWillChange,
             shelf.objectWillChange,
@@ -169,6 +180,7 @@ final class NotchViewModel: ObservableObject {
         media.start()
         shelf.load()
         snippets.reload()
+        currencies.start()
         // Only picks up where it left off if access was granted earlier; it
         // never prompts on its own.
         calendar.start()
@@ -193,6 +205,7 @@ final class NotchViewModel: ObservableObject {
         media.stop()
         clipboard.stop()
         calendar.stop()
+        currencies.stop()
         // Whatever was typed makes it to disk even when quitting mid-thought.
         notes.flush()
     }
