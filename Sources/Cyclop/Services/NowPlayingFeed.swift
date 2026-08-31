@@ -45,6 +45,30 @@ final class NowPlayingFeed {
     /// Raised when the helper cannot run at all, so the caller can fall back.
     var onUnavailable: (() -> Void)?
 
+#if APP_STORE
+
+    // MARK: - Lifecycle (App Store build)
+
+    /// The MediaRemote route does not exist in a store build, and cannot be
+    /// made to. It reads a private framework, and it reaches it by hosting a
+    /// helper inside `/usr/bin/perl` — a process outside the bundle. The
+    /// sandbox forbids the second outright, and the first is refused by the
+    /// automated check before review ever sees the build. Compiling the route
+    /// out rather than disabling it at runtime is deliberate: the check reads
+    /// the binary, so the strings must not be in it.
+    ///
+    /// Declaring itself unavailable at once puts `MediaController` on the
+    /// scripted Music/Spotify path from the first tick — everything a store
+    /// build is permitted to read.
+    func start() { onUnavailable?() }
+
+    func stop() {}
+    func refresh() {}
+    func send(_ command: Command) {}
+    func seek(to seconds: TimeInterval) {}
+
+#else
+
     private var process: Process?
     private var input: FileHandle?
     private var buffer = Data()
@@ -214,4 +238,6 @@ final class NowPlayingFeed {
         }
         onUpdate?(snapshot)
     }
+
+#endif
 }
