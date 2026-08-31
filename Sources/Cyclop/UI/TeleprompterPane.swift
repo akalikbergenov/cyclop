@@ -110,11 +110,16 @@ struct TeleprompterPane: View {
             .padding(.horizontal, 14)
             .overlay(alignment: .topLeading) {
                 if prompter.script.isEmpty {
+                    // Offsets match where the editor actually puts its first
+                    // line, not where the rounded rectangle starts: 14 is the
+                    // padding above, 5 is the text container's own line
+                    // fragment padding. Getting this wrong parks the caret
+                    // above and left of the placeholder it is supposed to
+                    // stand in front of.
                     Text("Paste the script here")
                         .font(.system(size: 13, design: .rounded))
                         .foregroundStyle(Theme.tertiary)
-                        .padding(.horizontal, 20)
-                        .padding(.top, 8)
+                        .padding(.leading, 14 + 5)
                         .allowsHitTesting(false)
                 }
             }
