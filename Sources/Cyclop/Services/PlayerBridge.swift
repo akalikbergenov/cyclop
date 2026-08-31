@@ -166,14 +166,14 @@ enum PlayerBridge {
             \(sep)
             tell application id "com.spotify.client"
                 try
-                    set st to player state as text
+                    set pstate to player state as text
                     set t to current track
                     try
                         set pos to (round ((player position) * 1000))
                     on error
                         set pos to 0
                     end try
-                    return st & sep & (name of t) & sep & (artist of t) & sep & (album of t) & sep & (duration of t) & sep & pos & sep & (artwork url of t)
+                    return pstate & sep & (name of t) & sep & (artist of t) & sep & (album of t) & sep & (duration of t) & sep & pos & sep & (artwork url of t)
                 on error
                     return ""
                 end try
@@ -184,14 +184,14 @@ enum PlayerBridge {
             \(sep)
             tell application id "com.apple.Music"
                 try
-                    set st to player state as text
+                    set pstate to player state as text
                     set t to current track
                     try
                         set pos to (round ((player position) * 1000))
                     on error
                         set pos to 0
                     end try
-                    return st & sep & (name of t) & sep & (artist of t) & sep & (album of t) & sep & (round ((duration of t) * 1000)) & sep & pos & sep & ""
+                    return pstate & sep & (name of t) & sep & (artist of t) & sep & (album of t) & sep & (round ((duration of t) * 1000)) & sep & pos & sep & ""
                 on error
                     return ""
                 end try
