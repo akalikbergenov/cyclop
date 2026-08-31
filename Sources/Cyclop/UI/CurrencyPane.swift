@@ -63,6 +63,7 @@ struct CurrencyPane: View {
                         )
                 }
                 .buttonStyle(.plain)
+                .pointerStyle(.default)
                 .padding(.top, 28)
                 .help(localized("Swap currencies"))
 
@@ -119,6 +120,7 @@ struct CurrencyPane: View {
                 )
             }
             .buttonStyle(.plain)
+            .pointerStyle(.default)
 
             TextField("0", text: text)
             .textFieldStyle(.plain)
@@ -172,9 +174,11 @@ struct CurrencyPane: View {
                             .foregroundStyle(Theme.secondary)
                     }
                     .buttonStyle(.plain)
+                    .pointerStyle(.default)
                 }
                 Button(localized("Done")) { closePicker() }
                     .buttonStyle(.plain)
+                    .pointerStyle(.default)
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.white)
             }
