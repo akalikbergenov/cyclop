@@ -1,0 +1,43 @@
+name: stale
+
+# Правило из CONTRIBUTING.md, исполняемое машиной, а не памятью мейнтейнера:
+# просьба доработать без ответа неделю — PR закрывается. Это не отказ,
+# закрытый PR здесь значит только, что он не висит в очереди.
+#
+# Смотрит только на PR с меткой waiting-for-author: метку ставит человек,
+# когда действительно просит правку, так что бот никогда не закроет то, на
+# что ещё никто не ответил. Метка blocked освобождает: там ждут не автора.
+on:
+  schedule:
+    - cron: '17 9 * * *'
+  workflow_dispatch:
+
+permissions:
+  pull-requests: write
+  issues: write
+
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/stale@v9
+        with:
+          # Issue не трогаем вовсе: правило про PR.
+          days-before-issue-stale: -1
+          days-before-issue-close: -1
+          days-before-pr-stale: 5
+          days-before-pr-close: 2
+          only-pr-labels: waiting-for-author
+          exempt-pr-labels: blocked
+          stale-pr-label: stale
+          remove-pr-stale-when-updated: true
+          stale-pr-message: >
+            Пять дней без ответа на просьбу доработать. По правилу из
+            CONTRIBUTING.md через два дня PR закроется сам, если не будет
+            движения — любой комментарий или коммит это отменяет. Это не отказ:
+            закрытый PR здесь значит только, что он не висит в очереди, и
+            открыть его заново можно в любой момент тем же кодом.
+          close-pr-message: >
+            Неделя без ответа, закрываю по правилу из CONTRIBUTING.md. Работа
+            не потеряна: подать заново можно в любой момент тем же кодом, и
+            разговор продолжится с того же места.

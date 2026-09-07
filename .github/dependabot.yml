@@ -1,0 +1,9 @@
+# Зависимостей в коде нет — Package.swift пустой. Устаревать могут только
+# экшены в workflows, и они устаревают молча.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    labels: [documentation]
