@@ -101,7 +101,9 @@ final class NotchScreenPanel {
         root.addSubview(hosting)
 
         root.onDragEntered = { [weak self] in
-            guard let self else { return }
+            // A shelf that is switched off is not a drop target: the panel
+            // does not open for a file it has nowhere to show.
+            guard let self, vm.isVisible(.shelf) else { return }
             state.select(.shelf)
             state.isDropTargeted = true
             setOpen(true)
