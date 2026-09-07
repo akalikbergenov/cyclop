@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Два права, и оба не дают приложению ничего сверх того, что оно уже
+         делает: под hardened runtime без них система молча запрещает то, что
+         без hardened runtime разрешала. Само разрешение остаётся за
+         пользователем — TCC спросит его в тот же момент, что и раньше.
+
+         Apple-события держат запасной путь управления плеером (AppleScript для
+         Music и Spotify). Написано @DontTrustMexD в #1. -->
+    <key>com.apple.security.automation.apple-events</key>
+    <true/>
+    <!-- Календарь читается через EventKit на вкладке «Календарь», по кнопке.
+         Без этого ключа hardened runtime отказывает в доступе до того, как
+         TCC успевает спросить. -->
+    <key>com.apple.security.personal-information.calendars</key>
+    <true/>
+</dict>
+</plist>
