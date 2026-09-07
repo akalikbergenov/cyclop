@@ -51,10 +51,18 @@ struct TeleprompterPane: View {
             // a field one cannot type into is worse than briefly dimming the
             // caret below. It happens once — a script that exists is read, not
             // written, and this branch is never taken again.
+            //
+            // The focus itself is asked for a pass later, the way the notes do:
+            // this fires while the pane is still being put on screen, and a
+            // focus requested from a field that is not yet in a key window is
+            // dropped rather than queued. Arriving through the rail happened
+            // to survive that; arriving by reopening the panel on this tab did
+            // not, and the editor came back with its placeholder, its caret
+            // gone, and no way to click one into it.
             guard prompter.script.isEmpty else { return }
             editing = true
             wantsKeyboard = true
-            focused = true
+            DispatchQueue.main.async { focused = true }
         }
         .onDisappear { prompter.suspend() }
     }
@@ -122,27 +130,43 @@ struct TeleprompterPane: View {
 
     // MARK: - Editing
 
+    /// Room between the text and the rounded rectangle it sits in. The editor
+    /// has none of its own: its first line goes flush against its top-left
+    /// corner, five points of line fragment padding aside, and a script
+    /// pressed into the corner of a box reads as a mistake before it reads as
+    /// text. Seven plus those five puts the first character at 26 from the
+    /// pane's edge — the same column the reader puts it in.
+    private enum EditorInset {
+        static let horizontal: CGFloat = 7
+        static let vertical: CGFloat = 10
+    }
+
     private var editor: some View {
         TextEditor(text: $prompter.script)
             .font(.system(size: 13, design: .rounded))
             .scrollContentBackground(.hidden)
-            .background(Theme.surface)
             .foregroundStyle(.white)
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             .focused($focused)
+            // Inside the surface, so the box keeps its size and the text moves
+            // in from its edges.
+            .padding(.horizontal, EditorInset.horizontal)
+            .padding(.vertical, EditorInset.vertical)
+            .background(Theme.surface)
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             .padding(.horizontal, 14)
             .overlay(alignment: .topLeading) {
                 if prompter.script.isEmpty {
                     // Offsets match where the editor actually puts its first
                     // line, not where the rounded rectangle starts: 14 is the
-                    // padding above, 5 is the text container's own line
-                    // fragment padding. Getting this wrong parks the caret
-                    // above and left of the placeholder it is supposed to
-                    // stand in front of.
+                    // padding around the box, then the inset above, then the
+                    // text container's own 5 pt of line fragment padding.
+                    // Getting this wrong parks the caret above and left of the
+                    // placeholder it is supposed to stand in front of.
                     Text("Paste the script here")
                         .font(.system(size: 13, design: .rounded))
                         .foregroundStyle(Theme.tertiary)
-                        .padding(.leading, 14 + 5)
+                        .padding(.leading, 14 + EditorInset.horizontal + 5)
+                        .padding(.top, EditorInset.vertical)
                         .allowsHitTesting(false)
                 }
             }
