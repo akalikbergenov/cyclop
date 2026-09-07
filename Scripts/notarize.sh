@@ -34,10 +34,10 @@ OUT="$(xcrun notarytool submit "$FILE" "${AUTH[@]}" --wait --output-format json)
 ID="$(printf '%s' "$OUT" | /usr/bin/python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')"
 STATUS="$(printf '%s' "$OUT" | /usr/bin/python3 -c 'import json,sys; print(json.load(sys.stdin)["status"])')"
 xcrun notarytool log "$ID" "${AUTH[@]}" 2>/dev/null | /usr/bin/python3 -c '
-import json,sys
-log=json.load(sys.stdin)
+import json, sys
+log = json.load(sys.stdin)
 for issue in log.get("issues") or []:
-    print(f"    {issue.get(\"severity\")}: {issue.get(\"path\")}: {issue.get(\"message\")}")
+    print("    {}: {}: {}".format(issue.get("severity"), issue.get("path"), issue.get("message")))
 ' || true
 [ "$STATUS" = "Accepted" ] || fail "нотаризация: $STATUS (id $ID)"
 
