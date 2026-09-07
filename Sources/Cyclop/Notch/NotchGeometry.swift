@@ -173,10 +173,17 @@ struct NotchGeometry {
         let leftmost = icons.filter(bar.intersects).map(\.minX).min()
         // The right edge of the collapsed target, icons permitting.
         let reach = screen.frame.midX + 90 + 6
-        // An empty scan is not evidence of an empty menu bar — Control Center
-        // alone puts several windows up there — so it reads as "could not
-        // measure", and the cautious strip is what that falls back to.
-        let crowded = icons.isEmpty || (leftmost ?? .infinity) < reach
+        // No icon measured on *this* bar reads as "could not measure",
+        // whatever the reason: a globally empty scan (Control Center alone
+        // puts several windows up there), or — with Spaces on — macOS drawing
+        // status items only on the bar of the display currently focused, so
+        // an external display sampled while focus sits elsewhere sees none of
+        // its own icons even though it carries them the moment focus lands
+        // there (#66). `icons.isEmpty` used to stand for the first case only;
+        // checking `leftmost` instead covers both, because a globally empty
+        // scan leaves it `nil` too. Either way, the cautious strip is what
+        // "could not measure" falls back to.
+        let crowded = leftmost.map { $0 < reach } ?? true
         return NotchGeometry(
             screen: screen,
             notchSize: CGSize(width: 180, height: max(menuBarHeight, NSStatusBar.system.thickness, 24)),
