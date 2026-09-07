@@ -52,13 +52,16 @@ final class NotchViewModel: ObservableObject {
         /// #27), so a seventh icon would not overflow the panel, but it would
         /// shrink every icon on the rail to make room, which is the same
         /// objection in a quieter voice. Growth continues in a second column
-        /// on the right: currency sits first there, right after translate,
-        /// then the scratch notes. Settings joins that column rather than the
-        /// content rail: it is not something to hover past on the way to a
-        /// track or a calendar, so it sits last, furthest from the tabs
-        /// people actually rest on.
+        /// on the right, which the scratch notes open: they are the daily tab
+        /// of that column, so they sit where the pointer lands first. The rare
+        /// modes — the converter, the teleprompter — come after them, by the
+        /// rule from #43 that the rail is ordered by how often a tab is
+        /// glanced at. Settings joins that column rather than the content
+        /// rail: it is not something to hover past on the way to a track or a
+        /// calendar, so it sits last, furthest from the tabs people actually
+        /// rest on.
         static let leftRail: [Tab] = [.media, .shelf, .clipboard, .snippets, .calendar, .translate]
-        static let rightRail: [Tab] = [.currency, .notes, .teleprompter, .settings]
+        static let rightRail: [Tab] = [.notes, .currency, .teleprompter, .settings]
     }
 
     /// What every screen's panel adds up to, kept by `NotchController`: this
