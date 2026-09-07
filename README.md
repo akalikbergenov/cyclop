@@ -33,6 +33,7 @@ that works is below.
 | **Snippets** | A hand-kept list of what you are tired of retyping: an address, a phone number, an email. Added with a button in the panel, removed with the cross on a card; a click puts the text on the clipboard. The same list lives in `~/Library/Application Support/Cyclop/snippets.json` and can be edited there instead |
 | **Calendar** | The next meeting a week ahead: how long until it starts and a button that joins the call — Zoom, Meet, Teams and others. The rest of the meetings as a list |
 | **Translate** | Type on the left, the translation appears on the right — by itself, offline, using macOS's own facilities. English goes to Russian, Russian to English; the direction comes from the script the text is written in. macOS does not preinstall language packs, so the first time you have to download one: System Settings → General → Language & Region → "Translation Languages…" |
+| **Currency** | An amount on one side, the other currency on the other; type into either. Rates are the one thing in Cyclop that comes over the network — a public table of daily rates, fetched once an hour, and only while the tab is on |
 | **Teleprompter** | A script that scrolls under the camera at a speed you set. The notch is the one place on the screen a teleprompter belongs: reading happens right beside the lens, so on the recording the eyes stay on the camera instead of travelling to a window below it. The panel holds itself open while the text is moving — reading a script means not touching the trackpad |
 | **Notes** | Scratch, on the right rail of icons: jot something down, come back, delete it or carry it off through the clipboard. Hovering lands with the caret ready; blank notes sweep themselves out |
 
@@ -43,6 +44,13 @@ itself and goes straight to the shelf. The menu bar icon toggles the panel,
 hides every tab's contents at once, and quits. The icon itself can be
 removed — ⌘-drag it off the bar, or flip the switch in Settings — and
 relaunching Cyclop brings it back.
+
+Any tab can be switched off in **Settings → Show in Panel**. Off means two
+things: the icon leaves the rail, and the tab's background work stops with
+it — the clipboard poll, the calendar watch, the Now Playing helper, the
+rate fetch. The rail is for what gets a glance between other things; a mode
+used once a month may live there, but only as long as the people who never
+use it can take it off.
 
 ## Requirements
 
@@ -69,27 +77,19 @@ swift Scripts/make-icon.swift "$PWD/Resources/AppIcon.icns"
 
 ## Installation
 
-Open `Cyclop-<version>.dmg` and drag the app into Applications.
+Open `Cyclop-<version>.dmg` and drag the app into Applications. It opens on
+the first try: since 0.8.0 the image is signed with a Developer ID and
+notarised by Apple, so there is nothing to allow and nothing to type.
 
-The first launch **will not work**: macOS will say the app cannot be verified.
-That is expected — the image is ad-hoc signed, without a Developer ID, and not
-notarised. It has to be allowed once:
+Updating works the same way: open the new image and replace the app. Coming
+from a version before 0.8.0, macOS may ask for the calendar permission once
+more — the app's signature changed, and that is what the permission was tied
+to. The version is the first line of the menu bar menu.
 
-**System Settings → Privacy & Security**, where a line about Cyclop and an
-**"Open Anyway"** button will be waiting near the bottom.
-
-Or, if one command is easier:
-
-```bash
-xattr -dr com.apple.quarantine /Applications/Cyclop.app
-```
-
-In macOS 15 the familiar Control-click route no longer works for this case, so it
-is one of those two. The requirement itself only goes away with a paid Apple
-Developer ID and notarisation.
-
-Updating works the same way: open the new image and replace the app. Allowing it
-again is not necessary. The version is the first line of the menu bar menu.
+A build from source (`Scripts/bundle.sh`) is ad-hoc signed and is not
+notarised, so on any Mac but the one that built it the first launch goes
+through **System Settings → Privacy & Security → "Open Anyway"**. Releases do
+not have this step.
 
 Releases come often, and a star does not announce them — it is a bookmark, not a
 subscription. To hear about updates: the **Watch** button at the top right →
@@ -490,6 +490,9 @@ Sources/Cyclop
 │   ├── NoteStore.swift        scratch notes: notes.json
 │   ├── PrivacyMode.swift      hiding contents: sections and reveals
 │   ├── Translator.swift       Translation.framework, direction by script
+│   ├── CurrencyStore.swift    rates over the network, the one tab that has any
+│   ├── TeleprompterStore.swift the script and where reading it has got to
+│   ├── ScreenshotFolderWatcher.swift  screenshots saved to disk, onto the shelf
 │   └── CalendarStore.swift    EventKit: next meetings and the call link
 └── UI/                        NotchShape, tab panes, theme
 
