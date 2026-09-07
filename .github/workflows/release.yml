@@ -1,0 +1,73 @@
+name: release
+
+# Выпуск версии по пушу тега: образ, контрольная сумма и релиз на GitHub
+# собираются на раннере, а не на чьей-то машине. Заметки к релизу берутся из
+# docs/releases/<версия>.md — их пишет человек до тега, см. Scripts/release.sh,
+# который проверяет всё нужное и ставит тег.
+#
+# Ручной запуск — пробный прогон: образ собирается и кладётся артефактом,
+# релиз не публикуется. Так workflow проверяется без тега.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # Вся история и теги: список изменений считается от предыдущего тега.
+          fetch-depth: 0
+
+      - name: Тег, версия и заметки согласованы
+        run: |
+          VERSION="$(sed -n 's/^VERSION=//p' Scripts/version)"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            test "$GITHUB_REF_NAME" = "v$VERSION" || { echo "тег $GITHUB_REF_NAME, а в Scripts/version $VERSION"; exit 1; }
+            test -f "docs/releases/$VERSION.md" || { echo "нет docs/releases/$VERSION.md — релиз без заметок не выпускается"; exit 1; }
+          fi
+
+      - name: Образ
+        run: ./Scripts/dmg.sh
+
+      - name: Контрольная сумма
+        run: |
+          shasum -a 256 "build/Cyclop-$VERSION.dmg" | tee build/SHA256SUMS
+          codesign --verify --strict "build/Cyclop.app"
+
+      - name: Пробный прогон — образ артефактом
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Cyclop-${{ env.VERSION }}-dry-run
+          path: |
+            build/Cyclop-${{ env.VERSION }}.dmg
+            build/SHA256SUMS
+
+      - name: Релиз на GitHub
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="v$VERSION"
+          DMG="build/Cyclop-$VERSION.dmg"
+          # Список коммитов берётся отдельным вызовом, а не флагом
+          # --generate-notes: флаг заменил бы собой всё тело, и человеческая
+          # часть в него бы не попала.
+          PREVIOUS="$(git tag --sort=-v:refname | sed -n 2p)"
+          GENERATED="$(gh api "repos/$GITHUB_REPOSITORY/releases/generate-notes" \
+              -f tag_name="$TAG" ${PREVIOUS:+-f previous_tag_name="$PREVIOUS"} \
+              --jq '.body' 2>/dev/null || true)"
+          BODY="$(mktemp)"
+          cat "docs/releases/$VERSION.md" > "$BODY"
+          SUM="$(cut -d' ' -f1 build/SHA256SUMS)"
+          printf '\n\n**SHA-256** `%s`\n\nПроверить: `shasum -a 256 Cyclop-%s.dmg`\n' "$SUM" "$VERSION" >> "$BODY"
+          [ -n "$GENERATED" ] && printf '\n\n---\n\n%s\n' "$GENERATED" >> "$BODY"
+          gh release create "$TAG" "$DMG" --title "Cyclop $VERSION" --notes-file "$BODY" --latest
+          gh release view "$TAG" --json url --jq '.url'
