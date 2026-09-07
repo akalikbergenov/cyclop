@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Уязвимость
+    url: https://github.com/akalikbergenov/cyclop/security/advisories/new
+    about: Приватный канал, issue заводить не нужно
