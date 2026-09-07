@@ -18,6 +18,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         controller?.teardown()
     }
 
+    /// Reopen is the one gesture left once the icon is hidden: launching
+    /// Cyclop.app again from Finder or Spotlight while it is already running.
+    /// `LSUIElement` gives it no Dock icon and no window to raise, but this
+    /// delegate method still fires — it is how the icon comes back (#5).
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        statusItem?.isVisible = true
+        return true
+    }
+
     // MARK: - Menu bar item
 
     private func installStatusItem() {
@@ -27,6 +36,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             accessibilityDescription: "Cyclop"
         )
         item.button?.image?.isTemplate = true
+        // Lets the icon be ⌘-dragged off the bar, the way any status item can
+        // be; `autosaveName` is what makes AppKit remember that across
+        // relaunches on its own, the same mechanism the explicit switch in
+        // Settings uses through `AppDelegate.isMenuBarIconVisible` below (#5).
+        item.behavior = .removalAllowed
+        item.autosaveName = "CyclopMenuBarIcon"
 
         let menu = NSMenu()
         menu.delegate = self
@@ -125,6 +140,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         for (section, item) in privacySectionItems {
             item.state = privacy.covers(section) ? .on : .off
         }
+    }
+}
+
+extension AppDelegate {
+    /// Whether the status item shows at all. Reachable from the Settings tab
+    /// (#5) the same way `NotchGeometry.showsOnAllDisplays` reaches its own
+    /// piece of state — through the one `AppDelegate` the app has, rather than
+    /// threading a reference through the view hierarchy for a single switch.
+    ///
+    /// Nothing to migrate to `config.json` (#67): AppKit already persists this
+    /// through `autosaveName`, which is also what a ⌘-drag off the bar updates
+    /// — the two paths to the same off state agree because they are the same
+    /// state.
+    @MainActor
+    static var isMenuBarIconVisible: Bool {
+        get { (NSApp.delegate as? AppDelegate)?.statusItem?.isVisible ?? true }
+        set { (NSApp.delegate as? AppDelegate)?.statusItem?.isVisible = newValue }
     }
 }
 

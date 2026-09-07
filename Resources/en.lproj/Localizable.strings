@@ -18,6 +18,7 @@
 /* Settings tab */
 "General" = "General";
 "Launch at Login" = "Launch at Login";
+"Show Menu Bar Icon" = "Show Menu Bar Icon";
 "Show in Panel" = "Show in Panel";
 "Displays" = "Displays";
 "Show on All Displays" = "Show on All Displays";
@@ -32,6 +33,9 @@
 "Clear Screenshots Folder" = "Clear Screenshots Folder";
 "Clear Screenshots Folder (%@)" = "Clear Screenshots Folder (%@)";
 "Show Snippets File" = "Show Snippets File";
+
+"Cyclop" = "Cyclop";
+"Quit Cyclop" = "Quit Cyclop";
 
 /* Shelf */
 "Selected: %d" = "Selected: %d";

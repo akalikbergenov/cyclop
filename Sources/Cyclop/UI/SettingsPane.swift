@@ -12,6 +12,7 @@ struct SettingsPane: View {
     let screenshots: ScreenshotFolderWatcher
 
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
+    @State private var menuBarIconVisible = AppDelegate.isMenuBarIconVisible
     @State private var saveClipboardImages = NotchViewModel.saveClipboardImagesEnabled
     @State private var allDisplays = NotchGeometry.showsOnAllDisplays
     @State private var watchScreenshotFolder = false
@@ -25,6 +26,14 @@ struct SettingsPane: View {
                         symbol: "arrow.forward.to.line",
                         title: localized("Launch at Login"),
                         isOn: launchAtLoginBinding
+                    )
+                    // Off means the same thing a ⌘-drag off the bar does —
+                    // both go through `AppDelegate.isMenuBarIconVisible`, so
+                    // whichever one somebody used, this switch shows it (#5).
+                    toggleRow(
+                        symbol: "eye.fill",
+                        title: localized("Show Menu Bar Icon"),
+                        isOn: menuBarIconVisibleBinding
                     )
                 }
 
@@ -82,6 +91,15 @@ struct SettingsPane: View {
                         SnippetStore.reveal()
                     }
                 }
+
+                // The one door left once the menu bar icon is gone (#5): a
+                // status item is not required to hide it any more, so quitting
+                // must not require one either.
+                section(localized("Cyclop")) {
+                    actionRow(symbol: "power", title: localized("Quit Cyclop")) {
+                        NSApp.terminate(nil)
+                    }
+                }
             }
             .padding(.top, 2)
             .padding(.trailing, 4)
@@ -93,6 +111,9 @@ struct SettingsPane: View {
         // this replaces).
         .onAppear {
             launchAtLogin = SMAppService.mainApp.status == .enabled
+            // Also flipped by a ⌘-drag off the bar, not only by the switch
+            // below it — re-read for the same reason as the rest of this block.
+            menuBarIconVisible = AppDelegate.isMenuBarIconVisible
             saveClipboardImages = NotchViewModel.saveClipboardImagesEnabled
             allDisplays = NotchGeometry.showsOnAllDisplays
             watchScreenshotFolder = screenshots.isEnabled
@@ -120,6 +141,16 @@ struct SettingsPane: View {
                     NSLog("Cyclop: launch-at-login failed: \(error.localizedDescription)")
                 }
                 launchAtLogin = SMAppService.mainApp.status == .enabled
+            }
+        )
+    }
+
+    private var menuBarIconVisibleBinding: Binding<Bool> {
+        Binding(
+            get: { menuBarIconVisible },
+            set: { wants in
+                menuBarIconVisible = wants
+                AppDelegate.isMenuBarIconVisible = wants
             }
         )
     }
