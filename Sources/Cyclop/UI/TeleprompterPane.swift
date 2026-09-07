@@ -24,15 +24,38 @@ struct TeleprompterPane: View {
         .padding(.top, 2)
         .onChange(of: wantsKeyboard) { _, wants in
             focused = wants && editing
-            // The keyboard going elsewhere means attention went with it.
-            if !wants { editing = false }
+            // The keyboard going elsewhere means attention went with it — but
+            // not on an empty script, where the editor is the only thing this
+            // tab can show. Saying it is not being edited would be untrue, and
+            // the first character typed would then hand the pane to the reader
+            // in mid-word.
+            if !wants, !prompter.script.isEmpty { editing = false }
         }
         // Arriving puts the script back at the top. A take starts at the
         // beginning, and mid-take nobody is switching tabs — so the only way
         // to arrive on a script left halfway is to have finished with it, and
         // the one thing that must not happen then is opening onto the blank
         // space past the last line with no way to tell why it is blank.
-        .onAppear { prompter.rewind() }
+        .onAppear {
+            prompter.rewind()
+            // An empty script has nothing to read, so the tab opens into the
+            // editor — and an editor the keyboard never reaches is a field
+            // that cannot be typed or pasted into at all (#53). The one button
+            // that would hand it over is the ✎, and it is on the other branch
+            // of these controls; the panel does not offer it on arrival either,
+            // because reading a script is not typing (`Tab.needsKeyboard`).
+            //
+            // So this state asks the way the ✎ asks. Hovering onto an empty
+            // teleprompter does take the keyboard from the window underneath,
+            // and that is the trade `PanelState.select` already names: showing
+            // a field one cannot type into is worse than briefly dimming the
+            // caret below. It happens once — a script that exists is read, not
+            // written, and this branch is never taken again.
+            guard prompter.script.isEmpty else { return }
+            editing = true
+            wantsKeyboard = true
+            focused = true
+        }
         .onDisappear { prompter.suspend() }
     }
 
