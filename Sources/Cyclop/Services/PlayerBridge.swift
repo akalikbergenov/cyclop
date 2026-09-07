@@ -46,6 +46,11 @@ struct PlayerState {
     var key: String { "\(app.rawValue)|\(title)|\(artist)|\(album)" }
 }
 
+/// Called from the panel and answering to it: every entry point here is
+/// reached from `MediaController`, and every completion is delivered back on
+/// the main thread. Saying so out loud is what `.v6` asks for — the work still
+/// happens on `queue` and in `URLSession`, and only the answer comes home.
+@MainActor
 enum PlayerBridge {
     private static let queue = DispatchQueue(label: "com.cyclop.applescript", qos: .utility)
 
@@ -129,7 +134,7 @@ enum PlayerBridge {
 
     // MARK: - Artwork
 
-    static func artwork(for state: PlayerState, completion: @escaping (NSImage?) -> Void) {
+    static func artwork(for state: PlayerState, completion: @escaping @MainActor (NSImage?) -> Void) {
         switch state.app {
         case .spotify:
             // The one thing the app ever fetches over the network. The address
@@ -141,7 +146,7 @@ enum PlayerBridge {
             }
             URLSession.shared.dataTask(with: url) { data, _, _ in
                 let image = data.flatMap(NSImage.init(data:))
-                DispatchQueue.main.async { completion(image) }
+                DispatchQueue.main.async { MainActor.assumeIsolated { completion(image) } }
             }.resume()
         case .music:
             runScript("""
@@ -216,14 +221,14 @@ enum PlayerBridge {
     }
 
     /// Shared AppleScript runner: one serial queue for every script the app sends.
-    static func runScript(_ source: String, completion: @escaping (NSAppleEventDescriptor?) -> Void) {
+    static func runScript(_ source: String, completion: @escaping @MainActor (NSAppleEventDescriptor?) -> Void) {
         queue.async {
             var error: NSDictionary?
             let result = NSAppleScript(source: source)?.executeAndReturnError(&error)
             if let error, let code = error[NSAppleScript.errorNumber] as? Int, code != 0 {
                 NSLog("Cyclop: AppleScript error \(code): \(error[NSAppleScript.errorMessage] ?? "")")
             }
-            DispatchQueue.main.async { completion(result) }
+            DispatchQueue.main.async { MainActor.assumeIsolated { completion(result) } }
         }
     }
 }
