@@ -101,6 +101,7 @@ final class NotchViewModel: ObservableObject {
     let media: MediaController
     let shelf: ShelfStore
     let clipboard: ClipboardStore
+    let screenshotFolder: ScreenshotFolderWatcher
     let calendar: CalendarStore
     let translator: Translator
     let snippets: SnippetStore
@@ -115,6 +116,7 @@ final class NotchViewModel: ObservableObject {
         self.media = MediaController()
         self.shelf = ShelfStore()
         self.clipboard = ClipboardStore()
+        self.screenshotFolder = ScreenshotFolderWatcher()
         self.calendar = CalendarStore()
         self.translator = Translator()
         self.snippets = SnippetStore()
@@ -187,12 +189,24 @@ final class NotchViewModel: ObservableObject {
             self.receivedScreenshot(at: url)
         }
         clipboard.start()
+
+        // Same destination as a clipboard screenshot, and the same reason:
+        // confirmation that the shot actually landed. Off until the user
+        // grants a folder through `requestAccess`; resuming here only
+        // re-arms a watch already approved on a previous launch.
+        screenshotFolder.onImage = { [weak self] url in
+            guard let self else { return }
+            self.shelf.add([url])
+            self.tab = .shelf
+        }
+        screenshotFolder.resumeIfEnabled()
     }
 
     func stop() {
         media.stop()
         clipboard.stop()
         calendar.stop()
+        screenshotFolder.stop()
         // Whatever was typed makes it to disk even when quitting mid-thought.
         notes.flush()
     }

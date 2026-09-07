@@ -169,7 +169,7 @@ struct NotchContentView: View {
         case .teleprompter:
             TeleprompterPane(prompter: vm.teleprompter, wantsKeyboard: $panel.wantsKeyboard)
         case .settings:
-            SettingsPane(shelf: vm.shelf)
+            SettingsPane(shelf: vm.shelf, screenshots: vm.screenshotFolder)
         }
     }
 }

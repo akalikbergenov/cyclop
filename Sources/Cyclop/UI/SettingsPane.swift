@@ -8,10 +8,12 @@ import ServiceManagement
 /// other than as a menu that grows a new row per feature.
 struct SettingsPane: View {
     @ObservedObject var shelf: ShelfStore
+    let screenshots: ScreenshotFolderWatcher
 
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var saveClipboardImages = NotchViewModel.saveClipboardImagesEnabled
     @State private var allDisplays = NotchGeometry.showsOnAllDisplays
+    @State private var watchScreenshotFolder = false
     @State private var screenshotUsage: (files: Int, bytes: Int64) = (0, 0)
 
     var body: some View {
@@ -38,6 +40,11 @@ struct SettingsPane: View {
                         symbol: "photo.on.rectangle",
                         title: localized("Save Clipboard Screenshots"),
                         isOn: saveClipboardImagesBinding
+                    )
+                    toggleRow(
+                        symbol: "eye",
+                        title: localized("Watch Screenshots Folder"),
+                        isOn: watchScreenshotFolderBinding
                     )
                     actionRow(symbol: "folder", title: localized("Show Screenshots Folder")) {
                         ScreenshotVault.reveal()
@@ -75,6 +82,7 @@ struct SettingsPane: View {
             launchAtLogin = SMAppService.mainApp.status == .enabled
             saveClipboardImages = NotchViewModel.saveClipboardImagesEnabled
             allDisplays = NotchGeometry.showsOnAllDisplays
+            watchScreenshotFolder = screenshots.isEnabled
             refreshUsage()
         }
     }
@@ -122,6 +130,23 @@ struct SettingsPane: View {
             set: { wants in
                 allDisplays = wants
                 NotchGeometry.showsOnAllDisplays = wants
+            }
+        )
+    }
+
+    /// Turning off is instant. Turning on goes through the Open panel first —
+    /// `requestAccess` is itself the consent, so the switch only follows what
+    /// actually happened once the panel closes, not the click that opened it.
+    private var watchScreenshotFolderBinding: Binding<Bool> {
+        Binding(
+            get: { watchScreenshotFolder },
+            set: { wants in
+                if wants {
+                    screenshots.requestAccess { granted in watchScreenshotFolder = granted }
+                } else {
+                    screenshots.disable()
+                    watchScreenshotFolder = false
+                }
             }
         )
     }
