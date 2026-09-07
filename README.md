@@ -40,7 +40,9 @@ The panel opens when the pointer reaches the notch and collapses when it leaves.
 Tabs switch on hover as well — but only if the pointer has come to rest on the
 icon: one passing through switches nothing. During a file drag the panel opens by
 itself and goes straight to the shelf. The menu bar icon toggles the panel,
-enables launch at login, and quits.
+hides every tab's contents at once, and quits. The icon itself can be
+removed — ⌘-drag it off the bar, or flip the switch in Settings — and
+relaunching Cyclop brings it back.
 
 ## Requirements
 
