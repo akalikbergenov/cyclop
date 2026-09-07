@@ -19,37 +19,11 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Версия Swift
-        run: swift --version
-
-      - name: Сборка приложения
-        run: ./Scripts/bundle.sh release
-
-      - name: Проверить, что в бандле лежит то, что нужно
-        run: |
-          APP=build/Cyclop.app
-          VERSION="$(sed -n 's/^VERSION=//p' Scripts/version)"
-          test -x "$APP/Contents/MacOS/Cyclop"
-          test -f "$APP/Contents/Resources/libcyclopmedia.dylib"
-          # Локализации кладет тот же скрипт, и молча потерять их проще всего:
-          # приложение с пропавшей таблицей запускается и выглядит целым.
-          test -f "$APP/Contents/Resources/en.lproj/Localizable.strings"
-          test -f "$APP/Contents/Resources/ru.lproj/Localizable.strings"
-          INSIDE="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$APP/Contents/Info.plist")"
-          test "$INSIDE" = "$VERSION" || { echo "версия в бандле $INSIDE, в Scripts/version $VERSION"; exit 1; }
-          # Раньше эта проверка отсутствовала, и неподписанный бандл проходил CI
-          # незамеченным: шаг смотрел на наличие файлов, а не на подпись (#19).
-          codesign --verify --strict "$APP"
-
-      - name: Now Playing helper отвечает
-        # Единственная проверка, которая смотрит не на файлы, а на поведение.
-        # Хелпер может собраться, подписаться и лечь в бандл, оставаясь при этом
-        # немым — так уже было, и вкладка «Музыка» уехала бы в релиз мёртвой,
-        # пройдя все шаги выше зелёными. На раннере ничего не играет, поэтому
-        # проверяется только то, что на "get" приходит валидный JSON.
-        run: ./Scripts/test-helper.sh
-
       - name: Ключи перевода совпадают с кодом
+        # Первым шагом, а не последним: проверка занимает секунды, а сборка
+        # минуты, и автор пропущенного ключа должен увидеть красный сразу,
+        # а не после того, как всё собралось (#50 узнал о двух ключах через
+        # шесть дней и одну сборку).
         # Строка, для которой нет ключа, не ломает сборку — она просто
         # показывается по-английски тому, у кого выбран русский. Ловятся оба
         # пути локализации: явный localized(...) и литералы, которые SwiftUI
@@ -79,3 +53,45 @@ jobs:
                   print(f"{table}: нет ключей: {sorted(missing)}")
           sys.exit(1 if bad else 0)
           PY
+
+      - name: Версия Swift
+        run: swift --version
+
+      - name: Кэш сборки
+        # Зависимостей у пакета нет, кэшируются собственные объектные файлы:
+        # правка в одном файле пересобирает один файл, а не всё с нуля. Ключ
+        # уникален на коммит, чтобы кэш обновлялся, а восстанавливается по
+        # префиксу — с ближайшего предыдущего.
+        uses: actions/cache@v4
+        with:
+          path: .build
+          key: swiftpm-${{ runner.os }}-${{ hashFiles('Package.swift') }}-${{ github.sha }}
+          restore-keys: |
+            swiftpm-${{ runner.os }}-${{ hashFiles('Package.swift') }}-
+
+      - name: Сборка приложения
+        run: ./Scripts/bundle.sh release
+
+      - name: Проверить, что в бандле лежит то, что нужно
+        run: |
+          APP=build/Cyclop.app
+          VERSION="$(sed -n 's/^VERSION=//p' Scripts/version)"
+          test -x "$APP/Contents/MacOS/Cyclop"
+          test -f "$APP/Contents/Resources/libcyclopmedia.dylib"
+          # Локализации кладет тот же скрипт, и молча потерять их проще всего:
+          # приложение с пропавшей таблицей запускается и выглядит целым.
+          test -f "$APP/Contents/Resources/en.lproj/Localizable.strings"
+          test -f "$APP/Contents/Resources/ru.lproj/Localizable.strings"
+          INSIDE="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$APP/Contents/Info.plist")"
+          test "$INSIDE" = "$VERSION" || { echo "версия в бандле $INSIDE, в Scripts/version $VERSION"; exit 1; }
+          # Раньше эта проверка отсутствовала, и неподписанный бандл проходил CI
+          # незамеченным: шаг смотрел на наличие файлов, а не на подпись (#19).
+          codesign --verify --strict "$APP"
+
+      - name: Now Playing helper отвечает
+        # Единственная проверка, которая смотрит не на файлы, а на поведение.
+        # Хелпер может собраться, подписаться и лечь в бандл, оставаясь при этом
+        # немым — так уже было, и вкладка «Музыка» уехала бы в релиз мёртвой,
+        # пройдя все шаги выше зелёными. На раннере ничего не играет, поэтому
+        # проверяется только то, что на "get" приходит валидный JSON.
+        run: ./Scripts/test-helper.sh
