@@ -17,7 +17,7 @@ jobs:
     # macOS 15 — минимум приложения: Translation.framework младше не бывает.
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Ключи перевода совпадают с кодом
         # Первым шагом, а не последним: проверка занимает секунды, а сборка
