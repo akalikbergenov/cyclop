@@ -1,5 +1,8 @@
 blank_issues_enabled: true
 contact_links:
+  - name: Идея или вопрос
+    url: https://github.com/akalikbergenov/cyclop/discussions
+    about: Обсудить до кода. Большая фича начинается здесь, а не с готового PR, см. CONTRIBUTING.md
   - name: Уязвимость
     url: https://github.com/akalikbergenov/cyclop/security/advisories/new
     about: Приватный канал, issue заводить не нужно
