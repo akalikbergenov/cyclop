@@ -18,6 +18,7 @@
 /* Settings tab */
 "General" = "General";
 "Launch at Login" = "Launch at Login";
+"Show in Panel" = "Show in Panel";
 "Displays" = "Displays";
 "Show on All Displays" = "Show on All Displays";
 

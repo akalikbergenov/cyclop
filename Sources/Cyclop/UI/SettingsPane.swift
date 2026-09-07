@@ -7,6 +7,7 @@ import ServiceManagement
 /// rest is configuration, read rarely, and reads better as a tab like any
 /// other than as a menu that grows a new row per feature.
 struct SettingsPane: View {
+    @ObservedObject var vm: NotchViewModel
     @ObservedObject var shelf: ShelfStore
     let screenshots: ScreenshotFolderWatcher
 
@@ -25,6 +26,18 @@ struct SettingsPane: View {
                         title: localized("Launch at Login"),
                         isOn: launchAtLoginBinding
                     )
+                }
+
+                // The rail is for what gets a glance between other things.
+                // A tab used once a month is not banned from it, but it lives
+                // there only as long as whoever never uses it can take it off —
+                // and off means quiet too: its background stops with the icon.
+                section(localized("Show in Panel")) {
+                    ForEach(NotchViewModel.Tab.leftRail + NotchViewModel.Tab.rightRail) { tab in
+                        if tab.canHide {
+                            toggleRow(symbol: tab.symbol, title: tab.title, isOn: visibilityBinding(tab))
+                        }
+                    }
                 }
 
                 section(localized("Displays")) {
@@ -108,6 +121,13 @@ struct SettingsPane: View {
                 }
                 launchAtLogin = SMAppService.mainApp.status == .enabled
             }
+        )
+    }
+
+    private func visibilityBinding(_ tab: NotchViewModel.Tab) -> Binding<Bool> {
+        Binding(
+            get: { vm.isVisible(tab) },
+            set: { wants in vm.setVisible(tab, wants) }
         )
     }
 

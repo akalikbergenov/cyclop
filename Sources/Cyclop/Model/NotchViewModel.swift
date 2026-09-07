@@ -39,6 +39,10 @@ final class NotchViewModel: ObservableObject {
         /// that arriving and typing is a single move.
         var needsKeyboard: Bool { self == .translate || self == .snippets || self == .notes }
 
+        /// Every tab can be taken off the rail except the one the switches
+        /// live on: with Settings gone there would be no way back.
+        var canHide: Bool { self != .settings }
+
         /// Which rail the icon sits on. The left one carries the original six
         /// and is full — icon height is a ceiling now, not a constant (#26,
         /// #27), so a seventh icon would not overflow the panel, but it would
@@ -56,8 +60,99 @@ final class NotchViewModel: ObservableObject {
     /// model is shared by all of them and has no panel of its own. Plain
     /// properties, because nothing on screen reads them — a view asks its own
     /// `PanelState` about its own display.
-    var isPanelActive = false
+    private(set) var isPanelActive = false
     var isTyping = false
+
+    // MARK: - Which tabs are on the rail
+
+    /// Tabs switched off in Settings. The rail is for what gets a glance
+    /// between other things, and a mode used once a month may live there only
+    /// if the people who never use it can take it off (#43). Off means two
+    /// things, and the second is what makes the switch worth having: the icon
+    /// leaves the rail, and the tab's background work stops with it — the
+    /// clipboard poll, the calendar watch, the Now Playing helper. A hidden
+    /// tab costs nothing, or it is not hidden.
+    ///
+    /// Kept as the set of what is off rather than what is on, so a tab added
+    /// in a later version shows up for everyone instead of arriving hidden.
+    static let hiddenTabsKey = "hiddenTabs"
+
+    @Published private(set) var hiddenTabs: Set<Tab> = NotchViewModel.loadHiddenTabs()
+
+    private static func loadHiddenTabs() -> Set<Tab> {
+        let raw = UserDefaults.standard.stringArray(forKey: hiddenTabsKey) ?? []
+        return Set(raw.compactMap(Tab.init(rawValue:))).filter(\.canHide)
+    }
+
+    func isVisible(_ tab: Tab) -> Bool { !hiddenTabs.contains(tab) }
+
+    /// The rails as they stand with the switches applied.
+    var leftRail: [Tab] { Tab.leftRail.filter(isVisible) }
+    var rightRail: [Tab] { Tab.rightRail.filter(isVisible) }
+
+    /// Where to land when the tab on screen is the one being taken away.
+    private var firstVisibleTab: Tab { leftRail.first ?? rightRail.first ?? .settings }
+
+    func setVisible(_ target: Tab, _ visible: Bool) {
+        guard target.canHide, isVisible(target) != visible else { return }
+        if visible {
+            hiddenTabs.remove(target)
+            if started { startBackground(of: target) }
+        } else {
+            hiddenTabs.insert(target)
+            stopBackground(of: target)
+            // Done before the icon goes, so the pane never shows a tab the rail
+            // no longer has — and `tab`'s own didSet handles what leaving it
+            // means, the teleprompter's suspend included.
+            if tab == target { tab = firstVisibleTab }
+        }
+        UserDefaults.standard.set(hiddenTabs.map(\.rawValue).sorted(), forKey: Self.hiddenTabsKey)
+    }
+
+    /// What a tab keeps running while nobody is looking at it. Only four have
+    /// anything: the rest are a file read on the way in, or a field.
+    private func startBackground(of target: Tab) {
+        switch target {
+        case .media:
+            media.start()
+            if isPanelActive { media.setActive(true) }
+        case .clipboard:
+            clipboard.start()
+        case .calendar:
+            // Only picks up where it left off if access was granted earlier;
+            // it never prompts on its own.
+            calendar.start()
+            if isPanelActive { calendar.setActive(true) }
+        case .shelf:
+            // Off until the user grants a folder through `requestAccess`;
+            // this only re-arms a watch already approved on a previous launch.
+            screenshotFolder.resumeIfEnabled()
+        case .snippets, .translate, .notes, .teleprompter, .settings:
+            break
+        }
+    }
+
+    private func stopBackground(of target: Tab) {
+        switch target {
+        case .media: media.stop()
+        case .clipboard: clipboard.stop()
+        case .calendar: calendar.stop()
+        case .shelf: screenshotFolder.stop()
+        case .snippets, .translate, .notes, .teleprompter, .settings: break
+        }
+    }
+
+    /// Whether any screen shows more than the bare notch. The stores whose
+    /// clocks exist only for an open panel — the position ticker, the meeting
+    /// countdown — follow this, and only for the tabs that are on the rail.
+    func setPanelActive(_ active: Bool) {
+        guard active != isPanelActive else { return }
+        isPanelActive = active
+        if isVisible(.media) { media.setActive(active) }
+        if isVisible(.calendar) { calendar.setActive(active) }
+    }
+
+    private var started = false
 
     /// Whether a click into the panel should hand it the keyboard. The tabs
     /// that type always do. The teleprompter does only while it has nothing to
@@ -179,12 +274,8 @@ final class NotchViewModel: ObservableObject {
     }
 
     func start() {
-        media.start()
         shelf.load()
         snippets.reload()
-        // Only picks up where it left off if access was granted earlier; it
-        // never prompts on its own.
-        calendar.start()
 
         // Screenshots reach the shelf through here whether they were taken on
         // this Mac or on a phone: a copy made on the phone arrives in the same
@@ -199,25 +290,24 @@ final class NotchViewModel: ObservableObject {
             guard let self, let url = ScreenshotVault.save(png) else { return }
             self.receivedScreenshot(at: url)
         }
-        clipboard.start()
 
         // Same destination as a clipboard screenshot, and the same reason:
-        // confirmation that the shot actually landed. Off until the user
-        // grants a folder through `requestAccess`; resuming here only
-        // re-arms a watch already approved on a previous launch.
+        // confirmation that the shot actually landed.
         screenshotFolder.onImage = { [weak self] url in
             guard let self else { return }
-            self.shelf.add([url])
-            self.tab = .shelf
+            self.receivedScreenshot(at: url)
         }
-        screenshotFolder.resumeIfEnabled()
+
+        // The background of every tab that is on the rail, and of no other.
+        started = true
+        for target in Tab.allCases where isVisible(target) { startBackground(of: target) }
+        // The default tab may have been switched off in a previous session.
+        if !isVisible(tab) { tab = firstVisibleTab }
     }
 
     func stop() {
-        media.stop()
-        clipboard.stop()
-        calendar.stop()
-        screenshotFolder.stop()
+        started = false
+        for target in Tab.allCases { stopBackground(of: target) }
         // Whatever was typed makes it to disk even when quitting mid-thought.
         notes.flush()
     }
@@ -230,15 +320,22 @@ final class NotchViewModel: ObservableObject {
     /// the rest of the sentence to whatever is underneath. The shelf's
     /// counter already shows the new picture, so nothing about it is lost by
     /// waiting.
+    ///
+    /// With the shelf switched off the file is still kept — the folder it was
+    /// saved to is the user's, and the card will be there when the shelf is
+    /// back — but the panel does not jump to a tab that is not on the rail.
     func receivedScreenshot(at url: URL) {
         shelf.add([url])
-        guard !isTyping else { return }
+        guard !isTyping, isVisible(.shelf) else { return }
         tab = .shelf
     }
 
     /// A file the user dropped on the panel by hand — switching to the shelf
-    /// is the point, not a side effect to guard against.
+    /// is the point, not a side effect to guard against. Refused when the
+    /// shelf is off: a drop that lands nowhere visible is worse than one that
+    /// bounces.
     func accept(urls: [URL]) -> Bool {
+        guard isVisible(.shelf) else { return false }
         shelf.add(urls)
         tab = .shelf
         return true
