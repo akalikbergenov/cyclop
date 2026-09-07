@@ -62,7 +62,7 @@ jobs:
         # правка в одном файле пересобирает один файл, а не всё с нуля. Ключ
         # уникален на коммит, чтобы кэш обновлялся, а восстанавливается по
         # префиксу — с ближайшего предыдущего.
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .build
           key: swiftpm-${{ runner.os }}-${{ hashFiles('Package.swift') }}-${{ github.sha }}
