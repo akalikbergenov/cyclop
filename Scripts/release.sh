@@ -1,5 +1,7 @@
 #!/bin/bash
-# Выпуск версии: тег в гите и релиз на GitHub с приложенным образом.
+# Выпуск версии: проверки и тег. Образ, контрольную сумму и релиз на GitHub
+# собирает .github/workflows/release.yml по пушу тега — так релиз не зависит
+# от машины, на которой его выпускают, и от того, кто за ней сидит.
 #
 # Номер берется из Scripts/version — единственного места, где он записан.
 # Оттуда же он попадает в Info.plist приложения и в имя .dmg, так что тег,
@@ -10,7 +12,6 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VERSION="$(sed -n 's/^VERSION=//p' "$ROOT/Scripts/version")"
 TAG="v$VERSION"
-DMG="$ROOT/build/Cyclop-$VERSION.dmg"
 
 cd "$ROOT"
 
@@ -43,8 +44,14 @@ if [ ! -f "$NOTES" ]; then
 Что нового в $VERSION — пара строк о том, что человек заметит, открыв
 приложение. Список коммитов допишется сам, повторять его здесь не нужно.
 TEMPLATE
-    fail "нет заметок к релизу. Завел $NOTES — впиши, что нового, и запусти снова"
+    fail "нет заметок к релизу. Завел $NOTES — впиши, что нового, закоммить и запусти снова"
 fi
+
+# Выпускать красное нельзя, а раннер этого не проверит: он соберёт то, на
+# что указывает тег.
+HEAD_SHA="$(git rev-parse HEAD)"
+CI="$(gh run list --commit "$HEAD_SHA" --workflow build.yml --json conclusion --jq '.[0].conclusion // "none"')"
+[ "$CI" = "success" ] || fail "CI на $HEAD_SHA: $CI. Выпускается только зелёный коммит"
 
 cat <<'NOTE'
 
@@ -53,49 +60,9 @@ cat <<'NOTE'
 
 NOTE
 
-echo "==> сборка образа $VERSION"
-"$ROOT/Scripts/dmg.sh" >/dev/null
-[ -f "$DMG" ] || fail "образ не собрался: $DMG"
-
 echo "==> тег $TAG"
 git tag -a "$TAG" -m "Cyclop $VERSION"
 git push --quiet origin "$TAG"
 
-echo "==> релиз на GitHub"
-# Список коммитов берется у GitHub отдельным вызовом, а не флагом
-# --generate-notes: флаг заменил бы собой все тело, и человеческая часть в него
-# бы не попала. Так две части просто складываются в нужном порядке.
-REPO="$(gh repo view --json nameWithOwner --jq '.nameWithOwner')"
-PREVIOUS="$(git tag --sort=-v:refname | sed -n 2p)"
-GENERATED="$(gh api "repos/$REPO/releases/generate-notes" \
-    -f tag_name="$TAG" \
-    ${PREVIOUS:+-f previous_tag_name="$PREVIOUS"} \
-    --jq '.body' 2>/dev/null || echo "")"
-
-BODY="$(mktemp)"
-trap 'rm -f "$BODY"' EXIT
-cat "$NOTES" > "$BODY"
-
-# Контрольная сумма в заметках — единственное, чем скачавший может проверить,
-# что у него тот самый файл. Образ подписан ad-hoc, без Developer ID, так что
-# подпись ему об этом не скажет: сумму приходится публиковать руками.
-SUM="$(shasum -a 256 "$DMG" | cut -d' ' -f1)"
-printf '\n\n**SHA-256** `%s`\n\nПроверить: `shasum -a 256 Cyclop-%s.dmg`\n' "$SUM" "$VERSION" >> "$BODY"
-[ -n "$GENERATED" ] && printf '\n\n---\n\n%s\n' "$GENERATED" >> "$BODY"
-
-gh release create "$TAG" "$DMG" \
-    --title "Cyclop $VERSION" \
-    --notes-file "$BODY" \
-    --latest
-
-echo "==> готово"
-gh release view "$TAG" --json url --jq '"    " + .url'
-
-if ! gh repo view --json visibility --jq '.visibility' | grep -qi public; then
-    cat <<'NOTE'
-
-    Репозиторий приватный, поэтому ссылка на релиз откроется только у тех,
-    у кого есть доступ к нему. Чтобы образ мог скачать кто угодно по ссылке,
-    репозиторий нужно сделать публичным.
-NOTE
-fi
+echo "==> раннер собирает образ и публикует релиз; следить: gh run watch"
+echo "    https://github.com/$(gh repo view --json nameWithOwner --jq .nameWithOwner)/actions/workflows/release.yml"
