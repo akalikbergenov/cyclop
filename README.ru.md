@@ -474,6 +474,7 @@ Sources/Cyclop
 │   ├── ClipboardStore.swift
 │   ├── ScreenshotVault.swift  снимки из буфера на диск
 │   ├── SnippetStore.swift     заготовки: чтение и запись snippets.json
+│   ├── ConfigStore.swift      настройки: чтение и запись config.json
 │   ├── NoteStore.swift        временные заметки: notes.json
 │   ├── PrivacyMode.swift      скрытие содержимого: разделы и раскрытия
 │   ├── Translator.swift       Translation.framework, направление по письменности

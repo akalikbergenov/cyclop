@@ -10,6 +10,7 @@ struct SettingsPane: View {
     @ObservedObject var vm: NotchViewModel
     @ObservedObject var shelf: ShelfStore
     let screenshots: ScreenshotFolderWatcher
+    @ObservedObject private var config = ConfigStore.shared
 
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var menuBarIconVisible = AppDelegate.isMenuBarIconVisible
@@ -92,9 +93,20 @@ struct SettingsPane: View {
                     }
                 }
 
+                // What lives in this file is documented in #67: everything
+                // above that makes sense on another Mac, in one place instead
+                // of five.
+                section(localized("Configuration")) {
+                    if config.fileBroken { configBrokenNotice }
+                    actionRow(symbol: "gearshape", title: localized("Show Config File")) {
+                        ConfigStore.reveal()
+                    }
+                }
+
                 // The one door left once the menu bar icon is gone (#5): a
                 // status item is not required to hide it any more, so quitting
-                // must not require one either.
+                // must not require one either. Last on purpose — leaving is
+                // not something to meet on the way to a switch.
                 section(localized("Cyclop")) {
                     actionRow(symbol: "power", title: localized("Quit Cyclop")) {
                         NSApp.terminate(nil)
@@ -167,7 +179,7 @@ struct SettingsPane: View {
             get: { saveClipboardImages },
             set: { wants in
                 saveClipboardImages = wants
-                UserDefaults.standard.set(wants, forKey: NotchViewModel.saveClipboardImagesKey)
+                NotchViewModel.saveClipboardImagesEnabled = wants
             }
         )
     }
@@ -246,6 +258,26 @@ struct SettingsPane: View {
                 .toggleStyle(NotchToggleStyle())
                 .labelsHidden()
         }
+        .padding(.horizontal, 8)
+        .frame(height: 26)
+    }
+
+    /// The refusal to write over a broken file (#7) is only honest if it is
+    /// said out loud — same reasoning as `SnippetsPane.brokenNotice`.
+    private var configBrokenNotice: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(Color.yellow.opacity(0.85))
+            Text(localized("config.json is broken — click to open; nothing is overwritten"))
+                .font(.system(size: 10))
+                .foregroundStyle(Theme.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .onTapGesture { ConfigStore.reveal() }
         .padding(.horizontal, 8)
         .frame(height: 26)
     }

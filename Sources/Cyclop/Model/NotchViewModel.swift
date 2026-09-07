@@ -83,12 +83,12 @@ final class NotchViewModel: ObservableObject {
     ///
     /// Kept as the set of what is off rather than what is on, so a tab added
     /// in a later version shows up for everyone instead of arriving hidden.
-    static let hiddenTabsKey = "hiddenTabs"
-
+    /// Persisted in `config.json` (#67), alongside the rest of what makes
+    /// sense on another Mac.
     @Published private(set) var hiddenTabs: Set<Tab> = NotchViewModel.loadHiddenTabs()
 
     private static func loadHiddenTabs() -> Set<Tab> {
-        let raw = UserDefaults.standard.stringArray(forKey: hiddenTabsKey) ?? []
+        let raw = ConfigStore.shared.hiddenTabs
         return Set(raw.compactMap(Tab.init(rawValue:))).filter(\.canHide)
     }
 
@@ -114,7 +114,7 @@ final class NotchViewModel: ObservableObject {
             // means, the teleprompter's suspend included.
             if tab == target { tab = firstVisibleTab }
         }
-        UserDefaults.standard.set(hiddenTabs.map(\.rawValue).sorted(), forKey: Self.hiddenTabsKey)
+        ConfigStore.shared.hiddenTabs = hiddenTabs.map(\.rawValue).sorted()
     }
 
     /// What a tab keeps running while nobody is looking at it. Only a few have
@@ -282,14 +282,12 @@ final class NotchViewModel: ObservableObject {
         }
     }
 
-    /// Off switch for people who copy images all day and do not want them kept.
-    static let saveClipboardImagesKey = "saveClipboardImages"
-
-    /// Defaults to on: the feature is the reason the folder exists.
+    /// Off switch for people who copy images all day and do not want them
+    /// kept. Persisted in `config.json` (#67) — see
+    /// `ConfigStore.saveClipboardImages` for the default.
     static var saveClipboardImagesEnabled: Bool {
-        let defaults = UserDefaults.standard
-        guard defaults.object(forKey: saveClipboardImagesKey) != nil else { return true }
-        return defaults.bool(forKey: saveClipboardImagesKey)
+        get { ConfigStore.shared.saveClipboardImages }
+        set { ConfigStore.shared.saveClipboardImages = newValue }
     }
 
     func start() {
