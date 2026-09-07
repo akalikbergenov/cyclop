@@ -59,6 +59,17 @@ final class NotchViewModel: ObservableObject {
     var isPanelActive = false
     var isTyping = false
 
+    /// Whether a click into the panel should hand it the keyboard. The tabs
+    /// that type always do. The teleprompter does only while it has nothing to
+    /// read: an empty script is shown as an editor, and an editor a click
+    /// cannot put a caret into is the field from #53 all over again — the
+    /// hover request on arrival is one chance, and a click has to be the
+    /// second. With a script in it the tab is read, not written, and a click
+    /// on play must not dim the caret of the window underneath.
+    var clickTakesKeyboard: Bool {
+        tab.needsKeyboard || (tab == .teleprompter && teleprompter.script.isEmpty)
+    }
+
     @Published var tab: Tab = .media {
         didSet {
             // Opening the tab only re-checks the status. The permission prompt

@@ -125,7 +125,7 @@ final class NotchScreenPanel {
         // Clicking away drops the keyboard but leaves the tab where it was, so
         // a click back into the panel has to be able to ask for it again.
         panel.onPress = { [weak self] in
-            guard let self, vm.tab.needsKeyboard else { return }
+            guard let self, vm.clickTakesKeyboard else { return }
             state.wantsKeyboard = true
         }
 
