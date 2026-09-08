@@ -19,6 +19,32 @@ The visualizer is the one place where the beta steps away from the zero
 permissions promise, which is exactly why it stays off until it is decided
 whether it belongs here at all.
 
+### Home
+
+![Home: music, the next meeting and the clipboard on one surface](docs/beta/home.png)
+
+Music with a real spectrum of what is playing on the left; the next meeting with
+its countdown and the latest copies on the right. These used to be three tabs,
+and there was no way to see them at once: with the calendar open you could not
+see what was playing.
+
+### Tools
+
+![Tools: translate, currency and teleprompter under one icon](docs/beta/tools.png)
+
+Translate, the converter and the teleprompter took three icons out of ten and
+are opened less often than anything else. Now it is one icon with a switch
+inside: the rail is about where to go, not about which mode you are in.
+
+Five icons are left on the rail instead of ten.
+
+### Where to turn the spectrum on
+
+![Settings: the visualizer switch](docs/beta/settings.png)
+
+The first item in settings. Turning it on makes macOS ask for system audio
+recording access — that is the third permission the whole feature hangs on.
+
 ## Build
 
 ```sh

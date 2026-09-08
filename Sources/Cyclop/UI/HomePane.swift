@@ -296,7 +296,9 @@ struct HomePane: View {
 
     private var countdown: String? {
         guard let next = calendar.next else { return nil }
-        return CalendarPane.countdown(to: next, from: calendar.now).localizedCapitalized
+        // Заглавная только первая буква, а не каждое слово: `localizedCapitalized`
+        // превращал «через 18 ч 32 мин» в «Через 18 Ч 32 Мин».
+        return CalendarPane.countdown(to: next, from: calendar.now).sentenceCased
     }
 
     private var calendarPlaceholder: String {

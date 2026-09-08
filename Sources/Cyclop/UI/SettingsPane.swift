@@ -22,6 +22,18 @@ struct SettingsPane: View {
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 14) {
+                // Спектр играющего. Включение здесь, а не где-нибудь ещё,
+                // потому что это единственное место, где нажатие точно
+                // сделано человеком при открытой панели — а системный вопрос
+                // про доступ к звуку иначе приходит без фокуса.
+                section(localized("Visualizer")) {
+                    toggleRow(
+                        symbol: "waveform",
+                        title: localized("Show Spectrum"),
+                        isOn: visualizerBinding
+                    )
+                }
+
                 section(localized("General")) {
                     toggleRow(
                         symbol: "arrow.forward.to.line",
@@ -48,18 +60,6 @@ struct SettingsPane: View {
                             toggleRow(symbol: tab.symbol, title: tab.title, isOn: visibilityBinding(tab))
                         }
                     }
-                }
-
-                // Спектр играющего. Включение здесь, а не где-нибудь ещё,
-                // потому что это единственное место, где нажатие точно
-                // сделано человеком при открытой панели — а системный вопрос
-                // про доступ к звуку иначе приходит без фокуса.
-                section(localized("Visualizer")) {
-                    toggleRow(
-                        symbol: "waveform",
-                        title: localized("Show Spectrum"),
-                        isOn: visualizerBinding
-                    )
                 }
 
                 section(localized("Displays")) {
