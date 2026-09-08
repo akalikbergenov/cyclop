@@ -45,6 +45,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <string>Cyclop показывает ближайшие встречи и кнопку подключения к ним.</string>
     <key>NSCalendarsUsageDescription</key>
     <string>Cyclop показывает ближайшие встречи и кнопку подключения к ним.</string>
+    <key>NSAudioCaptureUsageDescription</key>
+    <string>Cyclop рисует спектр того, что играет. Звук нигде не сохраняется и не покидает компьютер.</string>
     <key>NSHumanReadableCopyright</key><string>MIT License</string>
 </dict>
 </plist>

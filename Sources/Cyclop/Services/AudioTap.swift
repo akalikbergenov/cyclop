@@ -77,10 +77,24 @@ final class AudioTap: ObservableObject {
 
     static let bandCount = 28
 
-    /// Спектр выключен, пока не решён вопрос с запросом доступа к звуку —
-    /// см. комментарий в `NotchViewModel.setPanelActive`. Включается здесь и
-    /// требует вернуть `NSAudioCaptureUsageDescription` в `Scripts/bundle.sh`.
-    static let isEnabled = false
+    /// Спектр выключен по умолчанию, и включает его пользователь сам.
+    ///
+    /// Дело не в осторожности, а в том, где система задаёт свой вопрос. Тап
+    /// поднимает запрос «Запись системного звука», а у панели —
+    /// неактивирующегося окна без Dock-иконки — этот диалог приходит без
+    /// фокуса: кнопки не нажимаются, окно висит минутами. Так было при
+    /// запуске в фоне.
+    ///
+    /// Поэтому включение — только явное нажатие в открытой панели, и перед
+    /// первым обращением к звуку приложение на миг делает себя активным. Ровно
+    /// так же устроен единственный запрос, который проект уже умеет задавать
+    /// по-человечески, — доступ к Календарю.
+    static var isEnabled: Bool {
+        get { UserDefaults.standard.bool(forKey: enabledKey) }
+        set { UserDefaults.standard.set(newValue, forKey: enabledKey) }
+    }
+
+    static let enabledKey = "visualizer"
 
     private var tap = AudioObjectID(kAudioObjectUnknown)
     private var aggregate = AudioObjectID(kAudioObjectUnknown)
@@ -100,7 +114,7 @@ final class AudioTap: ObservableObject {
     // MARK: - Жизненный цикл
 
     func start() {
-        guard !running else { return }
+        guard !running, Self.isEnabled else { return }
         guard let device = Self.defaultOutputUID() else { return }
 
         let description = CATapDescription(stereoGlobalTapButExcludeProcesses: [])

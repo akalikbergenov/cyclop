@@ -16,6 +16,7 @@ struct SettingsPane: View {
     @State private var saveClipboardImages = NotchViewModel.saveClipboardImagesEnabled
     @State private var allDisplays = NotchGeometry.showsOnAllDisplays
     @State private var watchScreenshotFolder = false
+    @State private var visualizer = AudioTap.isEnabled
     @State private var screenshotUsage: (files: Int, bytes: Int64) = (0, 0)
 
     var body: some View {
@@ -47,6 +48,18 @@ struct SettingsPane: View {
                             toggleRow(symbol: tab.symbol, title: tab.title, isOn: visibilityBinding(tab))
                         }
                     }
+                }
+
+                // Спектр играющего. Включение здесь, а не где-нибудь ещё,
+                // потому что это единственное место, где нажатие точно
+                // сделано человеком при открытой панели — а системный вопрос
+                // про доступ к звуку иначе приходит без фокуса.
+                section(localized("Visualizer")) {
+                    toggleRow(
+                        symbol: "waveform",
+                        title: localized("Show Spectrum"),
+                        isOn: visualizerBinding
+                    )
                 }
 
                 section(localized("Displays")) {
@@ -117,6 +130,7 @@ struct SettingsPane: View {
             saveClipboardImages = NotchViewModel.saveClipboardImagesEnabled
             allDisplays = NotchGeometry.showsOnAllDisplays
             watchScreenshotFolder = screenshots.isEnabled
+            visualizer = AudioTap.isEnabled
             refreshUsage()
         }
     }
@@ -125,6 +139,24 @@ struct SettingsPane: View {
         guard screenshotUsage.files > 0 else { return localized("Clear Screenshots Folder") }
         let size = ByteCountFormatter.string(fromByteCount: screenshotUsage.bytes, countStyle: .file)
         return localized("Clear Screenshots Folder (%@)", size)
+    }
+
+    private var visualizerBinding: Binding<Bool> {
+        Binding(
+            get: { visualizer },
+            set: { wants in
+                visualizer = wants
+                AudioTap.isEnabled = wants
+                if wants {
+                    // На миг становимся активным приложением: системный запрос
+                    // доступа к звуку иначе приходит без фокуса и висит.
+                    NSApp.activate(ignoringOtherApps: true)
+                    vm.audio.start()
+                } else {
+                    vm.audio.stop()
+                }
+            }
+        )
     }
 
     private var launchAtLoginBinding: Binding<Bool> {
