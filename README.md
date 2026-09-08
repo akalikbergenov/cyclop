@@ -1,3 +1,38 @@
+> [!WARNING]
+> **This is the beta branch.** It holds what has not been decided on yet.
+> There is no build to download and no updates — it is built from source and
+> breaks without warning.
+>
+> The stable version lives in [`main`](https://github.com/akalikbergenov/cyclop/tree/main)
+> and in [releases](https://github.com/akalikbergenov/cyclop/releases/latest).
+> The rules of the channel are in [docs/beta.md](docs/beta.md).
+
+## What is being tried here
+
+| Feature | What it does | Discussion |
+|---|---|---|
+| **Composed surface** | music, the next meeting and the latest copies on one screen; the rail is down from ten icons to five | [#100](https://github.com/akalikbergenov/cyclop/issues/100) |
+| **Live notch** | the panel drops by one line when the charger goes in or the track changes on its own | — |
+| **Visualizer** | a real spectrum of what is playing. **Off by default**: turn it on in Settings → Visualizer, and macOS will ask for system audio recording access | [#103](https://github.com/akalikbergenov/cyclop/issues/103) |
+
+The visualizer is the one place where the beta steps away from the zero
+permissions promise, which is exactly why it stays off until it is decided
+whether it belongs here at all.
+
+## Build
+
+```sh
+git clone -b beta https://github.com/akalikbergenov/cyclop.git
+cd cyclop
+Scripts/bundle.sh release
+open build/Cyclop.app
+```
+
+To go back to stable, download a disk image from the releases and replace the
+app. Settings live in `~/Library/Application Support/Cyclop` and survive it.
+
+---
+
 # Cyclop
 
 *English · [Русский](README.ru.md)*
