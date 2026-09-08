@@ -16,7 +16,7 @@ macOS 15 or newer. The first launch needs one permission granted by hand,
 [here is how](#installation).
 
 ```
-0.0 % CPU at rest  ·  ≈40 MB + 14 MB helper  ·  2.1 MB bundle  ·  one permission, and only on a button
+0.0 % CPU at rest  ·  ≈40 MB + 14 MB helper  ·  3.7 MB bundle  ·  one permission, and only on a button
 ```
 
 The track in the screenshot is playing in a browser tab — Cyclop reads it from
