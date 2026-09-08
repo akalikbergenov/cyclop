@@ -113,18 +113,64 @@ final class AudioTap: ObservableObject {
 
     // MARK: - Жизненный цикл
 
+    /// Открывает тап — но не на главном потоке.
+    ///
+    /// `AudioHardwareCreateProcessTap` синхронный, и если система решит
+    /// спросить разрешение, он не вернётся, пока пользователь не ответит. На
+    /// главном потоке это значит, что приложение стоит колом всё время, пока
+    /// висит диалог, — а неотвечающее приложение и есть причина, по которой
+    /// диалог приходит мёртвым: кнопки в нём не нажимаются, потому что ответ
+    /// некому принять. Именно так это и выглядело: окно висело минутами и
+    /// уходило само.
+    ///
+    /// Поэтому вся возня с CoreAudio уезжает в фон, а на главный поток
+    /// возвращаются только готовые идентификаторы.
     func start() {
         guard !running, Self.isEnabled else { return }
         guard let device = Self.defaultOutputUID() else { return }
+        // Ставится сразу, до фоновой работы: второй заход, пока первый ещё
+        // ждёт ответа на диалог, открыл бы второй тап.
+        running = true
 
+        let ring = self.ring
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let opened = Self.open(device: device, ring: ring)
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    guard self.running, let opened else { return self.stop() }
+                    self.tap = opened.tap
+                    self.aggregate = opened.aggregate
+                    self.procID = opened.procID
+                    self.startTicker()
+                }
+            }
+        }
+    }
+
+    /// Кадры рисуются с частотой экрана, а не звука: 30 раз в секунду глазу
+    /// достаточно, а спектр за это время всё равно успевает смениться.
+    private func startTicker() {
+        let timer = Timer(timeInterval: 1.0 / 30, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.analyse() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        self.timer = timer
+    }
+
+    /// Всё, что может заблокироваться на диалоге разрешения. Неизолировано —
+    /// зовётся из фоновой очереди.
+    nonisolated private static func open(
+        device: String,
+        ring: SampleRing
+    ) -> (tap: AudioObjectID, aggregate: AudioObjectID, procID: AudioDeviceIOProcID)? {
         let description = CATapDescription(stereoGlobalTapButExcludeProcesses: [])
         description.name = "Cyclop Visualizer"
-        // Приватный тап виден только своему процессу — и, судя по замерам,
-        // именно приватность избавляет от диалога разрешений.
         description.isPrivate = true
         description.muteBehavior = .unmuted
 
-        guard AudioHardwareCreateProcessTap(description, &tap) == noErr else { return }
+        var tap = AudioObjectID(kAudioObjectUnknown)
+        guard AudioHardwareCreateProcessTap(description, &tap) == noErr else { return nil }
 
         let settings: [String: Any] = [
             kAudioAggregateDeviceNameKey: "Cyclop Visualizer",
@@ -139,25 +185,28 @@ final class AudioTap: ObservableObject {
                 kAudioSubTapUIDKey: description.uuid.uuidString
             ]]
         ]
+
+        var aggregate = AudioObjectID(kAudioObjectUnknown)
         guard AudioHardwareCreateAggregateDevice(settings as CFDictionary, &aggregate) == noErr else {
             AudioHardwareDestroyProcessTap(tap)
-            tap = AudioObjectID(kAudioObjectUnknown)
-            return
+            return nil
         }
 
-        let status = Self.makeIOProc(&procID, device: aggregate, ring: ring)
-        guard status == noErr, let procID else { return stop() }
-
-        guard AudioDeviceStart(aggregate, procID) == noErr else { return stop() }
-        running = true
-
-        // Кадры рисуются с частотой экрана, а не звука: 30 раз в секунду глазу
-        // достаточно, а спектр за это время всё равно успевает смениться.
-        let timer = Timer(timeInterval: 1.0 / 30, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.analyse() }
+        var procID: AudioDeviceIOProcID?
+        guard makeIOProc(&procID, device: aggregate, ring: ring) == noErr, let procID else {
+            AudioHardwareDestroyAggregateDevice(aggregate)
+            AudioHardwareDestroyProcessTap(tap)
+            return nil
         }
-        RunLoop.main.add(timer, forMode: .common)
-        self.timer = timer
+
+        guard AudioDeviceStart(aggregate, procID) == noErr else {
+            AudioDeviceDestroyIOProcID(aggregate, procID)
+            AudioHardwareDestroyAggregateDevice(aggregate)
+            AudioHardwareDestroyProcessTap(tap)
+            return nil
+        }
+
+        return (tap, aggregate, procID)
     }
 
     func stop() {
