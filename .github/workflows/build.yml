@@ -6,10 +6,12 @@ name: build
 # только swift build.
 on:
   push:
-    branches: [main]
+    # Бета собирается наравне с main: канал, куда людей зовут собирать из
+    # исходников, обязан хотя бы гарантировать, что оно собирается.
+    branches: [main, beta]
     paths-ignore: ['**.md', 'docs/**']
   pull_request:
-    branches: [main]
+    branches: [main, beta]
   workflow_dispatch:
 
 jobs:
