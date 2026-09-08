@@ -242,7 +242,7 @@ lives in a file:
 ```
 
 `~/Library/Application Support/Cyclop/snippets.json`, where `label` may be left
-out. "Show Snippets File" in the menu bar opens it in Finder.
+out. "Show Snippets File" in Settings opens it in Finder.
 
 Both sides can add to it: the button in the panel and your hands in the file. A
 snippet made in the panel is appended to that same file — but the file is re-read
@@ -447,7 +447,7 @@ no leaks: `leaks` against the live process finds zero.
   card disappears on the next launch. The exception is clipboard screenshots,
   which are saved into `~/Pictures/Cyclop` and are never deleted automatically,
   even when the card leaves the shelf. Only the user clears that folder: the
-  “Clear Screenshots Folder” menu bar item sends its contents to the Trash —
+  “Clear Screenshots Folder” in Settings sends its contents to the Trash —
   a hand too, not a schedule.
 - Entries typed `org.nspasteboard.ConcealedType` (password managers) never enter
   the clipboard history.
@@ -478,7 +478,9 @@ Sources/Cyclop
 │   ├── PanelState.swift       one display's share: open, dragged onto, typing
 │   ├── NotchScreenPanel.swift the panel as it stands on one display
 │   └── NotchController.swift  one model, one panel per display
-├── Model/NotchViewModel.swift
+├── Model/
+│   ├── NotchViewModel.swift
+│   └── PrivacyMode.swift      hiding contents: sections and reveals
 ├── Services/
 │   ├── MediaController.swift  picks the Now Playing source
 │   ├── NowPlayingFeed.swift   runs the helper in perl, parses its stdout
@@ -488,7 +490,6 @@ Sources/Cyclop
 │   ├── ScreenshotVault.swift  clipboard screenshots onto disk
 │   ├── SnippetStore.swift     snippets: reading and writing snippets.json
 │   ├── NoteStore.swift        scratch notes: notes.json
-│   ├── PrivacyMode.swift      hiding contents: sections and reveals
 │   ├── Translator.swift       Translation.framework, direction by script
 │   ├── CurrencyStore.swift    rates over the network, the one tab that has any
 │   ├── TeleprompterStore.swift the script and where reading it has got to
