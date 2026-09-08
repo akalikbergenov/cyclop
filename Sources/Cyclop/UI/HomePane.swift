@@ -130,7 +130,11 @@ struct HomePane: View {
             .disabled(!media.canSkip)
             .opacity(media.canSkip ? 1 : 0.35)
         }
-        .padding(.leading, -4)
+        // По центру колонки, а не по её левому краю: три кнопки — единственный
+        // элемент здесь, который читается как группа, и прижатая влево группа
+        // выглядит съехавшей, а не выровненной.
+        .frame(maxWidth: .infinity)
+        .animation(.easeInOut(duration: 0.15), value: media.canSkip)
     }
 
     /// Доля, которую показывает полоса: пока тянут — та, что под пальцем.
