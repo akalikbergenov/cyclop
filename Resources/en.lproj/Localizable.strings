@@ -11,6 +11,9 @@
 "Translate" = "Translate";
 "Currency" = "Currency";
 "Settings" = "Settings";
+"Home" = "Home";
+"Writing" = "Writing";
+"Tools" = "Tools";
 
 /* Menu bar */
 "Open Panel" = "Open Panel";
@@ -82,6 +85,7 @@
 "See your next meetings" = "See your next meetings";
 "Cyclop needs access to Calendar. It is the only permission\nthe app asks for, and only for this tab." = "Cyclop needs access to Calendar. It is the only permission\nthe app asks for, and only for this tab.";
 "Allow" = "Allow";
+"The only permission" = "The only permission";
 "Calendar access is off" = "Calendar access is off";
 "Settings → Privacy → Calendars" = "Settings → Privacy → Calendars";
 "No more meetings" = "No more meetings";

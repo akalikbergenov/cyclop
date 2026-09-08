@@ -4,11 +4,15 @@ import Combine
 @MainActor
 final class NotchViewModel: ObservableObject {
     enum Tab: String, CaseIterable, Identifiable {
+        case home, writing, tools
         case media, shelf, clipboard, snippets, calendar, translate, currency, notes, teleprompter, settings
         var id: String { rawValue }
 
         var symbol: String {
             switch self {
+            case .home: return "house.fill"
+            case .writing: return "square.and.pencil"
+            case .tools: return "wrench.and.screwdriver.fill"
             case .media: return "music.note"
             case .shelf: return "tray.full.fill"
             case .clipboard: return "list.clipboard.fill"
@@ -24,6 +28,9 @@ final class NotchViewModel: ObservableObject {
 
         var title: String {
             switch self {
+            case .home: return localized("Home")
+            case .writing: return localized("Writing")
+            case .tools: return localized("Tools")
             case .media: return localized("Music")
             case .shelf: return localized("Shelf")
             case .clipboard: return localized("Clipboard")
@@ -40,7 +47,8 @@ final class NotchViewModel: ObservableObject {
         /// Tabs with a field in them. Landing on one hands it the keyboard, so
         /// that arriving and typing is a single move.
         var needsKeyboard: Bool {
-            self == .translate || self == .currency || self == .snippets || self == .notes
+            self == .writing || self == .tools
+                || self == .translate || self == .currency || self == .snippets || self == .notes
         }
 
         /// Every tab can be taken off the rail except the one the switches
@@ -60,8 +68,9 @@ final class NotchViewModel: ObservableObject {
         /// rail: it is not something to hover past on the way to a track or a
         /// calendar, so it sits last, furthest from the tabs people actually
         /// rest on.
-        static let leftRail: [Tab] = [.media, .shelf, .clipboard, .snippets, .calendar, .translate]
-        static let rightRail: [Tab] = [.notes, .currency, .teleprompter, .settings]
+        static let rail: [Tab] = [.home, .shelf, .writing, .tools, .settings]
+        static let leftRail: [Tab] = rail
+        static let rightRail: [Tab] = []
     }
 
     /// What every screen's panel adds up to, kept by `NotchController`: this
@@ -123,6 +132,18 @@ final class NotchViewModel: ObservableObject {
     /// icon has left the rail.
     private func startBackground(of target: Tab) {
         switch target {
+        case .home:
+            // Три стора вместо одного: домашняя поверхность показывает их
+            // разом, значит и жить они начинают разом.
+            media.start()
+            clipboard.start()
+            calendar.start()
+            if isPanelActive {
+                media.setActive(true)
+                calendar.setActive(true)
+            }
+        case .tools:
+            currencies.start()
         case .media:
             media.start()
             if isPanelActive { media.setActive(true) }
@@ -139,19 +160,24 @@ final class NotchViewModel: ObservableObject {
             screenshotFolder.resumeIfEnabled()
         case .currency:
             currencies.start()
-        case .snippets, .translate, .notes, .teleprompter, .settings:
+        case .writing, .snippets, .translate, .notes, .teleprompter, .settings:
             break
         }
     }
 
     private func stopBackground(of target: Tab) {
         switch target {
+        case .home:
+            media.stop()
+            clipboard.stop()
+            calendar.stop()
+        case .tools: currencies.stop()
         case .media: media.stop()
         case .clipboard: clipboard.stop()
         case .calendar: calendar.stop()
         case .shelf: screenshotFolder.stop()
         case .currency: currencies.stop()
-        case .snippets, .translate, .notes, .teleprompter, .settings: break
+        case .writing, .snippets, .translate, .notes, .teleprompter, .settings: break
         }
     }
 
@@ -161,8 +187,11 @@ final class NotchViewModel: ObservableObject {
     func setPanelActive(_ active: Bool) {
         guard active != isPanelActive else { return }
         isPanelActive = active
-        if isVisible(.media) { media.setActive(active) }
-        if isVisible(.calendar) { calendar.setActive(active) }
+        if isVisible(.home) || isVisible(.media) { media.setActive(active) }
+        // Тап открывается на время взгляда и закрывается вместе с панелью:
+        // держать агрегатное устройство ради свёрнутой чёлки незачем.
+        if active, isVisible(.home) { audio.start() } else { audio.stop() }
+        if isVisible(.home) || isVisible(.calendar) { calendar.setActive(active) }
     }
 
     private var started = false
@@ -178,16 +207,16 @@ final class NotchViewModel: ObservableObject {
         tab.needsKeyboard || (tab == .teleprompter && teleprompter.script.isEmpty)
     }
 
-    @Published var tab: Tab = .media {
+    @Published var tab: Tab = .home {
         didSet {
             // Opening the tab only re-checks the status. The permission prompt
             // is the user's own press on the button inside the pane: this is
             // the one permission Cyclop asks for at all, and it deserves an
             // explanation before the system dialog, not after.
-            if tab == .calendar { calendar.refreshAccess() }
+            if tab == .calendar || tab == .home { calendar.refreshAccess() }
             // The snippets file is edited from outside the app, so it is read
             // on the way in rather than held from launch.
-            if tab == .snippets { snippets.reload() }
+            if tab == .snippets || tab == .writing { snippets.reload() }
             // Same reason, sharper stakes: the shelf can hold files inside the
             // folders macOS guards, and looking at one raises a permission
             // prompt. It is asked here, with the shelf on screen, rather than
@@ -200,12 +229,14 @@ final class NotchViewModel: ObservableObject {
             // hover to recreate, and a trail of empty cards is the clutter a
             // scratchpad exists to avoid.
             if oldValue == .notes, tab != .notes { notes.leave() }
+            if oldValue == .writing, tab != .writing { notes.leave() }
             // Leaving the tab that types gives the keyboard straight back —
             // done per screen, where the claim lives, in `NotchScreenPanel`.
 
             // Leaving the teleprompter stops the scroll and drops the pin, so
             // the panel goes back to obeying the pointer like everything else.
             if oldValue == .teleprompter, tab != .teleprompter { teleprompter.suspend() }
+            if oldValue == .tools, tab != .tools { teleprompter.suspend() }
         }
     }
 
@@ -218,7 +249,7 @@ final class NotchViewModel: ObservableObject {
     /// narrow as it can be. It applies to one tab, only while the script is
     /// actually moving, and it ends three ways that need no explaining: the
     /// script runs out, Escape, or a click anywhere outside the panel.
-    var holdsOpen: Bool { tab == .teleprompter && teleprompter.isRunning }
+    var holdsOpen: Bool { teleprompter.isRunning }
 
     let media: MediaController
     let shelf: ShelfStore
@@ -232,6 +263,8 @@ final class NotchViewModel: ObservableObject {
     let teleprompter: TeleprompterStore
     /// Shared by every pane that shows something worth not showing.
     let privacy = PrivacyMode()
+    /// Спектр играющего. Живёт только пока панель открыта — см. `AudioTap`.
+    let audio = AudioTap()
 
     private var cancellables = Set<AnyCancellable>()
 

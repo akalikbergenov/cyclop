@@ -34,6 +34,8 @@ final class MediaController: ObservableObject {
     private var activeApp: PlayerApp?
     private var artworkKey: String?
     private var anchor: (position: TimeInterval, at: Date)?
+    /// Отложенное гашение панели — см. `fadeOut`.
+    private var pendingClear: DispatchWorkItem?
     /// Where we asked the player to jump, and when — see `apply`.
     private var pendingSeek: (target: TimeInterval, at: Date)?
     private var ticker: Timer?
@@ -123,7 +125,9 @@ final class MediaController: ObservableObject {
     // MARK: - Feed
 
     private func apply(_ snapshot: NowPlayingFeed.Snapshot) {
-        guard !snapshot.isEmpty else { return clear() }
+        guard !snapshot.isEmpty else { return fadeOut() }
+        pendingClear?.cancel()
+        pendingClear = nil
 
         let key = "\(snapshot.title)|\(snapshot.artist)|\(snapshot.album)"
         track = Track(title: snapshot.title, artist: snapshot.artist, album: snapshot.album, key: key)
@@ -176,6 +180,31 @@ final class MediaController: ObservableObject {
                 self.artwork = image
             }
         }
+    }
+
+    /// Пустой снимок значит две разные вещи, и различить их можно только
+    /// временем. Плеер, у которого сменился трек, публикует пустоту между
+    /// старым и новым — доли секунды. Плеер, который закрыли, публикует её и
+    /// дальше. Мгновенная очистка обслуживала второй случай и ломала первый:
+    /// на каждой смене трека панель успевала сказать «ничего не играет».
+    ///
+    /// Поэтому пустота сначала откладывается. Приход непустого снимка отменяет
+    /// отложенное, а если не пришло ничего — панель гаснет, просто позже.
+    ///
+    /// 1.1 с — с запасом на самый медленный источник из виденных: вкладка
+    /// браузера отдаёт новый снимок заметно позже приложения-плеера.
+    private func fadeOut() {
+        guard track != nil else { return clear() }
+        guard pendingClear == nil else { return }
+        let work = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.pendingClear = nil
+                self.clear()
+            }
+        }
+        pendingClear = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.1, execute: work)
     }
 
     private func clear() {

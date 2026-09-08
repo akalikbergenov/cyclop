@@ -72,7 +72,7 @@ struct NotchContentView: View {
     @ViewBuilder
     private var trailing: some View {
         switch vm.tab {
-        case .media:
+        case .home, .media:
             HStack(spacing: 6) {
                 if vm.media.track != nil {
                     EqualizerBars(isAnimating: vm.media.isPlaying)
@@ -103,7 +103,7 @@ struct NotchContentView: View {
             NotesCounter(notes: vm.notes)
         case .teleprompter:
             EmptyView()
-        case .settings:
+        case .settings, .writing, .tools:
             EmptyView()
         }
     }
@@ -121,9 +121,13 @@ struct NotchContentView: View {
 
     private var content: some View {
         HStack(spacing: 14) {
-            Rail(vm: vm, panel: panel, tabs: vm.leftRail)
+            if !vm.leftRail.isEmpty {
+                Rail(vm: vm, panel: panel, tabs: vm.leftRail)
+            }
             panes
-            Rail(vm: vm, panel: panel, tabs: vm.rightRail)
+            if !vm.rightRail.isEmpty {
+                Rail(vm: vm, panel: panel, tabs: vm.rightRail)
+            }
         }
         .padding(.horizontal, 14)
         // The body's height is measured from this same number, so the two
@@ -154,6 +158,28 @@ struct NotchContentView: View {
     @ViewBuilder
     private var pane: some View {
         switch vm.tab {
+        case .home:
+            HomePane(
+                media: vm.media,
+                calendar: vm.calendar,
+                clipboard: vm.clipboard,
+                privacy: vm.privacy,
+                audio: vm.audio
+            )
+        case .writing:
+            WritingPane(
+                snippets: vm.snippets,
+                notes: vm.notes,
+                privacy: vm.privacy,
+                wantsKeyboard: $panel.wantsKeyboard
+            )
+        case .tools:
+            ToolsPane(
+                translator: vm.translator,
+                currencies: vm.currencies,
+                teleprompter: vm.teleprompter,
+                wantsKeyboard: $panel.wantsKeyboard
+            )
         case .media:
             MediaPane(media: vm.media)
         case .shelf:
