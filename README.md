@@ -57,6 +57,13 @@ open build/Cyclop.app
 To go back to stable, download a disk image from the releases and replace the
 app. Settings live in `~/Library/Application Support/Cyclop` and survive it.
 
+> [!NOTE]
+> **Permissions are lost on every rebuild.** `Scripts/bundle.sh` signs the bundle
+> anew, and macOS ties granted permissions to the signature — to the system this
+> is a different app every time. Calendar and audio recording access have to be
+> granted again. This is not a beta bug but a consequence of building from source
+> without a Developer ID certificate.
+
 ---
 
 # Cyclop
