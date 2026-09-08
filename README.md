@@ -21,7 +21,7 @@ whether it belongs here at all.
 
 ### Home
 
-![Home: music, the next meeting and the clipboard on one surface](docs/beta/home.png)
+![Home: music, the next meeting and the clipboard on one surface](docs/beta/home-surface.png)
 
 Music with a real spectrum of what is playing on the left; the next meeting with
 its countdown and the latest copies on the right. These used to be three tabs,
