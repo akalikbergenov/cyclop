@@ -84,6 +84,13 @@ jobs:
           test -f "$APP/Contents/Resources/ru.lproj/Localizable.strings"
           INSIDE="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$APP/Contents/Info.plist")"
           test "$INSIDE" = "$VERSION" || { echo "версия в бандле $INSIDE, в Scripts/version $VERSION"; exit 1; }
+          # То же самое для сайта. README обещает, что номер записан в одном
+          # месте и разойтись не может, но structured data на docs/index.html
+          # держит вторую копию — и она молча отстала на четыре релиза
+          # (0.6.5 против 0.8.0). Молча, потому что сверять её было нечем:
+          # сайт не собирается и в чек-листе выпуска не упомянут.
+          SITE="$(sed -n 's/.*"softwareVersion": "\([^"]*\)".*/\1/p' docs/index.html)"
+          test "$SITE" = "$VERSION" || { echo "версия на сайте $SITE, в Scripts/version $VERSION"; exit 1; }
           # Раньше эта проверка отсутствовала, и неподписанный бандл проходил CI
           # незамеченным: шаг смотрел на наличие файлов, а не на подпись (#19).
           codesign --verify --strict "$APP"
