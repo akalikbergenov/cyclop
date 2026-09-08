@@ -16,7 +16,6 @@ struct SettingsPane: View {
     @State private var saveClipboardImages = NotchViewModel.saveClipboardImagesEnabled
     @State private var allDisplays = NotchGeometry.showsOnAllDisplays
     @State private var watchScreenshotFolder = false
-    @State private var replaceVolumeHUD = SystemHUD.isSuppressed
     @State private var screenshotUsage: (files: Int, bytes: Int64) = (0, 0)
 
     var body: some View {
@@ -48,18 +47,6 @@ struct SettingsPane: View {
                             toggleRow(symbol: tab.symbol, title: tab.title, isOn: visibilityBinding(tab))
                         }
                     }
-                }
-
-                // Бета-фишка: панель отвечает на зарядку, громкость и смену
-                // трека. Системную плашку громкости иначе не убрать — публичного
-                // способа нет, поэтому под переключателем остановка процесса
-                // сигналом, и он выключен по умолчанию.
-                section(localized("Live Notch")) {
-                    toggleRow(
-                        symbol: "speaker.wave.2.fill",
-                        title: localized("Replace System Volume HUD"),
-                        isOn: systemHUDBinding
-                    )
                 }
 
                 section(localized("Displays")) {
@@ -130,7 +117,6 @@ struct SettingsPane: View {
             saveClipboardImages = NotchViewModel.saveClipboardImagesEnabled
             allDisplays = NotchGeometry.showsOnAllDisplays
             watchScreenshotFolder = screenshots.isEnabled
-            replaceVolumeHUD = SystemHUD.isSuppressed
             refreshUsage()
         }
     }
@@ -139,16 +125,6 @@ struct SettingsPane: View {
         guard screenshotUsage.files > 0 else { return localized("Clear Screenshots Folder") }
         let size = ByteCountFormatter.string(fromByteCount: screenshotUsage.bytes, countStyle: .file)
         return localized("Clear Screenshots Folder (%@)", size)
-    }
-
-    private var systemHUDBinding: Binding<Bool> {
-        Binding(
-            get: { replaceVolumeHUD },
-            set: { wants in
-                replaceVolumeHUD = wants
-                if wants { SystemHUD.suppress() } else { SystemHUD.restore() }
-            }
-        )
     }
 
     private var launchAtLoginBinding: Binding<Bool> {

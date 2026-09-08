@@ -266,7 +266,6 @@ final class NotchViewModel: ObservableObject {
     /// Спектр играющего. Живёт только пока панель открыта — см. `AudioTap`.
     let audio = AudioTap()
     let power = PowerMonitor()
-    let volume = VolumeMonitor()
 
     /// Короткое объявление в свёрнутой чёлке. Общее на все экраны: событие
     /// системное, а не про то, где сейчас указатель.
@@ -303,14 +302,6 @@ final class NotchViewModel: ObservableObject {
         }
         power.start()
 
-        volume.onChange = { [weak self] level, muted in
-            self?.announce(PeekEvent(
-                symbol: muted || level == 0 ? "speaker.slash.fill" : "speaker.wave.2.fill",
-                title: localized("Volume"),
-                detail: muted ? localized("Muted") : "\(Int((level * 100).rounded())) %",
-                progress: muted ? 0 : level))
-        }
-        volume.start()
 
         // Объявляем только то, чего пользователь не делал сам: играет, панель
         // закрыта, и команда не приходила из панели пару секунд назад.

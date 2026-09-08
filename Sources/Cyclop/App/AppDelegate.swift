@@ -15,9 +15,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        // Системную плашку мы могли остановить сигналом — отпускаем обратно,
-        // иначе у пользователя останется макбук без индикатора громкости.
-        SystemHUD.restore()
         controller?.teardown()
     }
 

@@ -125,7 +125,3 @@
 /* Живая чёлка */
 "Charging" = "Charging";
 "On battery" = "On battery";
-"Volume" = "Volume";
-"Muted" = "Muted";
-"Replace System Volume HUD" = "Replace System Volume HUD";
-"Live Notch" = "Live Notch";
