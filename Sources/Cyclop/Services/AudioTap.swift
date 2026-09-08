@@ -77,6 +77,11 @@ final class AudioTap: ObservableObject {
 
     static let bandCount = 28
 
+    /// Спектр выключен, пока не решён вопрос с запросом доступа к звуку —
+    /// см. комментарий в `NotchViewModel.setPanelActive`. Включается здесь и
+    /// требует вернуть `NSAudioCaptureUsageDescription` в `Scripts/bundle.sh`.
+    static let isEnabled = false
+
     private var tap = AudioObjectID(kAudioObjectUnknown)
     private var aggregate = AudioObjectID(kAudioObjectUnknown)
     private var procID: AudioDeviceIOProcID?

@@ -190,7 +190,14 @@ final class NotchViewModel: ObservableObject {
         if isVisible(.home) || isVisible(.media) { media.setActive(active) }
         // Тап открывается на время взгляда и закрывается вместе с панелью:
         // держать агрегатное устройство ради свёрнутой чёлки незачем.
-        if active, isVisible(.home) { audio.start() } else { audio.stop() }
+        //
+        // По умолчанию выключен, и это не осторожность, а исправление ошибки:
+        // с объявленным `NSAudioCaptureUsageDescription` система на некоторых
+        // машинах поднимает запрос доступа к системному звуку, и у панели —
+        // неактивирующегося окна без Dock-иконки — этот диалог оказывается без
+        // фокуса. Он висит, кнопки не нажимаются, и так на каждом запуске.
+        // Пока не найден способ спрашивать по-человечески, спектр не включается.
+        if active, isVisible(.home), AudioTap.isEnabled { audio.start() } else { audio.stop() }
         if isVisible(.home) || isVisible(.calendar) { calendar.setActive(active) }
     }
 
