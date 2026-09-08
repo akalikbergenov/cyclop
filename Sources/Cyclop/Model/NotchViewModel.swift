@@ -265,6 +265,71 @@ final class NotchViewModel: ObservableObject {
     let privacy = PrivacyMode()
     /// Спектр играющего. Живёт только пока панель открыта — см. `AudioTap`.
     let audio = AudioTap()
+    let power = PowerMonitor()
+    let volume = VolumeMonitor()
+
+    /// Короткое объявление в свёрнутой чёлке. Общее на все экраны: событие
+    /// системное, а не про то, где сейчас указатель.
+    @Published private(set) var peek: PeekEvent?
+    private var peekDismiss: DispatchWorkItem?
+    /// Ключ трека, о котором уже объявляли, чтобы не повторяться на каждом
+    /// обновлении позиции.
+    private var announcedTrackKey: String?
+
+    /// Показать объявление. Живёт 2.4 секунды — столько, чтобы прочесть строку
+    /// боковым зрением, и не столько, чтобы начать мешать.
+    func announce(_ event: PeekEvent) {
+        // Пока панель открыта, объявлять нечего: всё и так на виду.
+        guard !isPanelActive else { return }
+        peek = event
+        peekDismiss?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated {
+                self?.peek = nil
+                self?.peekDismiss = nil
+            }
+        }
+        peekDismiss = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.4, execute: work)
+    }
+
+    private func startPeekSources() {
+        power.onPlugChange = { [weak self] plugged, percent in
+            self?.announce(PeekEvent(
+                symbol: plugged ? "bolt.fill" : "battery.50",
+                title: localized(plugged ? "Charging" : "On battery"),
+                detail: "\(percent) %",
+                progress: Double(percent) / 100))
+        }
+        power.start()
+
+        volume.onChange = { [weak self] level, muted in
+            self?.announce(PeekEvent(
+                symbol: muted || level == 0 ? "speaker.slash.fill" : "speaker.wave.2.fill",
+                title: localized("Volume"),
+                detail: muted ? localized("Muted") : "\(Int((level * 100).rounded())) %",
+                progress: muted ? 0 : level))
+        }
+        volume.start()
+
+        // Объявляем только то, чего пользователь не делал сам: играет, панель
+        // закрыта, и команда не приходила из панели пару секунд назад.
+        media.$track
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] track in
+                guard let self, let track else { return }
+                guard track.key != self.announcedTrackKey else { return }
+                let wasMine = self.media.lastCommandAt.map { Date().timeIntervalSince($0) < 2 } ?? false
+                self.announcedTrackKey = track.key
+                guard self.media.isPlaying, !wasMine else { return }
+                self.announce(PeekEvent(
+                    symbol: "music.note",
+                    title: track.title,
+                    detail: track.artist.isEmpty ? nil : track.artist,
+                    progress: nil))
+            }
+            .store(in: &cancellables)
+    }
 
     private var cancellables = Set<AnyCancellable>()
 
@@ -328,6 +393,7 @@ final class NotchViewModel: ObservableObject {
     func start() {
         shelf.load()
         snippets.reload()
+        startPeekSources()
 
         // Screenshots reach the shelf through here whether they were taken on
         // this Mac or on a phone: a copy made on the phone arrives in the same

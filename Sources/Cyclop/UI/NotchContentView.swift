@@ -27,6 +27,10 @@ struct NotchContentView: View {
                 if isOpen {
                     content
                         .transition(.opacity)
+                } else if let peek = vm.peek {
+                    PeekRow(event: peek)
+                        .frame(height: PanelState.peekHeight)
+                        .transition(.opacity)
                 }
             }
             .frame(width: size.width, height: size.height, alignment: .top)
@@ -35,6 +39,7 @@ struct NotchContentView: View {
         .frame(width: size.width + 2 * topRadius, height: size.height, alignment: .top)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .animation(Theme.openAnimation, value: isOpen)
+        .animation(Theme.openAnimation, value: vm.peek)
         .animation(Theme.paneAnimation, value: vm.tab)
     }
 
@@ -306,5 +311,52 @@ private struct Rail: View {
     private func fill(for tab: NotchViewModel.Tab) -> Color {
         if vm.tab == tab { return Theme.surfaceHover }
         return hovered == tab ? Theme.surface : .clear
+    }
+}
+
+
+/// Строка объявления в свёрнутой чёлке.
+///
+/// Читается боковым зрением, поэтому здесь нет ничего, кроме значка, одной
+/// строки и — там, где величина имеет значение, — полоски под ней. Кнопок нет
+/// намеренно: строка приезжает сама и уезжает сама, а панель в этот момент
+/// остаётся прозрачной для указателя.
+private struct PeekRow: View {
+    let event: PeekEvent
+
+    var body: some View {
+        VStack(spacing: 4) {
+            HStack(spacing: 8) {
+                Image(systemName: event.symbol)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.white)
+                    .frame(width: 14)
+                Text(event.title)
+                    .font(.system(size: 11.5, weight: .medium))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                Spacer(minLength: 8)
+                if let detail = event.detail {
+                    Text(detail)
+                        .font(.system(size: 10.5, weight: .medium).monospacedDigit())
+                        .foregroundStyle(Theme.secondary)
+                        .lineLimit(1)
+                }
+            }
+            if let progress = event.progress {
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Theme.surface)
+                        Capsule()
+                            .fill(Color.white.opacity(0.9))
+                            .frame(width: max(0, min(1, progress)) * geo.size.width)
+                    }
+                }
+                .frame(height: 3)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.bottom, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

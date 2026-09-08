@@ -36,6 +36,9 @@ final class MediaController: ObservableObject {
     private var anchor: (position: TimeInterval, at: Date)?
     /// Отложенное гашение панели — см. `fadeOut`.
     private var pendingClear: DispatchWorkItem?
+    /// Когда в последний раз команду дали из панели. Смена трека сразу после
+    /// неё — не новость: тот, кто нажал «дальше», уже знает, что будет дальше.
+    private(set) var lastCommandAt: Date?
     /// Where we asked the player to jump, and when — see `apply`.
     private var pendingSeek: (target: TimeInterval, at: Date)?
     private var ticker: Timer?
@@ -80,6 +83,7 @@ final class MediaController: ObservableObject {
     // MARK: - Transport
 
     func togglePlayPause() {
+        lastCommandAt = Date()
         // Optimistic flip so the button feels instant; the feed corrects it.
         isPlaying.toggle()
         setAnchor(position)
@@ -89,10 +93,12 @@ final class MediaController: ObservableObject {
     }
 
     func next() {
+        lastCommandAt = Date()
         dispatch(feed: .next, script: { PlayerBridge.next($0) }, key: .next)
     }
 
     func previous() {
+        lastCommandAt = Date()
         dispatch(feed: .previous, script: { PlayerBridge.previous($0) }, key: .previous)
     }
 

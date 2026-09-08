@@ -47,8 +47,30 @@ final class PanelState: ObservableObject {
         vm.tab == .teleprompter ? geometry.tallExpandedSize : geometry.expandedSize
     }
 
+    /// Насколько тело подрастает под объявление — ровно на строку.
+    static let peekHeight: CGFloat = 30
+    /// Ширина объявления. Уже панели: строку читают боковым зрением, и чем
+    /// она короче, тем быстрее это выходит.
+    static let peekWidth: CGFloat = 380
+
+    /// Есть ли что показать в свёрнутом виде.
+    var isPeeking: Bool { !isActive && vm.peek != nil }
+
     /// Size of the visible body for the current state.
-    var bodySize: CGSize { isActive ? openBodySize : geometry.notchSize }
+    ///
+    /// Состояний три, а не два: свёрнуто, объявление и раскрыто. Объявление
+    /// растит только рисунок — область, которую панель забирает у указателя,
+    /// остаётся свёрнутой, иначе приехавшая строка перехватывала бы нажатие
+    /// на соседний пункт меню-бара.
+    var bodySize: CGSize {
+        if isActive { return openBodySize }
+        if vm.peek != nil {
+            return CGSize(
+                width: max(Self.peekWidth, geometry.notchSize.width + 80),
+                height: geometry.notchSize.height + Self.peekHeight)
+        }
+        return geometry.notchSize
+    }
 
     /// Hover and click both land here. A tab that types takes the keyboard
     /// either way: showing a field one cannot type into is worse than briefly
