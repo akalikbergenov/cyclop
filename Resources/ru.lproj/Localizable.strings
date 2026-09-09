@@ -80,7 +80,7 @@
 "No other meetings this week" = "Других встреч на неделе нет";
 "See your next meetings" = "Показать ближайшие встречи";
 "Cyclop needs access to Calendar. It is the only permission\nthe app asks for, and only for this tab." = "Нужен доступ к Календарю. Это единственное разрешение,\nкоторое просит Cyclop — и только для этой вкладки.";
-"Allow" = "Разрешить";
+"Continue" = "Продолжить";
 "Calendar access is off" = "Доступ к Календарю закрыт";
 "Settings → Privacy → Calendars" = "Настройки → Конфиденциальность → Календари";
 "No more meetings" = "Встреч больше нет";
