@@ -288,10 +288,13 @@ struct CalendarPane: View {
             // Padding and background belong inside the label: with .plain the
             // hit area is the label itself, so decorating the Button from the
             // outside leaves a capsule that only responds on its lettering.
+            // "Continue", not "Allow": the granting happens in the system
+            // dialog that follows, and App Review reads our own button saying
+            // "Allow" as the app pressing for a yes before macOS has asked.
             Button {
                 calendar.requestAccess()
             } label: {
-                Text("Allow")
+                Text("Continue")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.white)
                     .padding(.horizontal, 14)
