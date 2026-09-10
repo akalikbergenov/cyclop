@@ -489,6 +489,7 @@ Sources/Cyclop
 │   ├── ClipboardStore.swift
 │   ├── ScreenshotVault.swift  clipboard screenshots onto disk
 │   ├── SnippetStore.swift     snippets: reading and writing snippets.json
+│   ├── ConfigStore.swift      settings: reading and writing config.json
 │   ├── NoteStore.swift        scratch notes: notes.json
 │   ├── Translator.swift       Translation.framework, direction by script
 │   ├── CurrencyStore.swift    rates over the network, the one tab that has any

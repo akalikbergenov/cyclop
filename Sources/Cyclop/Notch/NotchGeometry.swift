@@ -88,22 +88,17 @@ struct NotchGeometry {
     /// `NSScreen.screens` is not, because that array reorders too.
     var displayID: CGDirectDisplayID? { screen.displayID }
 
-    /// Persisted switch for every display past the first. Defaults to on: the
-    /// panel is meant to be wherever the pointer is, so this is the way to
-    /// pull it back to one screen, not the way to ask for the rest.
-    static let allDisplaysKey = "showOnAllDisplays"
     /// Posted when that switch changes, so the panels are rebuilt at once
     /// rather than at the next relaunch.
     static let allDisplaysChanged = Notification.Name("CyclopShowOnAllDisplaysChanged")
 
+    /// Persisted in `config.json` (#67) — see `ConfigStore.showOnAllDisplays`
+    /// for the default and the reason for it.
+    @MainActor
     static var showsOnAllDisplays: Bool {
-        get {
-            let defaults = UserDefaults.standard
-            guard defaults.object(forKey: allDisplaysKey) != nil else { return true }
-            return defaults.bool(forKey: allDisplaysKey)
-        }
+        get { ConfigStore.shared.showOnAllDisplays }
         set {
-            UserDefaults.standard.set(newValue, forKey: allDisplaysKey)
+            ConfigStore.shared.showOnAllDisplays = newValue
             NotificationCenter.default.post(name: allDisplaysChanged, object: nil)
         }
     }
@@ -113,6 +108,7 @@ struct NotchGeometry {
     /// Switched off, that is the screen with a physical notch if one is
     /// attached and the main display otherwise — the rule from before there
     /// was more than one screen to choose between.
+    @MainActor
     static func all() -> [NotchGeometry] {
         // A mirrored display repeats another one's picture, so a panel of its
         // own would be a second copy of the same notch, drawn in the same

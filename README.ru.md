@@ -476,6 +476,7 @@ Sources/Cyclop
 │   ├── ClipboardStore.swift
 │   ├── ScreenshotVault.swift  снимки из буфера на диск
 │   ├── SnippetStore.swift     заготовки: чтение и запись snippets.json
+│   ├── ConfigStore.swift      настройки: чтение и запись config.json
 │   ├── NoteStore.swift        временные заметки: notes.json
 │   ├── Translator.swift       Translation.framework, направление по письменности
 │   ├── CurrencyStore.swift    курсы по сети — единственная вкладка, которая туда ходит

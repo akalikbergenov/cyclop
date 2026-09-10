@@ -35,6 +35,10 @@
 "Clear Screenshots Folder (%@)" = "Clear Screenshots Folder (%@)";
 "Show Snippets File" = "Show Snippets File";
 
+"Configuration" = "Configuration";
+"Show Config File" = "Show Config File";
+"config.json is broken — click to open; nothing is overwritten" = "config.json is broken — click to open; nothing is overwritten";
+
 "Cyclop" = "Cyclop";
 "Quit Cyclop" = "Quit Cyclop";
 

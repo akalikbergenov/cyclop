@@ -34,6 +34,10 @@
 "Clear Screenshots Folder (%@)" = "Очистить папку снимков (%@)";
 "Show Snippets File" = "Показать файл заготовок";
 
+"Configuration" = "Конфигурация";
+"Show Config File" = "Показать файл конфигурации";
+"config.json is broken — click to open; nothing is overwritten" = "config.json не читается — нажми, чтобы открыть; поверх ничего не пишется";
+
 "Cyclop" = "Cyclop";
 "Quit Cyclop" = "Выйти из Cyclop";
 

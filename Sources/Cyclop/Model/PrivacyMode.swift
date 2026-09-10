@@ -36,29 +36,19 @@ final class PrivacyMode: ObservableObject {
         }
     }
 
-    static let key = "privacyMode.sections"
-    /// What the first version of this stored: one bool for everything. Read
-    /// once, so a panel that was already covering keeps covering after an
-    /// update instead of quietly opening up.
-    static let legacyKey = "privacyMode"
-
-    @Published private(set) var sections: Set<Section>
-
     /// What the user has uncovered by hand, by row id. Cleared whenever the
     /// panel folds: a row uncovered once must not still be uncovered the next
     /// time the panel opens, which would be exactly when nobody is looking at
     /// it and the camera is.
     @Published private(set) var revealed: Set<String> = []
 
+    @Published private(set) var sections: Set<Section>
+
+    /// Persisted in `config.json` (#67) — the old `UserDefaults` keys, one
+    /// bool for everything and then one array of sections, were folded into
+    /// it once and are no longer read here.
     init() {
-        let defaults = UserDefaults.standard
-        if let stored = defaults.array(forKey: Self.key) as? [String] {
-            sections = Set(stored.compactMap(Section.init(rawValue:)))
-        } else if defaults.bool(forKey: Self.legacyKey) {
-            sections = Set(Section.allCases)
-        } else {
-            sections = []
-        }
+        sections = Set(ConfigStore.shared.privacy.compactMap(Section.init(rawValue:)))
     }
 
     // MARK: - Sections
@@ -83,10 +73,7 @@ final class PrivacyMode: ObservableObject {
     }
 
     private func persist() {
-        UserDefaults.standard.set(sections.map(\.rawValue).sorted(), forKey: Self.key)
-        // Kept in step so that rolling back to an older build finds the switch
-        // where it left it, rather than off.
-        UserDefaults.standard.set(coversAny, forKey: Self.legacyKey)
+        ConfigStore.shared.privacy = sections.map(\.rawValue).sorted()
         if !coversAny { revealed.removeAll() }
     }
 
