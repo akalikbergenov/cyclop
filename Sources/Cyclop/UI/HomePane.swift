@@ -16,6 +16,7 @@ struct HomePane: View {
     @ObservedObject var clipboard: ClipboardStore
     @ObservedObject var privacy: PrivacyMode
     @ObservedObject var audio: AudioTap
+    @ObservedObject var visualizer: VisualizerState
 
     /// Сколько копирований помещается в правую колонку под встречей.
     private let clipLimit = 3
@@ -59,6 +60,9 @@ struct HomePane: View {
                     Spacer(minLength: 4)
                     Spectrum(bands: audio.bands)
                         .frame(height: 20)
+                        // Плоские полосы на месте живого спектра выглядят
+                        // поломкой, а не выключенной настройкой.
+                        .opacity(audio.isRunning ? 1 : 0)
                     Spacer(minLength: 4)
                     scrubber
                 }
@@ -134,7 +138,30 @@ struct HomePane: View {
         // элемент здесь, который читается как группа, и прижатая влево группа
         // выглядит съехавшей, а не выровненной.
         .frame(maxWidth: .infinity)
+        .overlay(alignment: .trailing) { pinButton }
         .animation(.easeInOut(duration: 0.15), value: media.canSkip)
+    }
+
+    /// Закрепить плашку под вырезом — и открепить.
+    ///
+    /// Накладкой поверх транспорта, а не строкой рядом со спектром. Рядом со
+    /// спектром кнопка отнимала у столбиков полсотни пунктов ширины — при
+    /// двадцати восьми полосах это разница между столбиком и штрихом. Накладка
+    /// не занимает ни ширины, ни высоты и, что важнее, не сдвигает транспорт:
+    /// три кнопки посередине остаются посередине колонки.
+    private var pinButton: some View {
+        Button { visualizer.isPinned.toggle() } label: {
+            Image(systemName: visualizer.isPinned ? "pin.fill" : "pin")
+                .font(.system(size: 9.5, weight: .medium))
+                .foregroundStyle(visualizer.isPinned ? Color.white : Theme.tertiary)
+                .frame(width: 20, height: 20)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(visualizer.isPinned ? Theme.surfaceHover : Theme.surface))
+                .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .help(localized(visualizer.isPinned ? "Unpin" : "Pin Below the Notch"))
     }
 
     /// Доля, которую показывает полоса: пока тянут — та, что под пальцем.
@@ -385,29 +412,3 @@ private struct HomeClipRow: View {
     }
 }
 
-
-/// Спектр: двадцать восемь полос по настоящему звуку.
-///
-/// Рисуется без анимации SwiftUI намеренно — данные и так приходят тридцать
-/// раз в секунду, а наложенная поверх них интерполяция превратила бы удар в
-/// плавное всплытие, то есть ровно в ту неправду, из-за которой декоративные
-/// «эквалайзеры» и видно.
-private struct Spectrum: View {
-    let bands: [Float]
-
-    var body: some View {
-        GeometryReader { geo in
-            let count = max(bands.count, 1)
-            let gap: CGFloat = 2
-            let width = max((geo.size.width - gap * CGFloat(count - 1)) / CGFloat(count), 1)
-            HStack(alignment: .bottom, spacing: gap) {
-                ForEach(Array(bands.enumerated()), id: \.offset) { _, value in
-                    Capsule()
-                        .fill(Color.white.opacity(0.28 + Double(value) * 0.62))
-                        .frame(width: width, height: max(2, CGFloat(value) * geo.size.height))
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-        }
-    }
-}

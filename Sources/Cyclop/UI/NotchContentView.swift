@@ -27,6 +27,19 @@ struct NotchContentView: View {
                 if isOpen {
                     content
                         .transition(.opacity)
+                } else if panel.isPinned {
+                    // Одна высота на оба содержимых: объявление, пришедшее
+                    // поверх закреплённой плашки, подменяет строку, а не
+                    // раздвигает чёлку.
+                    Group {
+                        if let peek = vm.peek {
+                            PeekRow(event: peek)
+                        } else {
+                            PinnedBar(media: vm.media, audio: vm.audio)
+                        }
+                    }
+                    .frame(height: PanelState.pinnedHeight)
+                    .transition(.opacity)
                 } else if let peek = vm.peek {
                     PeekRow(event: peek)
                         .frame(height: PanelState.peekHeight)
@@ -40,6 +53,7 @@ struct NotchContentView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .animation(Theme.openAnimation, value: isOpen)
         .animation(Theme.openAnimation, value: vm.peek)
+        .animation(Theme.openAnimation, value: panel.isPinned)
         .animation(Theme.paneAnimation, value: vm.tab)
     }
 
@@ -169,7 +183,8 @@ struct NotchContentView: View {
                 calendar: vm.calendar,
                 clipboard: vm.clipboard,
                 privacy: vm.privacy,
-                audio: vm.audio
+                audio: vm.audio,
+                visualizer: vm.visualizer
             )
         case .writing:
             WritingPane(
@@ -204,7 +219,12 @@ struct NotchContentView: View {
         case .teleprompter:
             TeleprompterPane(prompter: vm.teleprompter, wantsKeyboard: $panel.wantsKeyboard)
         case .settings:
-            SettingsPane(vm: vm, shelf: vm.shelf, screenshots: vm.screenshotFolder)
+            SettingsPane(
+                vm: vm,
+                visualizer: vm.visualizer,
+                shelf: vm.shelf,
+                screenshots: vm.screenshotFolder
+            )
         }
     }
 }

@@ -53,17 +53,41 @@ final class PanelState: ObservableObject {
     /// она короче, тем быстрее это выходит.
     static let peekWidth: CGFloat = 380
 
+    /// Насколько тело подрастает под закреплённую плашку. Выше строки
+    /// объявления: там одна строка, а здесь обложка, две строки и спектр.
+    static let pinnedHeight: CGFloat = 34
+    /// Ширина плашки. Шире объявления — в ней три вещи, а не одна.
+    static let pinnedWidth: CGFloat = 510
+
     /// Есть ли что показать в свёрнутом виде.
     var isPeeking: Bool { !isActive && vm.peek != nil }
 
+    /// Висит ли под вырезом закреплённая плашка.
+    ///
+    /// Только когда что-то играет: плашка — это «вот что звучит», и висеть в
+    /// тишине ей незачем.
+    var isPinned: Bool {
+        vm.visualizer.isPinned && vm.isVisible(.home) && vm.media.track != nil
+    }
+
     /// Size of the visible body for the current state.
     ///
-    /// Состояний три, а не два: свёрнуто, объявление и раскрыто. Объявление
+    /// Состояний четыре, а не два: свёрнуто, объявление, закреплённая плашка и
+    /// раскрыто. Объявление
     /// растит только рисунок — область, которую панель забирает у указателя,
     /// остаётся свёрнутой, иначе приехавшая строка перехватывала бы нажатие
     /// на соседний пункт меню-бара.
     var bodySize: CGSize {
         if isActive { return openBodySize }
+        // Закреплённая плашка не меняет высоту под приезжающее объявление:
+        // строка про зарядку рисуется внутри той же плашки. Иначе чёлка
+        // дёргалась бы вверх-вниз на каждое событие — и дёргалась бы ровно
+        // тогда, когда на неё смотрят.
+        if isPinned {
+            return CGSize(
+                width: max(Self.pinnedWidth, geometry.notchSize.width + 80),
+                height: geometry.notchSize.height + Self.pinnedHeight)
+        }
         if vm.peek != nil {
             return CGSize(
                 width: max(Self.peekWidth, geometry.notchSize.width + 80),

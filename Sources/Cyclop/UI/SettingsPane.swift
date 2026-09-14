@@ -8,6 +8,7 @@ import ServiceManagement
 /// other than as a menu that grows a new row per feature.
 struct SettingsPane: View {
     @ObservedObject var vm: NotchViewModel
+    @ObservedObject var visualizer: VisualizerState
     @ObservedObject var shelf: ShelfStore
     let screenshots: ScreenshotFolderWatcher
 
@@ -16,7 +17,7 @@ struct SettingsPane: View {
     @State private var saveClipboardImages = NotchViewModel.saveClipboardImagesEnabled
     @State private var allDisplays = NotchGeometry.showsOnAllDisplays
     @State private var watchScreenshotFolder = false
-    @State private var visualizer = AudioTap.isEnabled
+    @State private var spectrum = AudioTap.isEnabled
     @State private var screenshotUsage: (files: Int, bytes: Int64) = (0, 0)
 
     var body: some View {
@@ -31,6 +32,14 @@ struct SettingsPane: View {
                         symbol: "waveform",
                         title: localized("Show Spectrum"),
                         isOn: visualizerBinding
+                    )
+                    // Закрепление отдельно от спектра, потому что работает и
+                    // без него: плашка показывает, что играет, а спектр — как
+                    // это звучит. Без доступа к звуку остаётся первое.
+                    toggleRow(
+                        symbol: visualizer.isPinned ? "pin.fill" : "pin",
+                        title: localized("Pin Below the Notch"),
+                        isOn: pinnedBinding
                     )
                 }
 
@@ -130,7 +139,7 @@ struct SettingsPane: View {
             saveClipboardImages = NotchViewModel.saveClipboardImagesEnabled
             allDisplays = NotchGeometry.showsOnAllDisplays
             watchScreenshotFolder = screenshots.isEnabled
-            visualizer = AudioTap.isEnabled
+            spectrum = AudioTap.isEnabled
             refreshUsage()
         }
     }
@@ -141,20 +150,25 @@ struct SettingsPane: View {
         return localized("Clear Screenshots Folder (%@)", size)
     }
 
+    private var pinnedBinding: Binding<Bool> {
+        Binding(
+            get: { visualizer.isPinned },
+            set: { visualizer.isPinned = $0 }
+        )
+    }
+
     private var visualizerBinding: Binding<Bool> {
         Binding(
-            get: { visualizer },
+            get: { spectrum },
             set: { wants in
-                visualizer = wants
+                spectrum = wants
                 AudioTap.isEnabled = wants
-                if wants {
-                    // На миг становимся активным приложением: системный запрос
-                    // доступа к звуку иначе приходит без фокуса и висит.
-                    NSApp.activate(ignoringOtherApps: true)
-                    vm.audio.start()
-                } else {
-                    vm.audio.stop()
-                }
+                // На миг становимся активным приложением: системный запрос
+                // доступа к звуку иначе приходит без фокуса и висит.
+                if wants { NSApp.activate(ignoringOtherApps: true) }
+                // Через модель, а не напрямую: тап держат две причины, и
+                // выключатель знает только про одну из них.
+                vm.refreshAudio()
             }
         )
     }
