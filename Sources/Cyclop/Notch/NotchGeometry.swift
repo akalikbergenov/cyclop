@@ -20,6 +20,12 @@ struct NotchGeometry {
     /// pointer in the top 8 of it. Measured per display, because it is a fact
     /// about that display and not about this Mac.
     let guardsIcons: Bool
+    /// Whether this display carries a menu bar at all.
+    ///
+    /// Not the same as "a menu bar is showing": the display that owns the bar
+    /// carries one whether it is auto-hidden or not. A second monitor without
+    /// separate Spaces carries none, ever.
+    let hasMenuBar: Bool
 
     /// Metrics of the tab rail that do not depend on the notch. `railIconHeight`
     /// is not among them — see below.
@@ -134,7 +140,10 @@ struct NotchGeometry {
                 notchSize: CGSize(width: width, height: screen.safeAreaInsets.top),
                 notchCenterX: screen.frame.minX + left.width + width / 2,
                 isPhysical: true,
-                guardsIcons: false
+                guardsIcons: false,
+                // A display with a cutout is a built-in one, and a built-in
+                // display always carries a bar.
+                hasMenuBar: true
             )
         }
 
@@ -185,7 +194,8 @@ struct NotchGeometry {
             notchSize: CGSize(width: 180, height: max(menuBarHeight, NSStatusBar.system.thickness, 24)),
             notchCenterX: screen.frame.midX,
             isPhysical: false,
-            guardsIcons: hasMenuBar && crowded
+            guardsIcons: hasMenuBar && crowded,
+            hasMenuBar: hasMenuBar
         )
     }
 
@@ -225,6 +235,7 @@ struct NotchGeometry {
             && notchSize == other.notchSize
             && notchCenterX == other.notchCenterX
             && isPhysical == other.isPhysical
+            && hasMenuBar == other.hasMenuBar
             && guardsIcons == other.guardsIcons
     }
 
@@ -285,10 +296,33 @@ struct NotchGeometry {
     ///
     /// A notch the icons do not reach has neither problem, so it is treated
     /// like the hole: it answers everywhere it is drawn.
-    var collapsedDepth: CGFloat { guardsIcons ? 8 : notchSize.height }
+    /// A display with no menu bar at all is the third case, and it wants the
+    /// strip for a different reason (#109). There is nothing up there to cut a
+    /// notch out of — the bar never comes back, because the display never had
+    /// one — so a shape the height of a menu bar is a black box standing on
+    /// somebody's content. It is the only case where the drawn shape shrinks
+    /// with the target; everywhere else the notch is drawn in full and only
+    /// what it claims from the pointer is narrowed.
+    var collapsedDepth: CGFloat {
+        guard hasMenuBar else { return Self.barelessDepth }
+        return guardsIcons ? 8 : notchSize.height
+    }
+
+    /// Depth of both the target and the shape where there is no menu bar.
+    /// Reached the same way the notch always was — by throwing the pointer at
+    /// the top edge, which parks it on `maxY` and inside this strip.
+    static let barelessDepth: CGFloat = 8
 
     /// Size of the collapsed target: the notch itself, or the strip above.
     var collapsedSize: CGSize { CGSize(width: notchSize.width, height: collapsedDepth) }
+
+    /// Size the shape is drawn at while collapsed.
+    ///
+    /// Equal to the notch everywhere except on a display without a menu bar,
+    /// where the notch is imitating something that is not there.
+    var collapsedDrawnSize: CGSize {
+        hasMenuBar ? notchSize : CGSize(width: notchSize.width, height: Self.barelessDepth)
+    }
 
     /// Hover target while collapsed, in global screen coordinates. Slightly
     /// taller than the notch so the panel opens just before the pointer lands.

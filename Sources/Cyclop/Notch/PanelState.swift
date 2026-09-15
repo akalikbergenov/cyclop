@@ -48,7 +48,7 @@ final class PanelState: ObservableObject {
     }
 
     /// Size of the visible body for the current state.
-    var bodySize: CGSize { isActive ? openBodySize : geometry.notchSize }
+    var bodySize: CGSize { isActive ? openBodySize : geometry.collapsedDrawnSize }
 
     /// Hover and click both land here. A tab that types takes the keyboard
     /// either way: showing a field one cannot type into is worse than briefly
