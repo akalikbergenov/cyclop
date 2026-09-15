@@ -188,17 +188,38 @@ final class NotchViewModel: ObservableObject {
         guard active != isPanelActive else { return }
         isPanelActive = active
         if isVisible(.home) || isVisible(.media) { media.setActive(active) }
-        // Тап открывается на время взгляда и закрывается вместе с панелью:
-        // держать агрегатное устройство ради свёрнутой чёлки незачем.
-        //
-        // По умолчанию выключен, и это не осторожность, а исправление ошибки:
-        // с объявленным `NSAudioCaptureUsageDescription` система на некоторых
-        // машинах поднимает запрос доступа к системному звуку, и у панели —
-        // неактивирующегося окна без Dock-иконки — этот диалог оказывается без
-        // фокуса. Он висит, кнопки не нажимаются, и так на каждом запуске.
-        // Пока не найден способ спрашивать по-человечески, спектр не включается.
-        if active, isVisible(.home), AudioTap.isEnabled { audio.start() } else { audio.stop() }
+        refreshAudio()
         if isVisible(.home) || isVisible(.calendar) { calendar.setActive(active) }
+    }
+
+    /// На что сейчас смотрят: открытую панель или закреплённую плашку. Любого
+    /// из двух достаточно, чтобы тап держать открытым, и ни одного — чтобы его
+    /// закрыть.
+    ///
+    /// Раньше здесь стояло просто «панель открыта», и правило было честным:
+    /// держать агрегатное устройство ради свёрнутой чёлки незачем. Закрепление
+    /// его не отменяет, а уточняет — плашка и есть та самая чёлка, на которую
+    /// смотрят, и закрепил её человек нажатием, а не приложение само.
+    private var wantsAudio: Bool {
+        // По умолчанию спектр выключен, и это не осторожность, а исправление
+        // ошибки: с объявленным `NSAudioCaptureUsageDescription` система на
+        // некоторых машинах поднимает запрос доступа к системному звуку, и у
+        // панели — неактивирующегося окна без Dock-иконки — этот диалог
+        // оказывается без фокуса. Он висит, кнопки не нажимаются, и так на
+        // каждом запуске.
+        guard AudioTap.isEnabled, isVisible(.home) else { return false }
+        return isPanelActive || visualizer.isPinned
+    }
+
+    /// Открывает или закрывает тап под текущее положение дел.
+    ///
+    /// Намеренно не зовётся из `start()`. Первый в сеансе заход в звук должен
+    /// случиться при открытой панели — только тогда системный вопрос приходит в
+    /// фокусе, — а закреплённая с прошлого запуска плашка панель не открывает.
+    /// Поэтому после логина плашка показывает трек без спектра, и спектр
+    /// приезжает с первым же наведением на вырез.
+    func refreshAudio() {
+        if wantsAudio { audio.start() } else { audio.stop() }
     }
 
     private var started = false
@@ -270,8 +291,10 @@ final class NotchViewModel: ObservableObject {
     let teleprompter: TeleprompterStore
     /// Shared by every pane that shows something worth not showing.
     let privacy = PrivacyMode()
-    /// Спектр играющего. Живёт только пока панель открыта — см. `AudioTap`.
+    /// Спектр играющего. Когда он открыт, решает `refreshAudio`.
     let audio = AudioTap()
+    /// Закреплена ли плашка под вырезом.
+    let visualizer = VisualizerState()
     let power = PowerMonitor()
 
     /// Короткое объявление в свёрнутой чёлке. Общее на все экраны: событие
@@ -299,6 +322,27 @@ final class NotchViewModel: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.4, execute: work)
     }
 
+    /// Закрепление открывает и закрывает тап так же, как это делает наведение
+    /// на панель.
+    ///
+    /// `dropFirst`, потому что `@Published` отдаёт новому подписчику текущее
+    /// значение сразу: без него закреплённая с прошлого запуска плашка открывала
+    /// бы тап прямо на старте — ровно то, чего `refreshAudio` обещает не делать.
+    /// Спрашиваем проходом позже по той же причине, по какой вообще подписаны:
+    /// `@Published` шлёт в `willSet`, и в момент прихода события свойство ещё
+    /// держит прежнее значение.
+    private func watchVisualizer() {
+        visualizer.$isPinned
+            .dropFirst()
+            .removeDuplicates()
+            .sink { [weak self] _ in
+                DispatchQueue.main.async {
+                    MainActor.assumeIsolated { self?.refreshAudio() }
+                }
+            }
+            .store(in: &cancellables)
+    }
+
     private func startPeekSources() {
         power.onPlugChange = { [weak self] plugged, percent in
             self?.announce(PeekEvent(
@@ -319,7 +363,9 @@ final class NotchViewModel: ObservableObject {
                 guard track.key != self.announcedTrackKey else { return }
                 let wasMine = self.media.lastCommandAt.map { Date().timeIntervalSince($0) < 2 } ?? false
                 self.announcedTrackKey = track.key
-                guard self.media.isPlaying, !wasMine else { return }
+                // Закреплённая плашка уже показывает трек — объявлять его
+                // второй раз поверх неё значит закрывать её же собой.
+                guard self.media.isPlaying, !wasMine, !self.visualizer.isPinned else { return }
                 self.announce(PeekEvent(
                     symbol: "music.note",
                     title: track.title,
@@ -363,6 +409,14 @@ final class NotchViewModel: ObservableObject {
         // last one that lands. Their panes observe them directly, and the
         // header counter refreshes anyway, because the list is only ever
         // re-read on the way into the tab.
+        // Визуализатор пересылается всегда, а не только при открытой панели:
+        // закрепление меняет саму свёрнутую чёлку, и узнать об этом виду больше
+        // неоткуда — вложенные ObservableObject наверх не всплывают. Стоит это
+        // ничего: закрепляют руками.
+        visualizer.objectWillChange
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &cancellables)
+
         for child in [
             media.objectWillChange,
             shelf.objectWillChange,
@@ -371,7 +425,12 @@ final class NotchViewModel: ObservableObject {
         ] {
             child
                 .sink { [weak self] _ in
-                    guard let self, self.isPanelActive else { return }
+                    // Плашка у выреза — второй случай, когда стор видно при
+                    // свёрнутой панели: она появляется вместе с треком и
+                    // исчезает вместе с ним, а узнать об этом можно только
+                    // отсюда. Стоит это ровно столько же, сколько раньше:
+                    // перечисленные сторы шлют по изменению, а не по таймеру.
+                    guard let self, self.isPanelActive || self.visualizer.isPinned else { return }
                     self.objectWillChange.send()
                 }
                 .store(in: &cancellables)
@@ -392,6 +451,7 @@ final class NotchViewModel: ObservableObject {
         shelf.load()
         snippets.reload()
         startPeekSources()
+        watchVisualizer()
 
         // Screenshots reach the shelf through here whether they were taken on
         // this Mac or on a phone: a copy made on the phone arrives in the same

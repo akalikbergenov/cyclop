@@ -75,6 +75,12 @@ final class AudioTap: ObservableObject {
     /// Полосы спектра, 0…1, слева направо от низких к высоким.
     @Published private(set) var bands: [Float] = Array(repeating: 0, count: AudioTap.bandCount)
 
+    /// Открыт ли тап на самом деле. Не то же, что `isEnabled`: между нажатием и
+    /// первым буфером есть промежуток, а при отказе в доступе тап не
+    /// открывается вовсе. Виды спрашивают об этом, а не о настройке, — иначе
+    /// рисовали бы плоскую линию там, где данных нет и не будет.
+    @Published private(set) var isRunning = false
+
     static let bandCount = 28
 
     /// Спектр выключен по умолчанию, и включает его пользователь сам.
@@ -142,6 +148,7 @@ final class AudioTap: ObservableObject {
                     self.tap = opened.tap
                     self.aggregate = opened.aggregate
                     self.procID = opened.procID
+                    self.isRunning = true
                     self.startTicker()
                 }
             }
@@ -226,6 +233,7 @@ final class AudioTap: ObservableObject {
             tap = AudioObjectID(kAudioObjectUnknown)
         }
         running = false
+        isRunning = false
         bands = Array(repeating: 0, count: Self.bandCount)
     }
 
