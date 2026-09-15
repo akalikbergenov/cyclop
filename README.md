@@ -14,6 +14,7 @@
 | **Composed surface** | music, the next meeting and the latest copies on one screen; the rail is down from ten icons to five | [#100](https://github.com/akalikbergenov/cyclop/issues/100) |
 | **Live notch** | the panel drops by one line when the charger goes in or the track changes on its own | — |
 | **Visualizer** | a real spectrum of what is playing. **Off by default**: turn it on in Settings → Visualizer, and macOS will ask for system audio recording access | [#103](https://github.com/akalikbergenov/cyclop/issues/103) |
+| **Pinned bar** | the spectrum and what is playing stay under the notch while the panel is folded | [#103](https://github.com/akalikbergenov/cyclop/issues/103) |
 
 The visualizer is the one place where the beta steps away from the zero
 permissions promise, which is exactly why it stays off until it is decided
@@ -37,6 +38,19 @@ are opened less often than anything else. Now it is one icon with a switch
 inside: the rail is about where to go, not about which mode you are in.
 
 Five icons are left on the rail instead of ten.
+
+### The pinned bar
+
+![The bar under the notch: artwork, track and spectrum](docs/beta/pinned-bar.png)
+
+The spectrum is only visible while the panel is held open by the pointer. That
+is right for everything else in the panel, but not for music: it is listened to
+for hours, and the panel is opened for seconds. Pinning leaves the artwork, the
+title and the spectrum under the notch.
+
+The bar does not get in the way: hovering the notch opens the panel over it, and
+a click beside the notch reaches the menu bar. It carries no buttons — unpinning
+lives on the home surface and in settings.
 
 ### Where to turn the spectrum on
 
