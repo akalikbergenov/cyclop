@@ -16,6 +16,14 @@ final class MediaController: ObservableObject {
 
     @Published private(set) var track: Track?
     @Published private(set) var artwork: NSImage?
+    /// Whether a cover may still be on its way for the track now showing.
+    ///
+    /// The skeleton is a promise that something is coming, and for most track
+    /// changes it is true: the system publishes the title before it has the
+    /// cover. It stops being true the moment every source has been asked and
+    /// none had one — a local file, a podcast, a stream. Left alone the
+    /// shimmer ran forever and the pane never said what had happened (#78).
+    @Published private(set) var artworkIsPending = false
     @Published private(set) var isPlaying = false
     @Published private(set) var duration: TimeInterval = 0
     @Published private(set) var position: TimeInterval = 0
@@ -33,6 +41,8 @@ final class MediaController: ObservableObject {
 
     private var activeApp: PlayerApp?
     private var artworkKey: String?
+    /// Cancelled by an arriving cover or by the next track — see `expectArtwork`.
+    private var artworkDeadline: DispatchWorkItem?
     private var anchor: (position: TimeInterval, at: Date)?
     /// Where we asked the player to jump, and when — see `apply`.
     private var pendingSeek: (target: TimeInterval, at: Date)?
@@ -51,6 +61,8 @@ final class MediaController: ObservableObject {
 
     func stop() {
         feed.stop()
+        artworkDeadline?.cancel()
+        artworkDeadline = nil
         observers.forEach { DistributedNotificationCenter.default().removeObserver($0) }
         observers.removeAll()
         ticker?.invalidate()
@@ -155,10 +167,12 @@ final class MediaController: ObservableObject {
             artworkKey = key
             decodeArtwork(data, for: key)
         } else if artworkKey != key {
-            // Track changed and the payload carried no artwork; the skeleton
-            // covers the gap until the system publishes the new cover.
+            // Track changed and the payload carried no artwork. The system
+            // often publishes the cover a beat later, so the skeleton covers
+            // the gap — but only for as long as that is a plausible story.
             artworkKey = key
             artwork = nil
+            expectArtwork(for: key)
         }
     }
 
@@ -173,15 +187,51 @@ final class MediaController: ObservableObject {
             )
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.artworkKey == key else { return }
-                self.artwork = image
+                self.settleArtwork(image)
             }
         }
+    }
+
+    /// Gives a new track a bounded window to produce a cover.
+    ///
+    /// One shot, scheduled by a track change and cancelled by the cover or by
+    /// the next track — not a poller. Nothing is scheduled once the answer is
+    /// known, so a run of coverless tracks costs one pending item, not one per
+    /// track.
+    private func expectArtwork(for key: String) {
+        artworkDeadline?.cancel()
+        artworkIsPending = true
+        // Неизолировано: блок `DispatchWorkItem` помечен `@Sendable` в SDK, и
+        // изоляцию из окружения не наследует. Выполняется он на главной
+        // очереди — отсюда `assumeIsolated`, как у таймера ниже.
+        let deadline = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, self.artworkKey == key, self.artwork == nil else { return }
+                self.artworkIsPending = false
+            }
+        }
+        artworkDeadline = deadline
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.artworkGrace, execute: deadline)
+    }
+
+    /// How long a new track is given to produce a cover: long enough for the
+    /// system to publish one in a follow-up update, short enough that nobody
+    /// reads the shimmer as a hang.
+    private static let artworkGrace: TimeInterval = 4
+
+    /// The answer, whichever it turned out to be. A nil here is not "still
+    /// waiting" — it is "asked everyone, nobody had one".
+    private func settleArtwork(_ image: NSImage?) {
+        artworkDeadline?.cancel()
+        artworkDeadline = nil
+        artwork = image
+        artworkIsPending = false
     }
 
     private func clear() {
         activeApp = nil
         track = nil
-        artwork = nil
+        settleArtwork(nil)
         artworkKey = nil
         isPlaying = false
         duration = 0
@@ -232,9 +282,12 @@ final class MediaController: ObservableObject {
             guard self.artworkKey != state.key else { return }
             self.artworkKey = state.key
             self.artwork = nil
+            self.expectArtwork(for: state.key)
             PlayerBridge.artwork(for: state) { [weak self] image in
                 guard let self, self.artworkKey == state.key else { return }
-                self.artwork = image
+                // Both roads have been walked by the time this returns, so a
+                // nil is the final answer and does not wait out the deadline.
+                self.settleArtwork(image)
             }
         }
     }
