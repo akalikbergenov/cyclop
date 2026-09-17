@@ -42,6 +42,10 @@ struct PlayerState {
     var duration: TimeInterval
     var position: TimeInterval
     var artworkURL: URL?
+    /// Spotify's own id for the track, when the player reports one. It is what
+    /// the oEmbed fallback below asks by, and it is absent for anything that is
+    /// not a Spotify catalogue track — a local file, an ad.
+    var trackID: String?
     /// Identity of the track, used to decide when artwork must be refetched.
     var key: String { "\(app.rawValue)|\(title)|\(artist)|\(album)" }
 }
@@ -134,22 +138,20 @@ enum PlayerBridge {
 
     // MARK: - Artwork
 
+    /// Hosts that could not be reached at all in this session.
+    ///
+    /// A CDN blocked by the network does not become reachable for the next
+    /// track: asking again buys nothing but the same wait on every track
+    /// change, with the pane sitting on a placeholder until it times out.
+    /// A 404 is not this — that is a clear answer from a live host, and says
+    /// something about one track, not about the host. Forgotten on quit,
+    /// because the network the app wakes up on may be another one.
+    private static var unreachableHosts: Set<String> = []
+
     static func artwork(for state: PlayerState, completion: @escaping @MainActor (NSImage?) -> Void) {
         switch state.app {
         case .spotify:
-            // The one thing the app ever fetches over the network. The address
-            // comes out of another app's scripting dictionary, so the scheme is
-            // checked: https answers for itself through TLS, while file:// or
-            // some private scheme answers to nobody.
-            guard let url = state.artworkURL, url.scheme?.lowercased() == "https" else {
-                return completion(nil)
-            }
-            // Неизолировано явно — см. `NowPlayingFeed.launch`: то, какой
-            // окажется изоляция без этой пометки, решает версия SDK.
-            URLSession.shared.dataTask(with: url) { @Sendable data, _, _ in
-                let image = data.flatMap(NSImage.init(data:))
-                DispatchQueue.main.async { MainActor.assumeIsolated { completion(image) } }
-            }.resume()
+            spotifyArtwork(for: state, completion: completion)
         case .music:
             runScript("""
             tell application id "com.apple.Music"
@@ -157,10 +159,95 @@ enum PlayerBridge {
                 return raw data of artwork 1 of current track
             end tell
             """) { descriptor in
-                guard let data = descriptor?.data, !data.isEmpty else { return completion(nil) }
-                completion(NSImage(data: data))
+                completion(cover(from: descriptor?.data))
             }
         }
+    }
+
+    /// The cover for a Spotify track, by two roads.
+    ///
+    /// The first is the address Spotify puts in its own scripting dictionary.
+    /// It is normally right there and normally works. When it is missing, or
+    /// when its CDN cannot be reached from this network — which happens, and
+    /// used to leave the pane shimmering forever — the second road is
+    /// Spotify's oEmbed endpoint, which answers with a thumbnail for any
+    /// track URI. Both are https and both are Spotify: nobody else learns
+    /// anything either way, and both stay on the scripted fallback route —
+    /// the primary path still fetches nothing, as SECURITY.md promises. When
+    /// neither road answers, the answer is nil, and the pane says so out loud
+    /// rather than pretending something is still on its way.
+    private static func spotifyArtwork(
+        for state: PlayerState,
+        completion: @escaping @MainActor (NSImage?) -> Void
+    ) {
+        guard let url = state.artworkURL, isReachable(url) else {
+            return oEmbedArtwork(for: state, completion: completion)
+        }
+        download(url) { data in
+            if let image = cover(from: data) { return completion(image) }
+            oEmbedArtwork(for: state, completion: completion)
+        }
+    }
+
+    private static func oEmbedArtwork(
+        for state: PlayerState,
+        completion: @escaping @MainActor (NSImage?) -> Void
+    ) {
+        guard let id = state.trackID,
+              let endpoint = URL(string: "https://open.spotify.com/oembed?url=spotify:track:\(id)"),
+              isReachable(endpoint) else { return completion(nil) }
+        download(endpoint) { data in
+            guard let data,
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let thumbnail = json["thumbnail_url"] as? String,
+                  let url = URL(string: thumbnail), isReachable(url) else { return completion(nil) }
+            download(url) { completion(cover(from: $0)) }
+        }
+    }
+
+    /// A cover at its own pixel size, not at whatever resolution the file
+    /// claims. Spotify's oEmbed thumbnail is 300x300 pixels tagged at 300 dpi,
+    /// and `NSImage(data:)` reads that as 72x72 points — which is the number
+    /// the pane then measures for squareness. `MediaController` builds covers
+    /// the same way for the same reason.
+    private static func cover(from data: Data?) -> NSImage? {
+        guard let data, !data.isEmpty,
+              let rep = NSBitmapImageRep(data: data), let bitmap = rep.cgImage else { return nil }
+        return NSImage(cgImage: bitmap, size: NSSize(width: rep.pixelsWide, height: rep.pixelsHigh))
+    }
+
+    /// Whether an address is worth trying at all. Every address here comes out
+    /// of another app's scripting dictionary or out of a JSON answer, so the
+    /// scheme is checked: https answers for itself through TLS, while file://
+    /// or some private scheme answers to nobody.
+    private static func isReachable(_ url: URL) -> Bool {
+        guard url.scheme?.lowercased() == "https", let host = url.host else { return false }
+        return !unreachableHosts.contains(host)
+    }
+
+    /// The one place on this path that touches the network, so the timeout and
+    /// the bookkeeping above live here and nowhere else.
+    private static func download(_ url: URL, completion: @escaping @MainActor (Data?) -> Void) {
+        var request = URLRequest(url: url)
+        // A cover nobody has waited six seconds for is a cover nobody wants.
+        request.timeoutInterval = 6
+        // Неизолировано явно — см. `NowPlayingFeed.launch`: то, какой окажется
+        // изоляция без этой пометки, решает версия SDK.
+        URLSession.shared.dataTask(with: request) { @Sendable data, response, error in
+            // Транспортная ошибка без ответа — хост молчит или закрыт. Код
+            // ответа — наоборот, признак живого хоста, и хоронить его нельзя.
+            let unreachable = error != nil && response == nil
+            let host = url.host
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    if unreachable, let host {
+                        unreachableHosts.insert(host)
+                        NSLog("Cyclop: artwork host \(host) unreachable, skipping it this session")
+                    }
+                    completion(data)
+                }
+            }
+        }.resume()
     }
 
     // MARK: - Scripts
@@ -169,6 +256,9 @@ enum PlayerBridge {
         let sep = "set sep to character id 1"
         switch app {
         case .spotify:
+            // Адрес трека спрашивается отдельным try, как и позиция: он нужен
+            // одной лишь обложке и не должен уносить с собой весь ответ, если
+            // какая-то сборка Spotify на него не отзовётся.
             return """
             \(sep)
             tell application id "com.spotify.client"
@@ -180,7 +270,12 @@ enum PlayerBridge {
                     on error
                         set pos to 0
                     end try
-                    return pstate & sep & (name of t) & sep & (artist of t) & sep & (album of t) & sep & (duration of t) & sep & pos & sep & (artwork url of t)
+                    try
+                        set uri to (spotify url of t)
+                    on error
+                        set uri to ""
+                    end try
+                    return pstate & sep & (name of t) & sep & (artist of t) & sep & (album of t) & sep & (duration of t) & sep & pos & sep & (artwork url of t) & sep & uri
                 on error
                     return ""
                 end try
@@ -198,7 +293,7 @@ enum PlayerBridge {
                     on error
                         set pos to 0
                     end try
-                    return pstate & sep & (name of t) & sep & (artist of t) & sep & (album of t) & sep & (round ((duration of t) * 1000)) & sep & pos & sep & ""
+                    return pstate & sep & (name of t) & sep & (artist of t) & sep & (album of t) & sep & (round ((duration of t) * 1000)) & sep & pos & sep & "" & sep & ""
                 on error
                     return ""
                 end try
@@ -218,8 +313,21 @@ enum PlayerBridge {
             album: parts[3],
             duration: (Double(parts[4]) ?? 0) / 1000,
             position: (Double(parts[5]) ?? 0) / 1000,
-            artworkURL: parts.count > 6 ? URL(string: parts[6]) : nil
+            artworkURL: parts.count > 6 ? URL(string: parts[6]) : nil,
+            trackID: parts.count > 7 ? trackID(from: parts[7]) : nil
         )
+    }
+
+    /// `spotify url of` answers `spotify:track:<id>` for a catalogue track.
+    /// Anything else — a local file, an ad, an answer we did not expect — is
+    /// not an id, and nothing that is not an id is going into a URL.
+    private static func trackID(from raw: String) -> String? {
+        let prefix = "spotify:track:"
+        guard raw.hasPrefix(prefix) else { return nil }
+        let id = String(raw.dropFirst(prefix.count))
+        guard !id.isEmpty, id.count <= 40,
+              id.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber) }) else { return nil }
+        return id
     }
 
     /// Shared AppleScript runner: one serial queue for every script the app sends.
