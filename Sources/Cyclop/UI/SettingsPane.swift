@@ -11,11 +11,13 @@ struct SettingsPane: View {
     @ObservedObject var visualizer: VisualizerState
     @ObservedObject var shelf: ShelfStore
     let screenshots: ScreenshotFolderWatcher
+    @ObservedObject private var config = ConfigStore.shared
 
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var menuBarIconVisible = AppDelegate.isMenuBarIconVisible
     @State private var saveClipboardImages = NotchViewModel.saveClipboardImagesEnabled
     @State private var allDisplays = NotchGeometry.showsOnAllDisplays
+    @State private var fullSizeNotch = NotchGeometry.drawsFullSizeNotch
     @State private var watchScreenshotFolder = false
     @State private var spectrum = AudioTap.isEnabled
     @State private var screenshotUsage: (files: Int, bytes: Int64) = (0, 0)
@@ -77,6 +79,11 @@ struct SettingsPane: View {
                         title: localized("Show on All Displays"),
                         isOn: allDisplaysBinding
                     )
+                    toggleRow(
+                        symbol: "rectangle.topthird.inset.filled",
+                        title: localized("Full-Height Notch Without a Cutout"),
+                        isOn: fullSizeNotchBinding
+                    )
                 }
 
                 section(localized("Screenshots")) {
@@ -110,13 +117,24 @@ struct SettingsPane: View {
 
                 section(localized("Snippets")) {
                     actionRow(symbol: "doc.text", title: localized("Show Snippets File")) {
-                        SnippetStore.reveal()
+                        vm.snippets.reveal()
+                    }
+                }
+
+                // What lives in this file is documented in #67: everything
+                // above that makes sense on another Mac, in one place instead
+                // of five.
+                section(localized("Configuration")) {
+                    if config.fileBroken { configBrokenNotice }
+                    actionRow(symbol: "gearshape", title: localized("Show Config File")) {
+                        ConfigStore.reveal()
                     }
                 }
 
                 // The one door left once the menu bar icon is gone (#5): a
                 // status item is not required to hide it any more, so quitting
-                // must not require one either.
+                // must not require one either. Last on purpose — leaving is
+                // not something to meet on the way to a switch.
                 section(localized("Cyclop")) {
                     actionRow(symbol: "power", title: localized("Quit Cyclop")) {
                         NSApp.terminate(nil)
@@ -138,6 +156,7 @@ struct SettingsPane: View {
             menuBarIconVisible = AppDelegate.isMenuBarIconVisible
             saveClipboardImages = NotchViewModel.saveClipboardImagesEnabled
             allDisplays = NotchGeometry.showsOnAllDisplays
+            fullSizeNotch = NotchGeometry.drawsFullSizeNotch
             watchScreenshotFolder = screenshots.isEnabled
             spectrum = AudioTap.isEnabled
             refreshUsage()
@@ -213,7 +232,7 @@ struct SettingsPane: View {
             get: { saveClipboardImages },
             set: { wants in
                 saveClipboardImages = wants
-                UserDefaults.standard.set(wants, forKey: NotchViewModel.saveClipboardImagesKey)
+                NotchViewModel.saveClipboardImagesEnabled = wants
             }
         )
     }
@@ -227,6 +246,19 @@ struct SettingsPane: View {
             set: { wants in
                 allDisplays = wants
                 NotchGeometry.showsOnAllDisplays = wants
+            }
+        )
+    }
+
+    /// Where a display has no cutout, the notch is drawn as a thin strip along
+    /// the top edge; this brings back the old one, the height of the menu bar.
+    /// Panels rebuild on the spot, so the switch is its own confirmation.
+    private var fullSizeNotchBinding: Binding<Bool> {
+        Binding(
+            get: { fullSizeNotch },
+            set: { wants in
+                fullSizeNotch = wants
+                NotchGeometry.drawsFullSizeNotch = wants
             }
         )
     }
@@ -292,6 +324,26 @@ struct SettingsPane: View {
                 .toggleStyle(NotchToggleStyle())
                 .labelsHidden()
         }
+        .padding(.horizontal, 8)
+        .frame(height: 26)
+    }
+
+    /// The refusal to write over a broken file (#7) is only honest if it is
+    /// said out loud — same reasoning as `SnippetsPane.brokenNotice`.
+    private var configBrokenNotice: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(Color.yellow.opacity(0.85))
+            Text(localized("config.json is broken — click to open; nothing is overwritten"))
+                .font(.system(size: 10))
+                .foregroundStyle(Theme.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .onTapGesture { ConfigStore.reveal() }
         .padding(.horizontal, 8)
         .frame(height: 26)
     }

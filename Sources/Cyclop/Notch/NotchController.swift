@@ -20,7 +20,7 @@ final class NotchController {
 
         for name in [
             NSApplication.didChangeScreenParametersNotification,
-            NotchGeometry.allDisplaysChanged,
+            NotchGeometry.settingsChanged,
         ] {
             NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
                 MainActor.assumeIsolated { self?.rebuild() }
@@ -144,22 +144,5 @@ final class NotchController {
         // panel. The next hover is the one nobody planned, and it must not
         // open onto a row somebody revealed ten minutes ago.
         vm.privacy.coverEverything()
-        // Menu bar icons come and go with the apps that own them, and how far
-        // left they reach is what decides how deep the collapsed target may be.
-        // Re-measured with the panel folded: that is both when the target
-        // matters again and when rebuilding costs nothing.
-        remeasure()
-    }
-
-    /// Rebuilds only if a display's notch is no longer what it was measured to
-    /// be. `matches` covers everything the panel is cut from, so an unchanged
-    /// arrangement with an unchanged menu bar does nothing at all.
-    private func remeasure() {
-        let fresh = NotchGeometry.all()
-        let stale = fresh.count != panels.count || fresh.contains { geometry in
-            guard let id = geometry.displayID, let panel = panels[id] else { return true }
-            return !panel.geometry.matches(geometry)
-        }
-        if stale { rebuild() }
     }
 }

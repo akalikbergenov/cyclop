@@ -9,16 +9,15 @@ import Foundation
 /// в настройках перерисовывал всю панель.
 @MainActor
 final class VisualizerState: ObservableObject {
-    static let pinnedKey = "visualizerPinned"
-
     /// Плашка у выреза: то, что играет, и спектр — без открытой панели.
     ///
-    /// Сохраняется: закрепили один раз и хотят видеть это и завтра.
+    /// Сохраняется: закрепили один раз и хотят видеть это и завтра. Живёт в
+    /// `config.json` (#67).
     @Published var isPinned: Bool {
-        didSet { UserDefaults.standard.set(isPinned, forKey: Self.pinnedKey) }
+        didSet { ConfigStore.shared.pinnedBar = isPinned }
     }
 
     init() {
-        isPinned = UserDefaults.standard.bool(forKey: Self.pinnedKey)
+        isPinned = ConfigStore.shared.pinnedBar
     }
 }

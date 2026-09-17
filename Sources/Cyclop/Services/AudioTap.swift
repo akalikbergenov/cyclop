@@ -95,12 +95,12 @@ final class AudioTap: ObservableObject {
     /// первым обращением к звуку приложение на миг делает себя активным. Ровно
     /// так же устроен единственный запрос, который проект уже умеет задавать
     /// по-человечески, — доступ к Календарю.
+    ///
+    /// Хранится в `config.json` рядом с остальными настройками (#67).
     static var isEnabled: Bool {
-        get { UserDefaults.standard.bool(forKey: enabledKey) }
-        set { UserDefaults.standard.set(newValue, forKey: enabledKey) }
+        get { ConfigStore.shared.spectrumEnabled }
+        set { ConfigStore.shared.spectrumEnabled = newValue }
     }
-
-    static let enabledKey = "visualizer"
 
     private var tap = AudioObjectID(kAudioObjectUnknown)
     private var aggregate = AudioObjectID(kAudioObjectUnknown)
@@ -335,9 +335,14 @@ final class AudioTap: ObservableObject {
             mSelector: kAudioDevicePropertyDeviceUID,
             mScope: kAudioObjectPropertyScopeGlobal,
             mElement: kAudioObjectPropertyElementMain)
-        var uid: CFString?
-        var uidSize = UInt32(MemoryLayout<CFString?>.size)
-        guard AudioObjectGetPropertyData(device, &uidAddress, 0, nil, &uidSize, &uid) == noErr else { return nil }
-        return uid as String?
+        // UID приходит по правилу Copy: строку отдают вызывающему, и отпустить
+        // её обязан он. Прочитанная прямо в `CFString?` она так и не
+        // освобождалась — об этом и было предупреждение компилятора. Через
+        // `Unmanaged` владение забирается явно.
+        var uid: Unmanaged<CFString>?
+        var uidSize = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
+        guard AudioObjectGetPropertyData(device, &uidAddress, 0, nil, &uidSize, &uid) == noErr,
+              let uid else { return nil }
+        return uid.takeRetainedValue() as String
     }
 }
