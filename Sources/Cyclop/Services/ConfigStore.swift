@@ -25,6 +25,34 @@ final class ConfigStore: ObservableObject {
         var fontSize: Double = 30
     }
 
+    /// The beta's spectrum. Both keys optional on the way in, for the same
+    /// reason as `File` itself: a hand edit that leaves one out must not turn
+    /// the whole file read-only.
+    private struct Visualizer: Codable, Equatable {
+        var spectrum = false
+        var pinned = false
+
+        init(spectrum: Bool = false, pinned: Bool = false) {
+            self.spectrum = spectrum
+            self.pinned = pinned
+        }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            spectrum = try c.decodeIfPresent(Bool.self, forKey: .spectrum) ?? false
+            pinned = try c.decodeIfPresent(Bool.self, forKey: .pinned) ?? false
+        }
+
+        /// Where the two switches lived before `config.json` took them.
+        static func legacy() -> Visualizer {
+            let defaults = UserDefaults.standard
+            return Visualizer(
+                spectrum: defaults.bool(forKey: "visualizer"),
+                pinned: defaults.bool(forKey: "visualizerPinned")
+            )
+        }
+    }
+
     private struct File: Codable, Equatable {
         var showOnAllDisplays = true
         var saveClipboardImages = true
@@ -32,6 +60,7 @@ final class ConfigStore: ObservableObject {
         var teleprompter = Teleprompter()
         var hiddenTabs: [String] = []
         var fullSizeDrawnNotch = false
+        var visualizer = Visualizer()
 
         init() {}
 
@@ -49,6 +78,11 @@ final class ConfigStore: ObservableObject {
             teleprompter = try c.decodeIfPresent(Teleprompter.self, forKey: .teleprompter) ?? d.teleprompter
             hiddenTabs = try c.decodeIfPresent([String].self, forKey: .hiddenTabs) ?? d.hiddenTabs
             fullSizeDrawnNotch = try c.decodeIfPresent(Bool.self, forKey: .fullSizeDrawnNotch) ?? d.fullSizeDrawnNotch
+            // Not the default but the old keys: nearly everyone who runs the
+            // beta already has a `config.json`, so `migrated()` never runs for
+            // them, and falling back to `false` would quietly switch their
+            // spectrum off on the first launch after the move.
+            visualizer = try c.decodeIfPresent(Visualizer.self, forKey: .visualizer) ?? .legacy()
         }
     }
 
@@ -90,6 +124,21 @@ final class ConfigStore: ObservableObject {
     var showOnAllDisplays: Bool {
         get { value.showOnAllDisplays }
         set { value.showOnAllDisplays = newValue; persist() }
+    }
+
+    /// The beta's live spectrum: off until switched on by hand, because
+    /// switching it on is what asks macOS for system audio — see
+    /// `AudioTap.isEnabled`.
+    var spectrumEnabled: Bool {
+        get { value.visualizer.spectrum }
+        set { value.visualizer.spectrum = newValue; persist() }
+    }
+
+    /// The bar pinned under the notch: what is playing, and the spectrum,
+    /// without opening the panel.
+    var pinnedBar: Bool {
+        get { value.visualizer.pinned }
+        set { value.visualizer.pinned = newValue; persist() }
     }
 
     /// Brings back the notch drawn the full height of the menu bar on displays
@@ -163,6 +212,7 @@ final class ConfigStore: ObservableObject {
         if let hidden = defaults.stringArray(forKey: "hiddenTabs") {
             file.hiddenTabs = hidden
         }
+        file.visualizer = .legacy()
         return file
     }
 
