@@ -473,8 +473,12 @@ final class NotchViewModel: ObservableObject {
         }
 
         // The background of every tab that is on the rail, and of no other.
+        // The rails, not `allCases`: in the beta the old tabs still exist as
+        // cases but live inside Home and Tools, and walking every case started
+        // the Now Playing feed twice — two perl helpers, one of them beyond
+        // the reach of `stop()`.
         started = true
-        for target in Tab.allCases where isVisible(target) { startBackground(of: target) }
+        for target in Tab.leftRail + Tab.rightRail where isVisible(target) { startBackground(of: target) }
         // The default tab may have been switched off in a previous session.
         if !isVisible(tab) { tab = firstVisibleTab }
     }
