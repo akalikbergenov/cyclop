@@ -117,15 +117,25 @@ final class ShelfStore: ObservableObject {
             scale: 2,
             representationTypes: .thumbnail
         )
-        QLThumbnailGenerator.shared.generateBestRepresentation(for: request) { [weak self] rep, _ in
+        // Quick Look invokes this completion on its own serial queue, not the
+        // main thread.  Spell out that the callback itself is nonisolated:
+        // otherwise a closure formed in this @MainActor type can inherit that
+        // isolation and Swift traps before the Task below is even created.
+        QLThumbnailGenerator.shared.generateBestRepresentation(for: request) { @Sendable [weak self] rep, _ in
             guard let rep else { return }
             // `nsImage` already carries the right point size for the
             // representation; deriving one from `contentRect` risks describing
             // a shape the bitmap does not have.
-            let image = rep.nsImage
+            // Only Sendable values cross the actor boundary: the bitmap and
+            // the point size it is to be drawn at.  `NSImage` is not Sendable,
+            // and sending one from here is what Swift 6.1 rejects outright —
+            // `sending 'image' risks causing data races`.  Newer compilers let
+            // it through, which is why the branch built locally and not on CI.
+            let bitmap = rep.cgImage
+            let size = rep.nsImage.size
             Task { @MainActor in
                 guard let self, let index = self.items.firstIndex(where: { $0.url == item.url }) else { return }
-                self.items[index].icon = image
+                self.items[index].icon = NSImage(cgImage: bitmap, size: size)
             }
         }
     }

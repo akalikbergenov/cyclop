@@ -144,7 +144,9 @@ enum PlayerBridge {
             guard let url = state.artworkURL, url.scheme?.lowercased() == "https" else {
                 return completion(nil)
             }
-            URLSession.shared.dataTask(with: url) { data, _, _ in
+            // Неизолировано явно — см. `NowPlayingFeed.launch`: то, какой
+            // окажется изоляция без этой пометки, решает версия SDK.
+            URLSession.shared.dataTask(with: url) { @Sendable data, _, _ in
                 let image = data.flatMap(NSImage.init(data:))
                 DispatchQueue.main.async { MainActor.assumeIsolated { completion(image) } }
             }.resume()

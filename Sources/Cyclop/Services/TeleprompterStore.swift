@@ -30,7 +30,7 @@ final class TeleprompterStore: ObservableObject {
     @Published var speed: Double = 1.0 {
         didSet {
             guard speed != oldValue else { return }
-            defaults.set(speed, forKey: Self.speedKey)
+            ConfigStore.shared.teleprompterSpeed = speed
         }
     }
 
@@ -40,7 +40,7 @@ final class TeleprompterStore: ObservableObject {
     @Published var fontSize: Double = 30 {
         didSet {
             guard fontSize != oldValue else { return }
-            defaults.set(fontSize, forKey: Self.fontKey)
+            ConfigStore.shared.teleprompterFontSize = fontSize
         }
     }
 
@@ -55,10 +55,6 @@ final class TeleprompterStore: ObservableObject {
     /// Height of the window the text scrolls through, also from the pane.
     var viewportHeight: CGFloat = 0
 
-    private static let speedKey = "teleprompter.speed"
-    private static let fontKey = "teleprompter.fontSize"
-    private let defaults = UserDefaults.standard
-
     private static let file = Support.file("teleprompter.txt")
 
     private var timer: Timer?
@@ -69,12 +65,11 @@ final class TeleprompterStore: ObservableObject {
         // Reading the file above went through `script`'s observer and armed a
         // save of what was just loaded. Harmless, but worth not doing.
         saves.cancel()
-        if let stored = defaults.object(forKey: Self.speedKey) as? Double {
-            speed = min(max(stored, 0.3), 3.0)
-        }
-        if let stored = defaults.object(forKey: Self.fontKey) as? Double {
-            fontSize = min(max(stored, 18), 64)
-        }
+        // Persisted in `config.json` (#67) since before this store existed —
+        // the clamps guard a value hand-edited in the file past what the
+        // slider itself allows.
+        speed = min(max(ConfigStore.shared.teleprompterSpeed, 0.3), 3.0)
+        fontSize = min(max(ConfigStore.shared.teleprompterFontSize, 18), 64)
     }
 
     // MARK: - Running

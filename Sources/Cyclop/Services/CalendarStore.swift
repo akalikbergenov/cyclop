@@ -109,7 +109,9 @@ final class CalendarStore: ObservableObject {
             refreshAccess()
             return
         }
-        store.requestFullAccessToEvents { [weak self] granted, _ in
+        // EventKit replies on an XPC queue.  This must remain a nonisolated
+        // callback; the Task performs the only hop back to the main actor.
+        store.requestFullAccessToEvents { @Sendable [weak self] granted, _ in
             Task { @MainActor in
                 guard let self else { return }
                 self.access = granted ? .granted : .denied

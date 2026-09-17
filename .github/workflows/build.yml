@@ -71,6 +71,13 @@ jobs:
           restore-keys: |
             swiftpm-${{ runner.os }}-${{ hashFiles('Package.swift') }}-
 
+      - name: Тесты на сторы
+        # Раньше сборки приложения: разбор snippets.json ломался трижды (#7,
+        # #14, #64), и узнавать об этом после десятиминутной сборки бандла —
+        # ровно то, чего эти тесты и должны избавить. Панель сюда не входит,
+        # см. CONTRIBUTING.md.
+        run: ./Scripts/test.sh
+
       - name: Сборка приложения
         run: ./Scripts/bundle.sh release
 
@@ -96,6 +103,59 @@ jobs:
           # Раньше эта проверка отсутствовала, и неподписанный бандл проходил CI
           # незамеченным: шаг смотрел на наличие файлов, а не на подпись (#19).
           codesign --verify --strict "$APP"
+
+      - name: Приложение переживает запуск
+        # Единственный шаг, который запускает само приложение.
+        #
+        # Его не было, и из-за этого 0.8.0 уехало в релиз падающим (#108).
+        # Ломалось не то, что собирается, а то, что исполняется: замыкание,
+        # записанное внутри `@MainActor`-типа, наследовало изоляцию и
+        # проверялось рантаймом при вызове с чужой очереди. Компилятор молчал,
+        # все шаги выше были зелёными.
+        #
+        # Полке заранее подкладывается файл, и это главное здесь. На чистом
+        # раннере полка пуста, превью не запрашиваются, и именно та ветка, что
+        # роняла людей, не исполнилась бы ни разу. С подложенным файлом
+        # `loadThumbnail` зовёт QuickLook, а тот отвечает со своей очереди —
+        # то самое место.
+        run: |
+          set -u
+          SEED="$RUNNER_TEMP/seed.png"
+          # Любой файл, для которого QuickLook станет делать превью.
+          sips -s format png --resampleWidth 64 \
+            /System/Library/CoreServices/DefaultDesktop.heic --out "$SEED" >/dev/null 2>&1 \
+            || cp Resources/AppIcon.icns "$SEED"
+          defaults write com.cyclop.app shelf.urls -array "$SEED"
+          defaults write com.cyclop.app hiddenTabs -array
+
+          LOG="$RUNNER_TEMP/cyclop.log"
+          build/Cyclop.app/Contents/MacOS/Cyclop >"$LOG" 2>&1 &
+          PID=$!
+          sleep 15
+
+          if kill -0 "$PID" 2>/dev/null; then
+            kill "$PID" 2>/dev/null || true
+            echo "приложение прожило 15 секунд"
+            exit 0
+          fi
+
+          # `-e` из объявления шага снял бы скрипт прямо здесь, на ненулевом
+          # коде `wait`, и весь блок ниже остался бы ненапечатанным — ровно
+          # то, ради чего он написан. Проверено: без этой строки в прогоне
+          # видно только «exit code 133».
+          set +e
+          wait "$PID" 2>/dev/null
+          CODE=$?
+          echo "::error::Cyclop не пережил запуск, код $CODE"
+          echo "--- вывод приложения ---"
+          cat "$LOG" || true
+          echo "--- отчёты о падении ---"
+          for f in "$HOME/Library/Logs/DiagnosticReports"/Cyclop*.ips; do
+            [ -e "$f" ] || continue
+            echo "=== $f ==="
+            head -c 4000 "$f"
+          done
+          exit 1
 
       - name: Now Playing helper отвечает
         # Единственная проверка, которая смотрит не на файлы, а на поведение.

@@ -101,6 +101,13 @@ final class ScreenshotFolderWatcher {
         let source = DispatchSource.makeFileSystemObjectSource(
             fileDescriptor: fd, eventMask: .write, queue: .main
         )
+        // Очередь здесь — главная, и это условие работоспособности, а не
+        // удобство. Замыкание, записанное внутри `@MainActor`-типа, изоляцию
+        // этого типа наследует — у `setEventHandler` параметр не помечен
+        // `@Sendable`, проверено компилятором, — и рантайм сверяет её при
+        // каждом вызове. С фоновой очередью проверка не прошла бы, и процесс
+        // снимался бы на первом же изменении папки. Менять `queue` без
+        // `@Sendable` на обоих обработчиках нельзя.
         source.setEventHandler { [weak self] in self?.scan(folder) }
         source.setCancelHandler { close(fd) }
         source.resume()

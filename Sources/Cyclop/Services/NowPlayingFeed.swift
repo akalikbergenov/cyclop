@@ -90,13 +90,28 @@ final class NowPlayingFeed {
         task.standardInput = commands
         task.standardError = FileHandle.nullDevice
 
-        output.fileHandleForReading.readabilityHandler = { [weak self] handle in
+        // `@Sendable` здесь написан, а не выведен, и это не украшение.
+        //
+        // Изолировано ли замыкание, записанное внутри `@MainActor`-типа,
+        // решает не этот файл, а объявление API в SDK. Наследованная изоляция
+        // проверяется рантаймом в момент вызова — а зовут отсюда с приватной
+        // очереди Foundation, не с главного потока, — и проверка снимает
+        // процесс. Ровно так 0.8.0 падало на превью в полке и на запросе
+        // доступа к календарю (#108, #111).
+        //
+        // Аннотации в SDK и правила вывода меняются от версии к версии: на
+        // тулчейне, которым собирают релизы, они не те, что на машине, где
+        // пишут код, и увидеть разницу до выпуска нельзя. Написанный явно
+        // `@Sendable` эту зависимость убирает: замыкание неизолировано при
+        // любом компиляторе, а единственный переход на главный актор остаётся
+        // там же, где был, — внутри `Task`.
+        output.fileHandleForReading.readabilityHandler = { @Sendable [weak self] handle in
             let chunk = handle.availableData
             guard !chunk.isEmpty else { return }
             Task { @MainActor in self?.consume(chunk) }
         }
 
-        task.terminationHandler = { [weak self] _ in
+        task.terminationHandler = { @Sendable [weak self] _ in
             Task { @MainActor in self?.handleTermination() }
         }
 

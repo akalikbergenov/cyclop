@@ -93,7 +93,9 @@ final class PanelState: ObservableObject {
                 width: max(Self.peekWidth, geometry.notchSize.width + 80),
                 height: geometry.notchSize.height + Self.peekHeight)
         }
-        return geometry.notchSize
+        // Свёрнуто: на настоящем вырезе это сам вырез, на нарисованном —
+        // полоска у кромки (#121).
+        return geometry.collapsedSize
     }
 
     /// Hover and click both land here. A tab that types takes the keyboard

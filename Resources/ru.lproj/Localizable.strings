@@ -25,6 +25,7 @@
 "Show in Panel" = "Показывать в панели";
 "Displays" = "Дисплеи";
 "Show on All Displays" = "Показывать на всех дисплеях";
+"Full-Height Notch Without a Cutout" = "Высокая чёлка на экранах без выреза";
 
 "Screenshots" = "Скриншоты";
 "Save Clipboard Screenshots" = "Сохранять скриншоты из буфера";
@@ -36,6 +37,10 @@
 "Clear Screenshots Folder" = "Очистить папку снимков";
 "Clear Screenshots Folder (%@)" = "Очистить папку снимков (%@)";
 "Show Snippets File" = "Показать файл заготовок";
+
+"Configuration" = "Конфигурация";
+"Show Config File" = "Показать файл конфигурации";
+"config.json is broken — click to open; nothing is overwritten" = "config.json не читается — нажми, чтобы открыть; поверх ничего не пишется";
 
 "Cyclop" = "Cyclop";
 "Quit Cyclop" = "Выйти из Cyclop";
@@ -85,6 +90,7 @@
 "Cyclop needs access to Calendar. It is the only permission\nthe app asks for, and only for this tab." = "Нужен доступ к Календарю. Это единственное разрешение,\nкоторое просит Cyclop — и только для этой вкладки.";
 "Allow" = "Разрешить";
 "The only permission" = "Единственное разрешение";
+"Continue" = "Продолжить";
 "Calendar access is off" = "Доступ к Календарю закрыт";
 "Settings → Privacy → Calendars" = "Настройки → Конфиденциальность → Календари";
 "No more meetings" = "Встреч больше нет";

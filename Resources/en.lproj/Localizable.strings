@@ -26,6 +26,7 @@
 "Show in Panel" = "Show in Panel";
 "Displays" = "Displays";
 "Show on All Displays" = "Show on All Displays";
+"Full-Height Notch Without a Cutout" = "Full-Height Notch Without a Cutout";
 
 "Screenshots" = "Screenshots";
 "Save Clipboard Screenshots" = "Save Clipboard Screenshots";
@@ -37,6 +38,10 @@
 "Clear Screenshots Folder" = "Clear Screenshots Folder";
 "Clear Screenshots Folder (%@)" = "Clear Screenshots Folder (%@)";
 "Show Snippets File" = "Show Snippets File";
+
+"Configuration" = "Configuration";
+"Show Config File" = "Show Config File";
+"config.json is broken — click to open; nothing is overwritten" = "config.json is broken — click to open; nothing is overwritten";
 
 "Cyclop" = "Cyclop";
 "Quit Cyclop" = "Quit Cyclop";
@@ -86,6 +91,7 @@
 "Cyclop needs access to Calendar. It is the only permission\nthe app asks for, and only for this tab." = "Cyclop needs access to Calendar. It is the only permission\nthe app asks for, and only for this tab.";
 "Allow" = "Allow";
 "The only permission" = "The only permission";
+"Continue" = "Continue";
 "Calendar access is off" = "Calendar access is off";
 "Settings → Privacy → Calendars" = "Settings → Privacy → Calendars";
 "No more meetings" = "No more meetings";
