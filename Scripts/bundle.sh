@@ -7,6 +7,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONFIG="${1:-release}"
 APP="$ROOT/build/Cyclop.app"
+source "$ROOT/Scripts/sdk.sh"
 VERSION="$(sed -n 's/^VERSION=//p' "$ROOT/Scripts/version" 2>/dev/null || echo 0.1.0)"
 
 echo "==> swift build -c $CONFIG"

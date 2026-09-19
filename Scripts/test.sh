@@ -12,6 +12,7 @@ set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT" || exit 1
+source "$ROOT/Scripts/sdk.sh"
 
 DEVELOPER="$(xcode-select -p 2>/dev/null)"
 ARGS=()
