@@ -268,6 +268,21 @@ as soon as its stdin closes, so it cannot outlive the app.
 This works for any source macOS itself can see: a player, a browser tab,
 anything. The source name comes from the pid of the session's owner.
 
+**Several sources.** macOS names one session "now playing" and does not always
+move the name when it should: a paused YouTube tab can keep it while Yandex
+Music plays. So the helper reads every session on its own rather than only that
+one (`MRMediaRemoteGetNowPlayingClients`, then a path to each client) and prints
+them all in one line, along with the pid of the session macOS calls active.
+Which one is shown is decided by `SourcePicker`: one picked by hand, until play
+is pressed anywhere; otherwise the playing one that started last; with
+everything silent, whatever was already on screen. With more than one source,
+their icons appear beside the track title, and commands go to the one shown.
+
+The signatures of these calls are private and were read off the macOS 26
+disassembly. A call of the wrong shape does not return an error, it brings perl
+down, so below 26 the helper reads the active session alone, as before, and
+there is no switcher.
+
 **The fallback.** If the helper fails to start three times in a row (perl
 removed, the daemon closed to platform binaries too), `MediaController` switches
 to scripting Apple Music and Spotify over AppleScript — and then, and only then,

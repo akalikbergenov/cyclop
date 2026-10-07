@@ -24,12 +24,22 @@ final class NowPlayingFeed {
         /// single video offers no skip commands at all, and that is worth
         /// showing, but a missing answer is not the same as an empty one.
         var commands: Set<Int>?
+        /// Process the session belongs to, as MediaRemote listed it — the
+        /// session's name on the wire, and where commands for it are sent.
+        var pid: pid_t = 0
 
         func offers(_ command: Command) -> Bool {
             commands?.contains(command.rawValue) ?? true
         }
 
         var isEmpty: Bool { title.isEmpty }
+    }
+
+    /// Every session the system has, read at one moment.
+    struct Frame {
+        var sessions: [Snapshot] = []
+        /// The session macOS itself calls "now playing", or 0 for none.
+        var activePID: pid_t = 0
     }
 
     /// Codes the per-client MediaRemote API actually answers to — read off a
@@ -41,7 +51,7 @@ final class NowPlayingFeed {
         case play = 0, pause = 1, next = 4, previous = 5
     }
 
-    var onUpdate: ((Snapshot) -> Void)?
+    var onUpdate: ((Frame) -> Void)?
     /// Raised when the helper cannot run at all, so the caller can fall back.
     var onUnavailable: (() -> Void)?
     /// Raised on the first snapshot after `onUnavailable`: the route is open
@@ -187,9 +197,11 @@ final class NowPlayingFeed {
 
     // MARK: - Commands
 
+    /// Commands name the session they are for. A pid of 0 leaves the choice
+    /// to the helper: the session macOS considers active.
     func refresh() { write("get") }
-    func send(_ command: Command) { write("cmd \(command.rawValue)") }
-    func seek(to seconds: TimeInterval) { write("seek \(Int(seconds))") }
+    func send(_ command: Command, to pid: pid_t) { write("cmd \(command.rawValue) \(pid)") }
+    func seek(to seconds: TimeInterval, on pid: pid_t) { write("seek \(Int(seconds)) \(pid)") }
 
     private func write(_ line: String) {
         guard let input, let data = (line + "\n").data(using: .utf8) else { return }
@@ -223,6 +235,8 @@ final class NowPlayingFeed {
     /// read as something else entirely. Artwork is capped before it is handed
     /// to the system image decoder.
     private static let maxTextLength = 512
+    /// More sessions than anybody has open — a cap, not a limit anyone meets.
+    private static let maxSessions = 8
     private static let maxArtworkBytes = 4 * 1024 * 1024
     private static let bidiControls = CharacterSet(
         charactersIn: "\u{200E}\u{200F}\u{202A}\u{202B}\u{202C}\u{202D}\u{202E}\u{2066}\u{2067}\u{2068}\u{2069}"
@@ -256,11 +270,19 @@ final class NowPlayingFeed {
             onAvailable?()
         }
 
+        var frame = Frame()
+        frame.activePID = pid_t(clamping: object["active"] as? Int ?? 0)
+        let sessions = object["sessions"] as? [[String: Any]] ?? []
+        frame.sessions = sessions.prefix(Self.maxSessions).map(Self.snapshot(from:))
+        onUpdate?(frame)
+    }
+
+    private static func snapshot(from object: [String: Any]) -> Snapshot {
         var snapshot = Snapshot()
         snapshot.isPlaying = object["playing"] as? Bool ?? false
-        snapshot.title = Self.text(object["title"])
-        snapshot.artist = Self.text(object["artist"])
-        snapshot.album = Self.text(object["album"])
+        snapshot.title = text(object["title"])
+        snapshot.artist = text(object["artist"])
+        snapshot.album = text(object["album"])
         snapshot.duration = object["duration"] as? Double ?? 0
         snapshot.elapsed = object["elapsed"] as? Double ?? 0
         snapshot.rate = object["rate"] as? Double ?? 0
@@ -268,16 +290,17 @@ final class NowPlayingFeed {
             snapshot.takenAt = Date(timeIntervalSince1970: seconds)
         }
         if let base64 = object["artwork"] as? String,
-           base64.count <= Self.maxArtworkBytes / 3 * 4 + 4,
-           let artwork = Data(base64Encoded: base64), artwork.count <= Self.maxArtworkBytes {
+           base64.count <= maxArtworkBytes / 3 * 4 + 4,
+           let artwork = Data(base64Encoded: base64), artwork.count <= maxArtworkBytes {
             snapshot.artwork = artwork
         }
         if let pid = object["pid"] as? Int, pid > 0 {
-            snapshot.source = NSRunningApplication(processIdentifier: pid_t(pid))?.localizedName
+            snapshot.pid = pid_t(clamping: pid)
+            snapshot.source = NSRunningApplication(processIdentifier: snapshot.pid)?.localizedName
         }
         if let codes = object["commands"] as? [Int] {
             snapshot.commands = Set(codes)
         }
-        onUpdate?(snapshot)
+        return snapshot
     }
 }
