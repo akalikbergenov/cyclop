@@ -25,9 +25,11 @@ final class PointerWatcher {
     /// things too — a drag, the menu bar, a tab that wants the keyboard.
     var isPanelOpen: () -> Bool = { false }
 
-    /// Short enough to feel immediate, long enough that a pointer sweeping
-    /// across the top of the screen does not trigger the panel.
-    var openDelay: TimeInterval = 0.05
+    /// How long the pointer has to stay before the panel opens. Read on every
+    /// check rather than handed over once: it is a setting, and moving it has
+    /// to reach panels that are already standing, not only the next rebuild.
+    var openDelay: () -> TimeInterval = { 0.2 }
+    /// Short enough to feel immediate.
     var closeDelay: TimeInterval = 0.05
 
     /// Band along the top of the screen that switches sampling to full rate.
@@ -164,7 +166,7 @@ final class PointerWatcher {
             awaitingSince = Date()
             return
         }
-        guard Date().timeIntervalSince(start) >= (inside ? openDelay : closeDelay) else { return }
+        guard Date().timeIntervalSince(start) >= (inside ? openDelay() : closeDelay) else { return }
         awaitingSince = nil
         isInside = inside
         onChange?(inside)

@@ -32,6 +32,7 @@ final class ConfigStore: ObservableObject {
         var teleprompter = Teleprompter()
         var hiddenTabs: [String] = []
         var fullSizeDrawnNotch = false
+        var openDelay: Double = 0.2
 
         init() {}
 
@@ -49,6 +50,7 @@ final class ConfigStore: ObservableObject {
             teleprompter = try c.decodeIfPresent(Teleprompter.self, forKey: .teleprompter) ?? d.teleprompter
             hiddenTabs = try c.decodeIfPresent([String].self, forKey: .hiddenTabs) ?? d.hiddenTabs
             fullSizeDrawnNotch = try c.decodeIfPresent(Bool.self, forKey: .fullSizeDrawnNotch) ?? d.fullSizeDrawnNotch
+            openDelay = try c.decodeIfPresent(Double.self, forKey: .openDelay) ?? d.openDelay
         }
     }
 
@@ -97,6 +99,17 @@ final class ConfigStore: ObservableObject {
     var fullSizeDrawnNotch: Bool {
         get { value.fullSizeDrawnNotch }
         set { value.fullSizeDrawnNotch = newValue; persist() }
+    }
+
+    /// Seconds the pointer has to stay on the notch before the panel opens.
+    /// 0.2 by default — see `NotchScreenPanel.build` for why not less. A
+    /// setting because the line between "came to open it" and "overshot on
+    /// the way to a tab" runs through somebody's hand and habits: whoever
+    /// never aims at tabs under the notch can have it back at 50 ms, whoever
+    /// still catches it by accident can push it further.
+    var openDelay: Double {
+        get { value.openDelay }
+        set { value.openDelay = newValue; persist() }
     }
 
     /// Off switch for people who copy images all day and do not want them

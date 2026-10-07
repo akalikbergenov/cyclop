@@ -156,8 +156,8 @@ final class NotchScreenPanel {
         // the panel unfolded over the tab the pointer was on its way to, and
         // the pointer, now resting on the panel, held it open. A pointer that
         // came to open the panel stays; one that overshot is usually turning
-        // back well within 200 ms.
-        pointer.openDelay = 0.2
+        // back well within 200 ms — the default, adjustable in Settings.
+        pointer.openDelay = { ConfigStore.shared.openDelay }
         pointer.isDragging = { [weak root] in root?.isReceivingDrag ?? false }
         pointer.isPanelOpen = { [weak state] in state?.isOpen ?? false }
         pointer.onChange = { [weak self] inside in
