@@ -14,6 +14,16 @@ final class MediaController: ObservableObject {
         var key: String
     }
 
+    /// One of the sessions playing — or paused — at once, as the pane offers
+    /// it to switch to.
+    struct Source: Identifiable, Equatable {
+        let pid: pid_t
+        let name: String
+        let icon: NSImage?
+        let isPlaying: Bool
+        var id: pid_t { pid }
+    }
+
     @Published private(set) var track: Track?
     @Published private(set) var artwork: NSImage?
     @Published private(set) var isPlaying = false
@@ -27,9 +37,25 @@ final class MediaController: ObservableObject {
     /// otherwise: the scripted fallback below drives Music and Spotify, and
     /// both skip fine.
     @Published private(set) var canSkip = true
+    /// Every session with something to show, in a stable order. The pane
+    /// offers a switch between them only when there are two or more.
+    @Published private(set) var sources: [Source] = []
+    /// The session on screen, by pid. Also where every command goes: what is
+    /// shown is what the buttons drive.
+    @Published private(set) var shownSource: pid_t?
 
     private let feed = NowPlayingFeed()
     private var feedAvailable = true
+    private var picker = SourcePicker()
+    /// The latest frame, kept so that a pick in the pane can be shown at once
+    /// instead of on the helper's next line.
+    private var lastFrame: NowPlayingFeed.Frame?
+    /// Decoded covers, one per session. The helper sends a session's artwork
+    /// only when its track changes, and a switch back to it must not wait for
+    /// the next change to see a cover again.
+    private var covers: [pid_t: (key: String, image: NSImage)] = [:]
+    /// Covers being decoded right now, by session, with the track each is for.
+    private var coming: [pid_t: String] = [:]
 
     private var activeApp: PlayerApp?
     private var artworkKey: String?
@@ -101,7 +127,7 @@ final class MediaController: ObservableObject {
         setAnchor(clamped)
         pendingSeek = (clamped, Date())
         if feedAvailable {
-            feed.seek(to: clamped)
+            feed.seek(to: clamped, on: shownSource ?? 0)
         } else if let activeApp {
             PlayerBridge.seek(activeApp, to: clamped)
         }
@@ -113,7 +139,7 @@ final class MediaController: ObservableObject {
         key: PlayerBridge.MediaKey
     ) {
         if feedAvailable {
-            feed.send(command)
+            feed.send(command, to: shownSource ?? 0)
         } else if let activeApp {
             script(activeApp)
         } else {
@@ -121,12 +147,66 @@ final class MediaController: ObservableObject {
         }
     }
 
+    /// Shows `pid` from now on, until something else starts playing — see
+    /// `SourcePicker` for the rules that let a pick go.
+    func select(_ pid: pid_t) {
+        picker.pin(pid)
+        if let lastFrame { show(lastFrame) }
+        feed.refresh()
+    }
+
     // MARK: - Feed
 
-    private func apply(_ snapshot: NowPlayingFeed.Snapshot) {
-        guard !snapshot.isEmpty else { return clear() }
+    private static func trackKey(_ snapshot: NowPlayingFeed.Snapshot) -> String {
+        "\(snapshot.title)|\(snapshot.artist)|\(snapshot.album)"
+    }
 
-        let key = "\(snapshot.title)|\(snapshot.artist)|\(snapshot.album)"
+    private func apply(_ frame: NowPlayingFeed.Frame) {
+        // A session without a title has nothing to show and nothing to switch
+        // to: a page that registered for media keys and never said what plays.
+        let sessions = frame.sessions.filter { !$0.isEmpty }
+        for session in sessions {
+            if let data = session.artwork {
+                decodeArtwork(data, for: Self.trackKey(session), of: session.pid)
+            }
+        }
+        let alive = Set(sessions.map(\.pid))
+        covers = covers.filter { alive.contains($0.key) }
+        coming = coming.filter { alive.contains($0.key) }
+
+        // Kept without the artwork: it has been decoded above, and a pick in
+        // the pane re-shows this frame.
+        var kept = frame
+        kept.sessions = sessions.map { var session = $0; session.artwork = nil; return session }
+        lastFrame = kept
+        show(kept)
+    }
+
+    private func show(_ frame: NowPlayingFeed.Frame) {
+        // Sorted by name, not taken in MediaRemote's order: that order moves
+        // with activity, and icons that trade places under the pointer get
+        // clicked by mistake.
+        sources = frame.sessions
+            .map { session in
+                let app = NSRunningApplication(processIdentifier: session.pid)
+                return Source(
+                    pid: session.pid,
+                    name: session.source ?? "",
+                    icon: app?.icon,
+                    isPlaying: session.isPlaying || session.rate > 0
+                )
+            }
+            .sorted { ($0.name, $0.pid) < ($1.name, $1.pid) }
+        guard let session = picker.choose(from: frame.sessions, active: frame.activePID) else {
+            return clear()
+        }
+        apply(session)
+    }
+
+    private func apply(_ snapshot: NowPlayingFeed.Snapshot) {
+        let key = Self.trackKey(snapshot)
+        let switched = snapshot.pid != shownSource
+        shownSource = snapshot.pid
         track = Track(title: snapshot.title, artist: snapshot.artist, album: snapshot.album, key: key)
         isPlaying = snapshot.isPlaying || snapshot.rate > 0
         duration = snapshot.duration
@@ -138,9 +218,16 @@ final class MediaController: ObservableObject {
 
         let reported = reportedPosition(from: snapshot)
 
-        // A player needs a moment to act on a seek, and until it does it keeps
-        // reporting the old position. Accepting that would yank the bar back.
-        if let pending = pendingSeek {
+        if switched {
+            // Another player's clock. Nothing on screen belongs to it, so
+            // there is nothing to protect from it either — and a seek still
+            // waiting to land was asked of the other player.
+            pendingSeek = nil
+            setAnchor(duration > 0 ? min(max(0, reported), duration) : max(0, reported))
+        } else if let pending = pendingSeek {
+            // A player needs a moment to act on a seek, and until it does it
+            // keeps reporting the old position. Accepting that would yank the
+            // bar back.
             let settled = abs(reported - pending.target) < 2.5
             let expired = Date().timeIntervalSince(pending.at) > 1.5
             if settled || expired {
@@ -152,28 +239,42 @@ final class MediaController: ObservableObject {
         }
         updateTicker()
 
-        if let data = snapshot.artwork {
+        if artworkKey != key || switched {
             artworkKey = key
-            decodeArtwork(data, for: key)
-        } else if artworkKey != key {
-            // Track changed and the payload carried no artwork; the skeleton
-            // covers the gap until the system publishes the new cover.
-            artworkKey = key
-            artwork = nil
+            if let cover = covers[snapshot.pid], cover.key == key {
+                // Decoded earlier — the usual case on a switch.
+                artwork = cover.image
+            } else if !switched, coming[snapshot.pid] == key {
+                // The new cover is being decoded this moment. The old one
+                // stays until it lands, so a track change is one cross-fade
+                // rather than a blink of skeleton between two covers.
+            } else {
+                // Track changed and nothing came with it; the skeleton covers
+                // the gap until the system publishes the new cover.
+                artwork = nil
+            }
         }
     }
 
     /// JPEG decoding on the main thread is what makes a track change stutter,
     /// so it happens off it and the finished image is handed back.
-    private func decodeArtwork(_ data: Data, for key: String) {
+    private func decodeArtwork(_ data: Data, for key: String, of pid: pid_t) {
+        coming[pid] = key
         DispatchQueue.global(qos: .userInitiated).async {
-            guard let rep = NSBitmapImageRep(data: data), let cgImage = rep.cgImage else { return }
-            let image = NSImage(
-                cgImage: cgImage,
-                size: NSSize(width: rep.pixelsWide, height: rep.pixelsHigh)
-            )
-            DispatchQueue.main.async { [weak self] in
-                guard let self, self.artworkKey == key else { return }
+            var image: NSImage?
+            if let rep = NSBitmapImageRep(data: data), let cgImage = rep.cgImage {
+                image = NSImage(
+                    cgImage: cgImage,
+                    size: NSSize(width: rep.pixelsWide, height: rep.pixelsHigh)
+                )
+            }
+            DispatchQueue.main.async { [weak self, image] in
+                guard let self else { return }
+                if self.coming[pid] == key { self.coming[pid] = nil }
+                if let image { self.covers[pid] = (key, image) }
+                guard self.shownSource == pid, self.artworkKey == key else { return }
+                // A cover that would not decode leaves the skeleton, not the
+                // previous track's cover held over.
                 self.artwork = image
             }
         }
@@ -188,6 +289,8 @@ final class MediaController: ObservableObject {
         duration = 0
         position = 0
         sourceName = nil
+        shownSource = nil
+        sources = []
         canSkip = true
         updateTicker()
     }
@@ -199,8 +302,11 @@ final class MediaController: ObservableObject {
         feedAvailable = false
         // Nothing reports supported commands on this route, and the two apps it
         // drives both skip — so the arrows come back rather than staying dim
-        // on a state no longer being refreshed.
+        // on a state no longer being refreshed. It reads one player at a time,
+        // so there is nothing to switch between either.
         canSkip = true
+        sources = []
+        shownSource = nil
         NSLog("Cyclop: Now Playing helper unavailable, falling back to Music/Spotify scripting")
 
         let center = DistributedNotificationCenter.default()

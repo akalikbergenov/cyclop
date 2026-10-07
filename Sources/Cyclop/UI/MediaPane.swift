@@ -16,10 +16,16 @@ struct MediaPane: View {
             HStack(spacing: 18) {
                 artwork(for: track)
                 VStack(alignment: .leading, spacing: 0) {
-                    Text(track.title)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .lineLimit(1)
+                    HStack(spacing: 8) {
+                        Text(track.title)
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .lineLimit(1)
+                        if media.sources.count > 1 {
+                            Spacer(minLength: 0)
+                            sourceSwitcher
+                        }
+                    }
                     Text(subtitle(for: track))
                         .font(.system(size: 11.5))
                         .foregroundStyle(Theme.secondary)
@@ -48,6 +54,57 @@ struct MediaPane: View {
         var parts = [track.artist]
         if !track.album.isEmpty, track.album != track.title { parts.append(track.album) }
         return parts.filter { !$0.isEmpty }.joined(separator: " — ")
+    }
+
+    // MARK: - Sources
+
+    /// One icon per app with a session, shown only when there is a choice to
+    /// make. Icons, not names: two of them fit beside a title without taking
+    /// it over, and an app is recognised by its icon faster than it is read.
+    /// The name is in the tooltip for an icon nobody recognises.
+    ///
+    /// The one on screen is lit; the rest are dimmed, and a dot under an icon
+    /// says that app is playing right now — which is the question that brings
+    /// anybody here: where is the sound coming from.
+    private var sourceSwitcher: some View {
+        HStack(spacing: 2) {
+            ForEach(media.sources) { source in
+                Button { media.select(source.pid) } label: {
+                    sourceIcon(source, shown: source.pid == media.shownSource)
+                }
+                .buttonStyle(.plain)
+                .help(source.name)
+            }
+        }
+        .animation(Theme.contentAnimation, value: media.shownSource)
+    }
+
+    private func sourceIcon(_ source: MediaController.Source, shown: Bool) -> some View {
+        VStack(spacing: 2) {
+            Group {
+                if let icon = source.icon {
+                    Image(nsImage: icon)
+                        .resizable()
+                        .interpolation(.high)
+                } else {
+                    Image(systemName: "music.note")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.white)
+                }
+            }
+            .frame(width: 18, height: 18)
+            Circle()
+                .fill(Color.white.opacity(source.isPlaying ? 0.8 : 0))
+                .frame(width: 3, height: 3)
+        }
+        .padding(.top, 3)
+        .frame(width: 26, height: 28)
+        .background(
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(shown ? Theme.surfaceHover : Color.clear)
+        )
+        .opacity(shown ? 1 : 0.5)
+        .contentShape(Rectangle())
     }
 
     // MARK: - Artwork

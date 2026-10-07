@@ -80,20 +80,29 @@ if "error" in payload:
     print(f"  ✓ хелпер ответил честной ошибкой: {payload['error']}")
     sys.exit(0)
 
-required = {"playing", "title", "duration", "elapsed", "rate", "timestamp"}
-missing = required - payload.keys()
-if missing:
-    print(f"!!! в снимке нет обязательных ключей: {sorted(missing)}", file=sys.stderr)
-    print(f"    пришло: {sorted(payload.keys())}", file=sys.stderr)
+# Строка описывает все сессии разом: {"active": pid, "sessions": [...]}.
+# Пустой список — тоже честный ответ: на машине сборки ничего не играет.
+for key in ("active", "sessions"):
+    if key not in payload:
+        print(f"!!! в строке нет ключа {key!r}", file=sys.stderr)
+        print(f"    пришло: {sorted(payload.keys())}", file=sys.stderr)
+        sys.exit(1)
+
+if not isinstance(payload["sessions"], list):
+    print(f"!!! sessions должен быть списком, пришло {type(payload['sessions']).__name__}", file=sys.stderr)
     sys.exit(1)
 
-if not isinstance(payload["playing"], bool):
-    print(f"!!! playing должен быть булевым, пришло {type(payload['playing']).__name__}", file=sys.stderr)
-    sys.exit(1)
+required = {"pid", "playing", "title", "duration", "elapsed", "rate", "timestamp"}
+for session in payload["sessions"]:
+    missing = required - session.keys()
+    if missing:
+        print(f"!!! в сессии нет обязательных ключей: {sorted(missing)}", file=sys.stderr)
+        print(f"    пришло: {sorted(session.keys())}", file=sys.stderr)
+        sys.exit(1)
+    if not isinstance(session["playing"], bool):
+        print(f"!!! playing должен быть булевым, пришло {type(session['playing']).__name__}", file=sys.stderr)
+        sys.exit(1)
 
-extra = ""
-if "commands" in payload:
-    extra = f", команд объявлено: {len(payload['commands'])}"
-title = payload["title"] or "—"
-print(f"  ✓ хелпер ответил снимком (playing={payload['playing']}, трек: {title[:40]}{extra})")
+titles = ", ".join((s["title"] or "—")[:30] for s in payload["sessions"]) or "ничего не играет"
+print(f"  ✓ хелпер ответил: сессий {len(payload['sessions'])} ({titles})")
 PY
