@@ -216,7 +216,13 @@ General → Language & Region → "Translation Languages…".
 
 **The collapsed target.** A real notch is a hole: nothing is drawn over it, and
 the panel can claim all of it, because there is nothing underneath to take a
-click away from.
+click away from. But right where the hole ends begins the window under the menu
+bar, and in a browser that is the tab strip. So the target reaches not a point
+below the cutout, and opening waits the same 200 ms as on a drawn notch: a
+pointer thrown at a tab in the middle of the screen overshoots into the hole and
+pauses there for a moment before coming back. At 50 ms that moment was enough
+for the panel to unfold over the tab, and the returning pointer, now resting on
+the panel, held it open.
 
 A notch we draw is an 8-point strip along the very top edge, and the strip is
 what answers the pointer. It used to be drawn the height of the menu bar, which
@@ -228,9 +234,8 @@ once can know, so the notch no longer depends on it: a strip is right with the
 bar and without it.
 
 The strip is reached by throwing the pointer up, while a pointer travelling to a
-menu bar icon or a tab stays below it. For the same reason the delay before
-opening is 200 ms here instead of 50. The old full-height notch comes back with a
-switch in Settings.
+menu bar icon or a tab stays below it. The delay before opening is the same
+200 ms. The old full-height notch comes back with a switch in Settings.
 
 **Now Playing.** In macOS 15.4 the `mediaremoted` daemon began answering only
 clients it trusts. For an ordinary app that looks like this (checked on 15.7.5

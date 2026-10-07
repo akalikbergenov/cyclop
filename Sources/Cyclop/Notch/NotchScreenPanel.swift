@@ -147,12 +147,17 @@ final class NotchScreenPanel {
         // tab is shared, so a screen built while the teleprompter is up opens
         // straight into a body twice as deep as the rest.
         pointer.closeRect = geometry.hoverRect(for: state.openBodySize)
-        // Nothing under the hole means opening the moment the pointer arrives
-        // costs nothing. A notch we drew is the other case: under it are menu
-        // bar icons or, with the bar hidden, browser tabs, and a pointer
-        // crossing them is usually on its way to one of them. There, staying
-        // put is what asks for the panel.
-        pointer.openDelay = geometry.isPhysical ? 0.05 : 0.2
+        // Staying put is what asks for the panel, under either kind of notch.
+        // Under one we drew are menu bar icons or, with the bar hidden,
+        // browser tabs. A hole has nothing under it, but the browser's tab
+        // strip begins right where it ends, and a pointer thrown at a tab in
+        // the middle of the screen overshoots into the hole and stops there
+        // for a moment before coming back. At 50 ms that moment was enough:
+        // the panel unfolded over the tab the pointer was on its way to, and
+        // the pointer, now resting on the panel, held it open. A pointer that
+        // came to open the panel stays; one that overshot is usually turning
+        // back well within 200 ms.
+        pointer.openDelay = 0.2
         pointer.isDragging = { [weak root] in root?.isReceivingDrag ?? false }
         pointer.isPanelOpen = { [weak state] in state?.isOpen ?? false }
         pointer.onChange = { [weak self] inside in
