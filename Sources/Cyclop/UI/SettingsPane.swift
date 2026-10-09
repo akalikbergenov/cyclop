@@ -311,7 +311,7 @@ struct SettingsPane: View {
                 .font(.system(size: 11.5, weight: .medium))
                 .foregroundStyle(.white)
             Spacer(minLength: 8)
-            Slider(value: openDelayBinding, in: 0.05...0.6, step: 0.05)
+            Slider(value: openDelayBinding, in: ConfigStore.openDelayRange, step: 0.05)
                 .controlSize(.mini)
                 .tint(.white.opacity(0.7))
                 .frame(width: 96)

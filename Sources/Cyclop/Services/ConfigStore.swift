@@ -107,10 +107,19 @@ final class ConfigStore: ObservableObject {
     /// the way to a tab" runs through somebody's hand and habits: whoever
     /// never aims at tabs under the notch can have it back at 50 ms, whoever
     /// still catches it by accident can push it further.
+    ///
+    /// Held to `openDelayRange` on the way out. The file is edited by hand
+    /// too (#67), and `10` typed for milliseconds is ten seconds — a panel
+    /// that practically never opens, guarding the one switch that could fix
+    /// it. Clamped here, the pointer watcher and the slider both get a sane
+    /// number, and the file cannot ask for what the screen does not show.
     var openDelay: Double {
-        get { value.openDelay }
+        get { min(max(value.openDelay, Self.openDelayRange.lowerBound), Self.openDelayRange.upperBound) }
         set { value.openDelay = newValue; persist() }
     }
+
+    /// What the slider offers, and so all `openDelay` can be.
+    static let openDelayRange: ClosedRange<Double> = 0.05...0.6
 
     /// Off switch for people who copy images all day and do not want them
     /// kept. Defaults to on: the feature is the reason the folder exists.
