@@ -17,6 +17,7 @@ struct SettingsPane: View {
     @State private var saveClipboardImages = NotchViewModel.saveClipboardImagesEnabled
     @State private var allDisplays = NotchGeometry.showsOnAllDisplays
     @State private var fullSizeNotch = NotchGeometry.drawsFullSizeNotch
+    @State private var transparentNotch = NotchGeometry.drawsTransparentNotch
     @State private var watchScreenshotFolder = false
     @State private var screenshotUsage: (files: Int, bytes: Int64) = (0, 0)
 
@@ -61,6 +62,11 @@ struct SettingsPane: View {
                         symbol: "rectangle.topthird.inset.filled",
                         title: localized("Full-Height Notch Without a Cutout"),
                         isOn: fullSizeNotchBinding
+                    )
+                    toggleRow(
+                        symbol: "rectangle.dashed",
+                        title: localized("Transparent Notch"),
+                        isOn: transparentNotchBinding
                     )
                 }
 
@@ -135,6 +141,7 @@ struct SettingsPane: View {
             saveClipboardImages = NotchViewModel.saveClipboardImagesEnabled
             allDisplays = NotchGeometry.showsOnAllDisplays
             fullSizeNotch = NotchGeometry.drawsFullSizeNotch
+            transparentNotch = NotchGeometry.drawsTransparentNotch
             watchScreenshotFolder = screenshots.isEnabled
             refreshUsage()
         }
@@ -213,6 +220,18 @@ struct SettingsPane: View {
             set: { wants in
                 fullSizeNotch = wants
                 NotchGeometry.drawsFullSizeNotch = wants
+            }
+        )
+    }
+
+    /// The collapsed simulated notch can stay as an invisible hover target,
+    /// rather than covering content on a display without a physical cutout.
+    private var transparentNotchBinding: Binding<Bool> {
+        Binding(
+            get: { transparentNotch },
+            set: { wants in
+                transparentNotch = wants
+                NotchGeometry.drawsTransparentNotch = wants
             }
         )
     }

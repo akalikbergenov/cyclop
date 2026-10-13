@@ -32,6 +32,7 @@ final class ConfigStore: ObservableObject {
         var teleprompter = Teleprompter()
         var hiddenTabs: [String] = []
         var fullSizeDrawnNotch = false
+        var transparentDrawnNotch = false
 
         init() {}
 
@@ -49,6 +50,7 @@ final class ConfigStore: ObservableObject {
             teleprompter = try c.decodeIfPresent(Teleprompter.self, forKey: .teleprompter) ?? d.teleprompter
             hiddenTabs = try c.decodeIfPresent([String].self, forKey: .hiddenTabs) ?? d.hiddenTabs
             fullSizeDrawnNotch = try c.decodeIfPresent(Bool.self, forKey: .fullSizeDrawnNotch) ?? d.fullSizeDrawnNotch
+            transparentDrawnNotch = try c.decodeIfPresent(Bool.self, forKey: .transparentDrawnNotch) ?? d.transparentDrawnNotch
         }
     }
 
@@ -97,6 +99,14 @@ final class ConfigStore: ObservableObject {
     var fullSizeDrawnNotch: Bool {
         get { value.fullSizeDrawnNotch }
         set { value.fullSizeDrawnNotch = newValue; persist() }
+    }
+
+    /// Makes the folded simulated notch transparent on displays without a
+    /// physical cutout. Off by default so existing installations keep their
+    /// familiar visual handle until the setting is chosen deliberately.
+    var transparentDrawnNotch: Bool {
+        get { value.transparentDrawnNotch }
+        set { value.transparentDrawnNotch = newValue; persist() }
     }
 
     /// Off switch for people who copy images all day and do not want them
