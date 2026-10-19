@@ -138,3 +138,6 @@
 "Keyboard and trackpad are locked" = "Keyboard and trackpad are locked";
 "Hold Esc or − for %d s" = "Hold Esc or − for %d s";
 "Unlocks by itself in %d s" = "Unlocks by itself in %d s";
+
+/* Источник музыки */
+"Automatically" = "Automatically";

@@ -32,6 +32,7 @@ final class ConfigStore: ObservableObject {
         var teleprompter = Teleprompter()
         var hiddenTabs: [String] = []
         var fullSizeDrawnNotch = false
+        var mediaSource = ""
 
         init() {}
 
@@ -49,6 +50,7 @@ final class ConfigStore: ObservableObject {
             teleprompter = try c.decodeIfPresent(Teleprompter.self, forKey: .teleprompter) ?? d.teleprompter
             hiddenTabs = try c.decodeIfPresent([String].self, forKey: .hiddenTabs) ?? d.hiddenTabs
             fullSizeDrawnNotch = try c.decodeIfPresent(Bool.self, forKey: .fullSizeDrawnNotch) ?? d.fullSizeDrawnNotch
+            mediaSource = try c.decodeIfPresent(String.self, forKey: .mediaSource) ?? d.mediaSource
         }
     }
 
@@ -130,6 +132,13 @@ final class ConfigStore: ObservableObject {
     var hiddenTabs: [String] {
         get { value.hiddenTabs }
         set { value.hiddenTabs = newValue; persist() }
+    }
+
+    /// Bundle id of the app the music tab follows; empty leaves it to the
+    /// system, which is the default.
+    var mediaSource: String {
+        get { value.mediaSource }
+        set { value.mediaSource = newValue; persist() }
     }
 
     // MARK: - Migration

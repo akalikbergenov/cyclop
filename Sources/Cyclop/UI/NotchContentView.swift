@@ -6,6 +6,9 @@ struct NotchContentView: View {
     /// here; everything shown is in `vm`, the same on every display.
     @ObservedObject var panel: PanelState
 
+    /// Whether the music tab's source list is open.
+    @State private var showsSources = false
+
     private var isOpen: Bool { panel.isActive }
     private var size: CGSize { panel.bodySize }
     private var topRadius: CGFloat { isOpen ? Theme.openTopRadius : Theme.collapsedTopRadius }
@@ -59,12 +62,33 @@ struct NotchContentView: View {
                 }
             }
             .frame(width: size.width, height: size.height, alignment: .top)
+            .overlay(alignment: .topTrailing) { sourceList }
             .clipped()
         }
         .frame(width: size.width + 2 * topRadius, height: size.height, alignment: .top)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .animation(Theme.openAnimation, value: isOpen)
         .animation(Theme.paneAnimation, value: vm.tab)
+        .onChange(of: isOpen) { _, open in if !open { showsSources = false } }
+        .onChange(of: vm.tab) { _, _ in showsSources = false }
+    }
+
+    /// Hangs under the source name, over the pane. A click anywhere else in
+    /// the panel closes it without doing what that click would have done —
+    /// the same as any menu.
+    @ViewBuilder
+    private var sourceList: some View {
+        if showsSources, isOpen, vm.tab == .media {
+            ZStack(alignment: .topTrailing) {
+                Color.black.opacity(0.001)
+                    .contentShape(Rectangle())
+                    .onTapGesture { showsSources = false }
+                SourceList(media: vm.media, isExpanded: $showsSources)
+                    .padding(.top, panel.geometry.notchSize.height - 2)
+                    .padding(.trailing, 10)
+            }
+            .transition(.opacity.combined(with: .scale(scale: 0.97, anchor: .topTrailing)))
+        }
     }
 
     // MARK: - Header
@@ -91,7 +115,7 @@ struct NotchContentView: View {
             Spacer(minLength: 0)
             if isOpen {
                 trailing
-                    .padding(.trailing, 16)
+                    .padding(.trailing, vm.tab == .media ? 10 : 16)
                     .transition(.opacity)
             }
         }
@@ -102,14 +126,9 @@ struct NotchContentView: View {
     private var trailing: some View {
         switch vm.tab {
         case .media:
-            HStack(spacing: 6) {
-                if vm.media.track != nil {
-                    EqualizerBars(isAnimating: vm.media.isPlaying)
-                }
-                Text(vm.media.sourceName ?? "")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(Theme.tertiary)
-            }
+            // The one interactive thing in this row, by request: menu bar
+            // utilities watching clicks here (see above) will see this one.
+            SourceName(media: vm.media, isExpanded: $showsSources.animation(Theme.contentAnimation))
         case .shelf:
             counter(vm.shelf.items.count)
         case .clipboard:

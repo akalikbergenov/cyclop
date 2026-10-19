@@ -24,6 +24,8 @@ final class NowPlayingFeed {
         /// single video offers no skip commands at all, and that is worth
         /// showing, but a missing answer is not the same as an empty one.
         var commands: Set<Int>?
+        /// Every app with a track right now, for the source list.
+        var sources: [Source] = []
 
         func offers(_ command: Command) -> Bool {
             commands?.contains(command.rawValue) ?? true
@@ -37,6 +39,15 @@ final class NowPlayingFeed {
     /// old global enum. There is no separate toggle among them: play and
     /// pause are sent explicitly, by whichever state the caller already
     /// knows it is in.
+    /// An app the source list offers, named and identified by the app itself
+    /// rather than the helper process a browser plays through.
+    struct Source: Equatable, Identifiable {
+        let bundleID: String
+        let name: String
+        let isPlaying: Bool
+        var id: String { bundleID }
+    }
+
     enum Command: Int {
         case play = 0, pause = 1, next = 4, previous = 5
     }
@@ -80,6 +91,17 @@ final class NowPlayingFeed {
     func start() {
         stopped = false
         launch()
+    }
+
+    /// The app to show, by bundle id, or nil for whatever the system plays.
+    /// Kept here as well as sent, so a helper started again after a crash is
+    /// told the same thing.
+    var chosenSource: String? {
+        didSet { sendChoice() }
+    }
+
+    private func sendChoice() {
+        write("source \(chosenSource ?? "-")")
     }
 
     func stop() {
@@ -165,6 +187,7 @@ final class NowPlayingFeed {
 
         process = task
         input = commands.fileHandleForWriting
+        if chosenSource != nil { sendChoice() }
     }
 
     /// Only the exit of the helper we are running now counts. One we
@@ -272,8 +295,24 @@ final class NowPlayingFeed {
            let artwork = Data(base64Encoded: base64), artwork.count <= Self.maxArtworkBytes {
             snapshot.artwork = artwork
         }
-        if let pid = object["pid"] as? Int, pid > 0 {
+        // The helper names the app; the process name is the fallback, and for
+        // a browser it is the helper's — "SoundCloud Graphics and Media".
+        if let name = object["name"] as? String, !name.isEmpty {
+            snapshot.source = Self.text(name)
+        } else if let pid = object["pid"] as? Int, pid > 0 {
             snapshot.source = NSRunningApplication(processIdentifier: pid_t(pid))?.localizedName
+        }
+        if let sources = object["sources"] as? [[String: Any]] {
+            snapshot.sources = sources.prefix(8).compactMap { entry in
+                guard let bundle = entry["bundle"] as? String, !bundle.isEmpty else { return nil }
+                var name = Self.text(entry["name"])
+                if name.isEmpty {
+                    name = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundle)
+                        .map { FileManager.default.displayName(atPath: $0.path) } ?? bundle
+                    if name.hasSuffix(".app") { name = String(name.dropLast(4)) }
+                }
+                return Source(bundleID: bundle, name: name, isPlaying: entry["playing"] as? Bool ?? false)
+            }
         }
         if let codes = object["commands"] as? [Int] {
             snapshot.commands = Set(codes)

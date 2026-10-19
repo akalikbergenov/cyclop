@@ -27,6 +27,14 @@ final class MediaController: ObservableObject {
     /// otherwise: the scripted fallback below drives Music and Spotify, and
     /// both skip fine.
     @Published private(set) var canSkip = true
+    /// Apps with a track right now, for the source list in the header.
+    @Published private(set) var sources: [NowPlayingFeed.Source] = []
+    /// The app picked in that list, or nil to follow whatever the system
+    /// plays. Persisted: a choice made once should not need making again.
+    @Published private(set) var chosenSource: String? = {
+        let saved = ConfigStore.shared.mediaSource
+        return saved.isEmpty ? nil : saved
+    }()
 
     private let feed = NowPlayingFeed()
     private var feedAvailable = true
@@ -47,6 +55,7 @@ final class MediaController: ObservableObject {
         feed.onUpdate = { [weak self] snapshot in self?.apply(snapshot) }
         feed.onUnavailable = { [weak self] in self?.switchToScriptingFallback() }
         feed.onAvailable = { [weak self] in self?.restoreFeed() }
+        feed.chosenSource = chosenSource
         feed.start()
     }
 
@@ -74,6 +83,15 @@ final class MediaController: ObservableObject {
         } else {
             refreshFromPlayers()
         }
+    }
+
+    /// While the picked app has no track the panel shows whatever the system
+    /// plays — the choice is kept and wins again as soon as that app plays.
+    func choose(_ bundleID: String?) {
+        guard bundleID != chosenSource else { return }
+        chosenSource = bundleID
+        ConfigStore.shared.mediaSource = bundleID ?? ""
+        feed.chosenSource = bundleID
     }
 
     // MARK: - Transport
@@ -124,6 +142,7 @@ final class MediaController: ObservableObject {
     // MARK: - Feed
 
     private func apply(_ snapshot: NowPlayingFeed.Snapshot) {
+        if sources != snapshot.sources { sources = snapshot.sources }
         guard !snapshot.isEmpty else { return clear() }
 
         let key = "\(snapshot.title)|\(snapshot.artist)|\(snapshot.album)"
@@ -197,6 +216,9 @@ final class MediaController: ObservableObject {
     private func switchToScriptingFallback() {
         guard feedAvailable else { return }
         feedAvailable = false
+        // Scripting knows two players and nothing about the rest, so there is
+        // nothing to choose between until the helper is back.
+        sources = []
         // Nothing reports supported commands on this route, and the two apps it
         // drives both skip — so the arrows come back rather than staying dim
         // on a state no longer being refreshed.
