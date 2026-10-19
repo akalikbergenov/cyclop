@@ -312,7 +312,7 @@ final class NotchScreenPanel {
     /// The visual half of closing, one pass after the keyboard was let go.
     private func collapse() {
         guard state.isOpen else { return }
-        withAnimation(Theme.openAnimation) { state.isOpen = false }
+        withAnimation(Theme.foldAnimation) { state.isOpen = false }
 
         // The keyboard goes back only now, a pass after the fold has started:
         // `acceptsKeyboard` no longer does it on its own, precisely because the

@@ -36,8 +36,15 @@ struct NotchContentView: View {
     /// state would draw its text onto a transparent background: white letters
     /// standing on the desktop with nothing behind them.
     private var paintsShape: Bool {
-        !panel.geometry.isPhysical || size != panel.geometry.notchSize
+        !panel.geometry.isPhysical || size != panel.geometry.notchSize || foldingOntoNotch
     }
+
+    /// Set for the length of a fold back onto the bare hole. The target size
+    /// is the notch from the first frame, so without this the fill would go
+    /// clear while the body is still shrinking — the island's wings fading
+    /// out instead of folding in, and the hole showing through them.
+    @State private var foldingOntoNotch = false
+    @State private var foldGeneration = 0
 
     var body: some View {
         // The shape is wider than the body by `topRadius` on each side: that
@@ -63,7 +70,16 @@ struct NotchContentView: View {
         }
         .frame(width: size.width + 2 * topRadius, height: size.height, alignment: .top)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .animation(Theme.openAnimation, value: isOpen)
+        .animation(isOpen ? Theme.openAnimation : Theme.foldAnimation, value: isOpen)
+        .onChange(of: size) { old, new in
+            guard panel.geometry.isPhysical, new == panel.geometry.notchSize, old != new else { return }
+            foldingOntoNotch = true
+            foldGeneration += 1
+            let generation = foldGeneration
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                if foldGeneration == generation { foldingOntoNotch = false }
+            }
+        }
         .animation(Theme.paneAnimation, value: vm.tab)
     }
 
@@ -95,9 +111,8 @@ struct NotchContentView: View {
             Color.clear.frame(width: panel.geometry.notchSize.width, height: 1)
             Spacer(minLength: 0)
             if !isOpen, vm.showsIsland {
-                EqualizerBars(isAnimating: vm.media.isPlaying, tint: Color.white.opacity(0.8))
-                    .scaleEffect(1.2)
-                    .padding(.trailing, 13)
+                IslandWaveform(media: vm.media)
+                    .padding(.trailing, 12)
                     .transition(.opacity)
             }
             if isOpen {

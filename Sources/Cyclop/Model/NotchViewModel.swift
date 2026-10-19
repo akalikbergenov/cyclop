@@ -216,7 +216,7 @@ final class NotchViewModel: ObservableObject {
 
     private func setIsland(_ shows: Bool) {
         guard showsIsland != shows else { return }
-        withAnimation(Theme.openAnimation) { showsIsland = shows }
+        withAnimation(Theme.foldAnimation) { showsIsland = shows }
     }
 
     /// Whether a click into the panel should hand it the keyboard. The tabs
