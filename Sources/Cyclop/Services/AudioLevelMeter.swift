@@ -216,7 +216,9 @@ final class AudioLevelTap: @unchecked Sendable {
                 average[band] += (decibels[band] - average[band]) * 0.01
                 target = min(1, max(0.05, 0.3 + (decibels[band] - average[band]) / 12))
             }
-            let rate: Float = target > smoothed[band] ? 0.5 : 0.12
+            // Light here: the bars' springs do the rounding, and two
+            // smoothers in a row would only add lag.
+            let rate: Float = target > smoothed[band] ? 0.7 : 0.3
             smoothed[band] += (target - smoothed[band]) * rate
         }
         if !silent { heard = true }

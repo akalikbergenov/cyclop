@@ -25,16 +25,26 @@ struct IslandWaveform: View {
     private var spacing: CGFloat { (side - barWidth * CGFloat(Self.bars)) / CGFloat(Self.bars - 1) }
     private var height: CGFloat { side * 0.7 }
 
+    /// Kept across frames: each bar's position and velocity.
+    @State private var springs = BarSprings(count: bars)
+
     var body: some View {
         Group {
-            if let levels = meter.levels, media.isPlaying {
-                bars { index in level(fromBands: levels, at: index) }
-                    .animation(.linear(duration: 1.0 / 30), value: levels)
-            } else {
-                TimelineView(.animation(minimumInterval: 1 / 30, paused: !media.isPlaying || reduceMotion)) { context in
-                    let time = context.date.timeIntervalSinceReferenceDate
-                    bars { index in idleLevel(index, at: time) }
+            if media.isPlaying, !reduceMotion {
+                // Every frame the display draws, not every meter reading: the
+                // springs move between readings, so nothing steps.
+                TimelineView(.animation) { context in
+                    let date = context.date
+                    let targets = (0..<Self.bars).map { index in
+                        if let levels = meter.levels { return level(fromBands: levels, at: index) }
+                        return idleLevel(index, at: date.timeIntervalSinceReferenceDate)
+                    }
+                    let heights = springs.step(toward: targets, at: date)
+                    bars { heights[$0] }
                 }
+            } else {
+                bars { _ in 0 }
+                    .onAppear { springs.reset() }
             }
         }
         .animation(.easeOut(duration: 0.25), value: media.isPlaying)
@@ -45,12 +55,12 @@ struct IslandWaveform: View {
         .accessibilityHidden(true)
     }
 
-    private func bars(_ level: @escaping (Int) -> CGFloat) -> some View {
+    private func bars(_ level: (Int) -> CGFloat) -> some View {
         HStack(alignment: .center, spacing: spacing) {
-            ForEach(0..<Self.bars, id: \.self) { index in
+            ForEach(Array((0..<Self.bars).map(level).enumerated()), id: \.offset) { _, value in
                 Capsule()
                     .fill(tint)
-                    .frame(width: barWidth, height: barHeight(level(index)))
+                    .frame(width: barWidth, height: barHeight(value))
             }
         }
         .frame(width: side, height: height)
@@ -104,5 +114,51 @@ struct IslandWaveform: View {
         color.usingColorSpace(.deviceRGB)?.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha)
         guard saturation > 0.15 else { return .white }
         return Color(hue: hue, saturation: min(saturation, 0.7), brightness: max(brightness, 0.85))
+    }
+}
+
+/// Bars that follow their targets the way Apple's interfaces follow a finger:
+/// a critically damped spring per bar, set by how quickly it responds rather
+/// than by stiffness and damping — the model from WWDC 2018's "Designing
+/// Fluid Interfaces". A new target bends the motion instead of restarting it,
+/// so readings arriving thirty times a second still draw as one curve, at
+/// whatever rate the display runs.
+final class BarSprings {
+    /// Seconds to settle most of the way. Short enough to keep the beat,
+    /// long enough to round off the steps between readings.
+    private let response: Double = 0.16
+    private var position: [Double]
+    private var velocity: [Double]
+    private var last: Date?
+
+    init(count: Int) {
+        position = Array(repeating: 0, count: count)
+        velocity = Array(repeating: 0, count: count)
+    }
+
+    func reset() {
+        position = position.map { _ in 0 }
+        velocity = velocity.map { _ in 0 }
+        last = nil
+    }
+
+    func step(toward targets: [CGFloat], at date: Date) -> [CGFloat] {
+        // A long gap — the island was away — is not a fall to integrate.
+        let elapsed = min(1.0 / 20, max(0, last.map { date.timeIntervalSince($0) } ?? 0))
+        last = date
+        let stiffness = pow(2 * .pi / response, 2)
+        let damping = 4 * .pi / response
+        // Small fixed steps keep the spring stable at any frame rate.
+        var remaining = elapsed
+        while remaining > 0 {
+            let dt = min(remaining, 1.0 / 240)
+            for index in position.indices where index < targets.count {
+                let force = -stiffness * (position[index] - Double(targets[index])) - damping * velocity[index]
+                velocity[index] += force * dt
+                position[index] += velocity[index] * dt
+            }
+            remaining -= dt
+        }
+        return position.map { CGFloat(max(0, $0)) }
     }
 }
