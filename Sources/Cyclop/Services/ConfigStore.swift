@@ -32,6 +32,7 @@ final class ConfigStore: ObservableObject {
         var teleprompter = Teleprompter()
         var hiddenTabs: [String] = []
         var fullSizeDrawnNotch = false
+        var dynamicIsland = false
 
         init() {}
 
@@ -49,6 +50,7 @@ final class ConfigStore: ObservableObject {
             teleprompter = try c.decodeIfPresent(Teleprompter.self, forKey: .teleprompter) ?? d.teleprompter
             hiddenTabs = try c.decodeIfPresent([String].self, forKey: .hiddenTabs) ?? d.hiddenTabs
             fullSizeDrawnNotch = try c.decodeIfPresent(Bool.self, forKey: .fullSizeDrawnNotch) ?? d.fullSizeDrawnNotch
+            dynamicIsland = try c.decodeIfPresent(Bool.self, forKey: .dynamicIsland) ?? d.dynamicIsland
         }
     }
 
@@ -130,6 +132,14 @@ final class ConfigStore: ObservableObject {
     var hiddenTabs: [String] {
         get { value.hiddenTabs }
         set { value.hiddenTabs = newValue; persist() }
+    }
+
+    /// The folded notch grows wings while music plays: the cover on the left,
+    /// an equalizer on the right. Off by default — it covers a strip of the
+    /// menu bar on both sides of the notch.
+    var dynamicIsland: Bool {
+        get { value.dynamicIsland }
+        set { value.dynamicIsland = newValue; persist() }
     }
 
     // MARK: - Migration

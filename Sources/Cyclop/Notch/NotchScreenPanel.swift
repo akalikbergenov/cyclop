@@ -141,7 +141,7 @@ final class NotchScreenPanel {
 
         applyActiveRect(open: false)
 
-        pointer.openRect = geometry.hoverRect
+        pointer.openRect = geometry.hoverRect(folded: state.foldedBodySize)
         pointer.warmZone = geometry.warmZone
         // Cut for the tab that will be showing, not for the standard body: the
         // tab is shared, so a screen built while the teleprompter is up opens
@@ -187,6 +187,22 @@ final class NotchScreenPanel {
                     // A pass later: `openBodySize` reads `tab`, and this fires
                     // while the property is still being set.
                     DispatchQueue.main.async { self.refreshOpenRects() }
+                }
+            }
+            .store(in: &cancellables)
+
+        // The island grows and shrinks the folded body, and with it what
+        // answers the pointer. Open, nothing changes until the fold.
+        vm.$showsIsland
+            .removeDuplicates()
+            .sink { [weak self] _ in
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    // A pass later, for the same reason as the tab above.
+                    DispatchQueue.main.async {
+                        self.pointer.openRect = self.geometry.hoverRect(folded: self.state.foldedBodySize)
+                        if !self.state.isOpen { self.applyActiveRect(open: false) }
+                    }
                 }
             }
             .store(in: &cancellables)
@@ -350,7 +366,7 @@ final class NotchScreenPanel {
         // The open size is the current tab's, not a constant: the teleprompter
         // is taller, and a rect cut for 208 would leave the bottom half of it
         // visible but untouchable.
-        let size = open ? state.openBodySize : geometry.collapsedSize
+        let size = open ? state.openBodySize : state.foldedBodySize
         var rect = geometry.contentRect(for: size)
         if open {
             // Slack so the concave shoulders stay grabbable. Never while

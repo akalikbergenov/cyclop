@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import SwiftUI
 
 @MainActor
 final class NotchViewModel: ObservableObject {
@@ -127,6 +128,7 @@ final class NotchViewModel: ObservableObject {
             if tab == target { tab = firstVisibleTab }
         }
         ConfigStore.shared.hiddenTabs = hiddenTabs.map(\.rawValue).sorted()
+        if target == .media { updateIsland() }
     }
 
     /// What a tab keeps running while nobody is looking at it. Only a few have
@@ -181,6 +183,41 @@ final class NotchViewModel: ObservableObject {
     }
 
     private var started = false
+
+    // MARK: - Dynamic Island
+
+    /// Whether the folded notch shows the playing track. Follows the switch,
+    /// the music tab being on the rail, and something actually playing.
+    @Published private(set) var showsIsland = false
+    private var islandHide: DispatchWorkItem?
+
+    var islandEnabled: Bool {
+        get { ConfigStore.shared.dynamicIsland }
+        set {
+            ConfigStore.shared.dynamicIsland = newValue
+            updateIsland()
+        }
+    }
+
+    /// Shows at once and hides a moment late: between two tracks a player
+    /// reports a pause for a beat, and the island should not blink for it.
+    private func updateIsland() {
+        let wanted = islandEnabled && isVisible(.media) && media.track != nil && media.isPlaying
+        islandHide?.cancel()
+        islandHide = nil
+        if wanted {
+            setIsland(true)
+        } else if showsIsland {
+            let work = DispatchWorkItem { [weak self] in self?.setIsland(false) }
+            islandHide = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: work)
+        }
+    }
+
+    private func setIsland(_ shows: Bool) {
+        guard showsIsland != shows else { return }
+        withAnimation(Theme.openAnimation) { showsIsland = shows }
+    }
 
     /// Whether a click into the panel should hand it the keyboard. The tabs
     /// that type always do. The teleprompter does only while it has nothing to
@@ -299,6 +336,16 @@ final class NotchViewModel: ObservableObject {
                 }
                 .store(in: &cancellables)
         }
+
+        // Unlike the forwarding above, this runs folded too: folded is the
+        // only time the island is seen.
+        media.$isPlaying.removeDuplicates()
+            .combineLatest(media.$track.map { $0 != nil }.removeDuplicates())
+            .sink { [weak self] _ in
+                // The publishers fire before the values land.
+                DispatchQueue.main.async { self?.updateIsland() }
+            }
+            .store(in: &cancellables)
     }
 
     /// Off switch for people who copy images all day and do not want them
