@@ -138,3 +138,25 @@
 "Keyboard and trackpad are locked" = "Keyboard and trackpad are locked";
 "Hold Esc or − for %d s" = "Hold Esc or − for %d s";
 "Unlocks by itself in %d s" = "Unlocks by itself in %d s";
+
+/* Вкладка ИИ */
+"AI" = "AI";
+"Session" = "Session";
+"Week" = "Week";
+"Week · Opus" = "Week · Opus";
+"Week · Sonnet" = "Week · Sonnet";
+"No limits from the Claude app yet" = "No limits from the Claude app yet";
+"No recent limits from the Claude app" = "No recent limits from the Claude app";
+"The app records them while its menu bar icon is on." = "The app records them while its menu bar icon is on.";
+"Today" = "Today";
+"7 days" = "7 days";
+"30 days" = "30 days";
+"Working" = "Working";
+"%@ tokens" = "%@ tokens";
+"%d sessions" = "%d sessions";
+"checked just now" = "checked just now";
+"checked %d min ago" = "checked %d min ago";
+"checked %d h ago" = "checked %d h ago";
+"checked %d d ago" = "checked %d d ago";
+"Show Claude Status" = "Show Claude Status";
+"Show Spending" = "Show Spending";

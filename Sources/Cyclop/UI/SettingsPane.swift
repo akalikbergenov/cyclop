@@ -51,6 +51,23 @@ struct SettingsPane: View {
                     }
                 }
 
+                // Only while the tab is on the rail: switched off, these two
+                // would be settings for something that is not there.
+                if vm.isVisible(.ai) {
+                    section(localized("AI")) {
+                        toggleRow(
+                            symbol: "waveform",
+                            title: localized("Show Claude Status"),
+                            isOn: Binding(get: { config.aiShowsStatus }, set: { config.aiShowsStatus = $0 })
+                        )
+                        toggleRow(
+                            symbol: "dollarsign.circle",
+                            title: localized("Show Spending"),
+                            isOn: Binding(get: { config.aiShowsSpending }, set: { config.aiShowsSpending = $0 })
+                        )
+                    }
+                }
+
                 section(localized("Displays")) {
                     toggleRow(
                         symbol: "display.2",
