@@ -111,7 +111,7 @@ struct NotchContentView: View {
             Color.clear.frame(width: panel.geometry.notchSize.width, height: 1)
             Spacer(minLength: 0)
             if !isOpen, vm.showsIsland {
-                IslandWaveform(media: vm.media)
+                IslandWaveform(media: vm.media, meter: vm.levels)
                     .padding(.trailing, 12)
                     .transition(.opacity)
             }

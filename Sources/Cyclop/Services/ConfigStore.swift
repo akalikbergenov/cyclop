@@ -33,6 +33,7 @@ final class ConfigStore: ObservableObject {
         var hiddenTabs: [String] = []
         var fullSizeDrawnNotch = false
         var dynamicIsland = false
+        var liveEqualizer = false
 
         init() {}
 
@@ -51,6 +52,7 @@ final class ConfigStore: ObservableObject {
             hiddenTabs = try c.decodeIfPresent([String].self, forKey: .hiddenTabs) ?? d.hiddenTabs
             fullSizeDrawnNotch = try c.decodeIfPresent(Bool.self, forKey: .fullSizeDrawnNotch) ?? d.fullSizeDrawnNotch
             dynamicIsland = try c.decodeIfPresent(Bool.self, forKey: .dynamicIsland) ?? d.dynamicIsland
+            liveEqualizer = try c.decodeIfPresent(Bool.self, forKey: .liveEqualizer) ?? d.liveEqualizer
         }
     }
 
@@ -140,6 +142,13 @@ final class ConfigStore: ObservableObject {
     var dynamicIsland: Bool {
         get { value.dynamicIsland }
         set { value.dynamicIsland = newValue; persist() }
+    }
+
+    /// The island's bars follow the sound. Off by default: it is the one
+    /// switch in the app that makes macOS ask for a permission.
+    var liveEqualizer: Bool {
+        get { value.liveEqualizer }
+        set { value.liveEqualizer = newValue; persist() }
     }
 
     // MARK: - Migration

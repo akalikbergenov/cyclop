@@ -189,7 +189,26 @@ final class NotchViewModel: ObservableObject {
     /// Whether the folded notch shows the playing track. Follows the switch,
     /// the music tab being on the rail, and something actually playing.
     @Published private(set) var showsIsland = false
+    /// The sound the island's bars follow when the live equalizer is on.
+    let levels = AudioLevelMeter()
     private var islandHide: DispatchWorkItem?
+
+    var liveEqualizerEnabled: Bool {
+        get { ConfigStore.shared.liveEqualizer }
+        set {
+            ConfigStore.shared.liveEqualizer = newValue
+            updateMeter()
+        }
+    }
+
+    /// Listens only while there is an island to draw it on.
+    private func updateMeter() {
+        if showsIsland, liveEqualizerEnabled {
+            levels.start()
+        } else {
+            levels.stop()
+        }
+    }
 
     var islandEnabled: Bool {
         get { ConfigStore.shared.dynamicIsland }
@@ -217,6 +236,7 @@ final class NotchViewModel: ObservableObject {
     private func setIsland(_ shows: Bool) {
         guard showsIsland != shows else { return }
         withAnimation(Theme.foldAnimation) { showsIsland = shows }
+        updateMeter()
     }
 
     /// Whether a click into the panel should hand it the keyboard. The tabs
@@ -390,6 +410,7 @@ final class NotchViewModel: ObservableObject {
 
     func stop() {
         started = false
+        levels.stop()
         for target in Tab.allCases { stopBackground(of: target) }
         // Whatever was typed makes it to disk even when quitting mid-thought.
         notes.flush()

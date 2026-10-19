@@ -42,6 +42,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>NSSupportsSuddenTermination</key><false/>
     <key>NSAppleEventsUsageDescription</key>
     <string>Cyclop читает название текущего трека и управляет воспроизведением в Apple Music и Spotify.</string>
+    <key>NSAudioCaptureUsageDescription</key>
+    <string>Cyclop слушает громкость звука, чтобы эквалайзер на острове двигался в такт. Звук не сохраняется и никуда не отправляется.</string>
     <key>NSCalendarsFullAccessUsageDescription</key>
     <string>Cyclop показывает ближайшие встречи и кнопку подключения к ним.</string>
     <key>NSCalendarsUsageDescription</key>

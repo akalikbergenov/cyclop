@@ -1,34 +1,38 @@
 import AppKit
 import SwiftUI
 
-/// The island's right wing, the way the iPhone draws it: a few rounded bars
-/// standing on a centre line, taller in the middle than at the edges, each
-/// breathing at its own pace, in the colour of the cover.
+/// The island's right wing, drawn the way the iPhone draws it: seven thin
+/// bars on a centre line, in the colour of the cover.
 ///
-/// Decorative, not a meter — there is no audio here to measure, and reading
-/// any would take a permission. A paused track lays the bars down to dots.
+/// With the live equalizer on, the bars follow the sound — the bass bands in
+/// the middle, the treble towards the edges, which gives the same tall-centre
+/// shape the phone has. Without it, or before the meter has heard anything,
+/// they breathe on their own, and a paused track lays them down to dots.
 struct IslandWaveform: View {
     @ObservedObject var media: MediaController
+    @ObservedObject var meter: AudioLevelMeter
 
     @State private var tint = Color.white
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private let bars = 4
-    private let barWidth: CGFloat = 3
-    private let spacing: CGFloat = 2.5
+    private static let bars = 7
+    /// Which band each bar shows, left to right: bass in the middle.
+    private static let bandOrder = [5, 3, 1, 0, 2, 4, 6]
+    private let barWidth: CGFloat = 2
+    private let spacing: CGFloat = 2
     private let height: CGFloat = 16
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1 / 30, paused: !media.isPlaying || reduceMotion)) { context in
-            let time = context.date.timeIntervalSinceReferenceDate
-            HStack(alignment: .center, spacing: spacing) {
-                ForEach(0..<bars, id: \.self) { index in
-                    Capsule()
-                        .fill(tint)
-                        .frame(width: barWidth, height: barHeight(index, at: time))
+        Group {
+            if let levels = meter.levels, media.isPlaying {
+                bars { index in level(fromBands: levels, at: index) }
+                    .animation(.linear(duration: 1.0 / 30), value: levels)
+            } else {
+                TimelineView(.animation(minimumInterval: 1 / 30, paused: !media.isPlaying || reduceMotion)) { context in
+                    let time = context.date.timeIntervalSinceReferenceDate
+                    bars { index in idleLevel(index, at: time) }
                 }
             }
-            .frame(height: height)
         }
         .animation(.easeOut(duration: 0.25), value: media.isPlaying)
         .onAppear { tint = Self.tint(of: media.artwork) }
@@ -38,17 +42,41 @@ struct IslandWaveform: View {
         .accessibilityHidden(true)
     }
 
-    /// Two slow waves per bar at unrelated rates, so the pattern never visibly
-    /// repeats; the inner bars reach higher than the outer ones.
-    private func barHeight(_ index: Int, at time: TimeInterval) -> CGFloat {
+    private func bars(_ level: @escaping (Int) -> CGFloat) -> some View {
+        HStack(alignment: .center, spacing: spacing) {
+            ForEach(0..<Self.bars, id: \.self) { index in
+                Capsule()
+                    .fill(tint)
+                    .frame(width: barWidth, height: barHeight(level(index)))
+            }
+        }
+        .frame(height: height)
+    }
+
+    /// Edges reach lower than the middle, like the phone's envelope.
+    private func reach(_ index: Int) -> CGFloat {
+        let centre = CGFloat(Self.bars - 1) / 2
+        return 1 - abs(CGFloat(index) - centre) / centre * 0.45
+    }
+
+    private func barHeight(_ level: CGFloat) -> CGFloat {
         guard media.isPlaying, !reduceMotion else { return barWidth }
-        let centre = Double(bars - 1) / 2
-        let reach = 1 - abs(Double(index) - centre) / (centre + 1) * 0.55
+        return max(barWidth, height * min(1, level))
+    }
+
+    private func level(fromBands levels: [Float], at index: Int) -> CGFloat {
+        let band = Self.bandOrder[index]
+        guard band < levels.count else { return 0 }
+        return CGFloat(levels[band]) * reach(index)
+    }
+
+    /// Two slow waves per bar at unrelated rates, so the pattern never visibly
+    /// repeats.
+    private func idleLevel(_ index: Int, at time: TimeInterval) -> CGFloat {
         let i = Double(index)
-        let wave = 0.5 + 0.3 * sin(time * (5.1 + i * 1.3) + i * 1.7)
+        let wave = 0.45 + 0.3 * sin(time * (5.1 + i * 1.3) + i * 1.7)
             + 0.2 * sin(time * (8.3 - i * 0.9) + i * 0.6)
-        let level = min(1, max(0, wave)) * reach
-        return max(barWidth, height * CGFloat(0.3 + 0.7 * level))
+        return CGFloat(0.2 + 0.8 * min(1, max(0, wave))) * reach(index)
     }
 
     /// The cover's average colour, lifted so it reads on black. A grey cover
