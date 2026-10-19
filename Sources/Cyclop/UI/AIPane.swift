@@ -63,12 +63,20 @@ struct AIPane: View {
 
     private func limitCard(_ window: ClaudeUsage.Window, compact: Bool) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 6) {
-                Text(title(for: window.kind))
-                    .font(.system(size: 11, weight: .medium))
+            Text(title(for: window.kind, compact: compact))
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(Theme.secondary)
+                .lineLimit(1)
+            Spacer(minLength: 4)
+            HStack(alignment: .firstTextBaseline, spacing: 0) {
+                Text("\(Int(window.usedPercent.rounded()))")
+                    .font(.system(size: compact ? 20 : 26, weight: .semibold, design: .rounded).monospacedDigit())
+                    .foregroundStyle(tint(for: window.usedPercent, text: true))
+                Text("%")
+                    .font(.system(size: compact ? 12 : 14, weight: .semibold, design: .rounded))
                     .foregroundStyle(Theme.secondary)
-                    .lineLimit(1)
-                Spacer(minLength: 4)
+                    .padding(.leading, 1)
+                Spacer(minLength: 6)
                 if let resets = window.resetsAt {
                     HStack(spacing: 3) {
                         Image(systemName: "arrow.clockwise")
@@ -78,17 +86,9 @@ struct AIPane: View {
                     .font(.system(size: 10, weight: .medium).monospacedDigit())
                     .foregroundStyle(Theme.tertiary)
                     .lineLimit(1)
+                    .fixedSize()
                 }
             }
-            Spacer(minLength: 4)
-            HStack(alignment: .firstTextBaseline, spacing: 1) {
-                Text("\(Int(window.usedPercent.rounded()))")
-                    .font(.system(size: compact ? 20 : 26, weight: .semibold, design: .rounded).monospacedDigit())
-                Text("%")
-                    .font(.system(size: compact ? 12 : 14, weight: .semibold, design: .rounded))
-                    .foregroundStyle(Theme.secondary)
-            }
-            .foregroundStyle(tint(for: window.usedPercent, text: true))
             .padding(.bottom, 6)
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
@@ -109,12 +109,14 @@ struct AIPane: View {
         RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Theme.surface)
     }
 
-    private func title(for kind: ClaudeUsage.Window.Kind) -> String {
+    /// Four cards leave no room for "Week · Opus"; the model's name alone
+    /// says it beside a card already titled "Week".
+    private func title(for kind: ClaudeUsage.Window.Kind, compact: Bool) -> String {
         switch kind {
         case .session: return localized("Session")
         case .weekly: return localized("Week")
-        case .weeklyOpus: return localized("Week · Opus")
-        case .weeklySonnet: return localized("Week · Sonnet")
+        case .weeklyOpus: return compact ? "Opus" : localized("Week · Opus")
+        case .weeklySonnet: return compact ? "Sonnet" : localized("Week · Sonnet")
         }
     }
 
