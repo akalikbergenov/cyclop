@@ -45,6 +45,7 @@ final class NotchScreenPanel {
         cancellables.removeAll()
         panel?.acceptsKeyboard = false
         panel?.orderOut(nil)
+        if let panel { OverlaySpace.shared?.release(panel) }
         panel?.contentView = nil
         panel = nil
         rootView = nil
@@ -134,6 +135,7 @@ final class NotchScreenPanel {
         panel.contentView = root
         panel.ignoresMouseEvents = true
         panel.setFrame(geometry.windowFrame, display: false)
+        OverlaySpace.shared?.adopt(panel)
         panel.orderFrontRegardless()
 
         self.panel = panel
