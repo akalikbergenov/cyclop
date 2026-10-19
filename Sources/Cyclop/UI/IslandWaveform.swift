@@ -61,7 +61,8 @@ struct IslandWaveform: View {
 
     private func barHeight(_ level: CGFloat) -> CGFloat {
         guard media.isPlaying, !reduceMotion else { return barWidth }
-        return max(barWidth, height * min(1, level))
+        // A quiet band is a short stroke, not a dot: dots mean "paused".
+        return max(barWidth * 1.75, height * min(1, level))
     }
 
     private func level(fromBands levels: [Float], at index: Int) -> CGFloat {
