@@ -47,7 +47,7 @@ final class AudioLevelMeter: ObservableObject {
 
 /// The tap itself, confined to its IO queue once started.
 final class AudioLevelTap: @unchecked Sendable {
-    static let bandCount = 7
+    static let bandCount = 5
 
     var onLevels: (@Sendable ([Float]) -> Void)?
 
@@ -187,13 +187,13 @@ final class AudioLevelTap: @unchecked Sendable {
             }
         }
 
-        // Bands spaced evenly on a log scale, 50 Hz to 12 kHz — how the ear
+        // Bands spaced evenly on a log scale, 50 Hz to 10 kHz — how the ear
         // hears them.
         let binWidth = sampleRate / Double(n)
         var decibels = [Float](repeating: -120, count: Self.bandCount)
         for band in 0..<Self.bandCount {
-            let low = 50 * pow(240, Double(band) / Double(Self.bandCount))
-            let high = 50 * pow(240, Double(band + 1) / Double(Self.bandCount))
+            let low = 50 * pow(200, Double(band) / Double(Self.bandCount))
+            let high = 50 * pow(200, Double(band + 1) / Double(Self.bandCount))
             let from = max(1, Int(low / binWidth))
             let to = min(n / 2 - 1, max(from, Int(high / binWidth)))
             var sum: Float = 0

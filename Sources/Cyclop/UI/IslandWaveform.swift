@@ -1,8 +1,9 @@
 import AppKit
 import SwiftUI
 
-/// The island's right wing, drawn the way the iPhone draws it: seven thin
-/// bars on a centre line, in the colour of the cover.
+/// The island's right wing, drawn the way the iPhone draws it: five thin
+/// bars on a centre line, in the colour of the cover. The wing is as wide as
+/// the cover on the left, so the two weigh the same.
 ///
 /// With the live equalizer on, the bars follow the sound — the bass bands in
 /// the middle, the treble towards the edges, which gives the same tall-centre
@@ -11,16 +12,18 @@ import SwiftUI
 struct IslandWaveform: View {
     @ObservedObject var media: MediaController
     @ObservedObject var meter: AudioLevelMeter
+    /// The cover's side; the bars fill a box of the same width.
+    let side: CGFloat
 
     @State private var tint = Color.white
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private static let bars = 7
+    private static let bars = 5
     /// Which band each bar shows, left to right: bass in the middle.
-    private static let bandOrder = [5, 3, 1, 0, 2, 4, 6]
-    private let barWidth: CGFloat = 2
-    private let spacing: CGFloat = 2
-    private let height: CGFloat = 16
+    private static let bandOrder = [3, 1, 0, 2, 4]
+    private var barWidth: CGFloat { (side / CGFloat(Self.bars * 2 - 1)).rounded(.down) }
+    private var spacing: CGFloat { (side - barWidth * CGFloat(Self.bars)) / CGFloat(Self.bars - 1) }
+    private var height: CGFloat { side * 0.7 }
 
     var body: some View {
         Group {
@@ -50,7 +53,7 @@ struct IslandWaveform: View {
                     .frame(width: barWidth, height: barHeight(level(index)))
             }
         }
-        .frame(height: height)
+        .frame(width: side, height: height)
     }
 
     /// Edges reach lower than the middle, like the phone's envelope.
