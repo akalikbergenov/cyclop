@@ -48,7 +48,7 @@ struct IslandWaveform: View {
         let wave = 0.5 + 0.3 * sin(time * (5.1 + i * 1.3) + i * 1.7)
             + 0.2 * sin(time * (8.3 - i * 0.9) + i * 0.6)
         let level = min(1, max(0, wave)) * reach
-        return max(barWidth, height * CGFloat(0.22 + 0.78 * level))
+        return max(barWidth, height * CGFloat(0.3 + 0.7 * level))
     }
 
     /// The cover's average colour, lifted so it reads on black. A grey cover
