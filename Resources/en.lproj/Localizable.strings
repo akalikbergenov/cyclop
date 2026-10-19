@@ -160,3 +160,8 @@
 "checked %d d ago" = "checked %d d ago";
 "Show Claude Status" = "Show Claude Status";
 "Show Spending" = "Show Spending";
+"%d min" = "%d min";
+"%d h" = "%d h";
+"%d h %d min" = "%d h %d min";
+"%d d" = "%d d";
+"Show AI Tab" = "Show AI Tab";

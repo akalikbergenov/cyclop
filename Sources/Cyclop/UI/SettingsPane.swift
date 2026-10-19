@@ -51,10 +51,11 @@ struct SettingsPane: View {
                     }
                 }
 
-                // Only while the tab is on the rail: switched off, these two
-                // would be settings for something that is not there.
-                if vm.isVisible(.ai) {
-                    section(localized("AI")) {
+                // The tab's own switch is here as well as in the list above:
+                // this is where somebody looking for the AI settings looks.
+                section(localized("AI")) {
+                    toggleRow(symbol: NotchViewModel.Tab.ai.symbol, title: localized("Show AI Tab"), isOn: visibilityBinding(.ai))
+                    if vm.isVisible(.ai) {
                         toggleRow(
                             symbol: "waveform",
                             title: localized("Show Claude Status"),

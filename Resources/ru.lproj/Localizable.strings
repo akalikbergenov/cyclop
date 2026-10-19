@@ -157,5 +157,10 @@
 "checked %d min ago" = "обновлено %d мин назад";
 "checked %d h ago" = "обновлено %d ч назад";
 "checked %d d ago" = "обновлено %d д назад";
-"Show Claude Status" = "Статус Claude";
-"Show Spending" = "Расходы";
+"Show Claude Status" = "Показывать статус Claude";
+"Show Spending" = "Показывать расходы";
+"%d min" = "%d мин";
+"%d h" = "%d ч";
+"%d h %d min" = "%d ч %d мин";
+"%d d" = "%d дн";
+"Show AI Tab" = "Показывать вкладку ИИ";
