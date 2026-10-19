@@ -34,6 +34,7 @@ struct SkeletonBox: View {
 /// marker next to the source name.
 struct EqualizerBars: View {
     var isAnimating: Bool
+    var tint: Color = Theme.tertiary
     @State private var up = false
 
     private let low: [CGFloat] = [4, 7, 5]
@@ -43,7 +44,7 @@ struct EqualizerBars: View {
         HStack(alignment: .bottom, spacing: 2) {
             ForEach(0..<3, id: \.self) { index in
                 Capsule()
-                    .fill(Theme.tertiary)
+                    .fill(tint)
                     .frame(width: 2, height: up ? high[index] : low[index])
                     .animation(
                         isAnimating

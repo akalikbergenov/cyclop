@@ -17,6 +17,7 @@ struct SettingsPane: View {
     @State private var saveClipboardImages = NotchViewModel.saveClipboardImagesEnabled
     @State private var allDisplays = NotchGeometry.showsOnAllDisplays
     @State private var fullSizeNotch = NotchGeometry.drawsFullSizeNotch
+    @State private var dynamicIsland = false
     @State private var watchScreenshotFolder = false
     @State private var screenshotUsage: (files: Int, bytes: Int64) = (0, 0)
 
@@ -62,6 +63,20 @@ struct SettingsPane: View {
                         title: localized("Full-Height Notch Without a Cutout"),
                         isOn: fullSizeNotchBinding
                     )
+                    // Lives off the music tab, so it goes when that tab does.
+                    if vm.isVisible(.media) {
+                        toggleRow(
+                            symbol: "capsule.fill",
+                            title: localized("Dynamic Island"),
+                            isOn: Binding(
+                                get: { dynamicIsland },
+                                set: { wants in
+                                    dynamicIsland = wants
+                                    vm.islandEnabled = wants
+                                }
+                            )
+                        )
+                    }
                 }
 
                 section(localized("Screenshots")) {
@@ -135,6 +150,7 @@ struct SettingsPane: View {
             saveClipboardImages = NotchViewModel.saveClipboardImagesEnabled
             allDisplays = NotchGeometry.showsOnAllDisplays
             fullSizeNotch = NotchGeometry.drawsFullSizeNotch
+            dynamicIsland = vm.islandEnabled
             watchScreenshotFolder = screenshots.isEnabled
             refreshUsage()
         }

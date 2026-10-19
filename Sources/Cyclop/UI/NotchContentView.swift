@@ -77,6 +77,11 @@ struct NotchContentView: View {
 
     private var header: some View {
         HStack(spacing: 0) {
+            if !isOpen, vm.showsIsland {
+                IslandArtwork(media: vm.media, side: panel.geometry.notchSize.height - 10)
+                    .padding(.leading, 9)
+                    .transition(.opacity)
+            }
             if isOpen {
                 Text(vm.tab.title.uppercased())
                     .font(.system(size: 9, weight: .semibold))
@@ -89,6 +94,12 @@ struct NotchContentView: View {
             Spacer(minLength: 0)
             Color.clear.frame(width: panel.geometry.notchSize.width, height: 1)
             Spacer(minLength: 0)
+            if !isOpen, vm.showsIsland {
+                EqualizerBars(isAnimating: vm.media.isPlaying, tint: Color.white.opacity(0.8))
+                    .scaleEffect(1.2)
+                    .padding(.trailing, 13)
+                    .transition(.opacity)
+            }
             if isOpen {
                 trailing
                     .padding(.trailing, 16)
@@ -313,5 +324,28 @@ private struct Rail: View {
     private func fill(for tab: NotchViewModel.Tab) -> Color {
         if vm.tab == tab { return Theme.surfaceHover }
         return hovered == tab ? Theme.surface : .clear
+    }
+}
+
+/// The cover on the island's left wing. Observes the controller directly:
+/// folded, the model forwards nothing, and this is drawn only folded.
+private struct IslandArtwork: View {
+    @ObservedObject var media: MediaController
+    let side: CGFloat
+
+    var body: some View {
+        ZStack {
+            if let image = media.artwork {
+                Image(nsImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .transition(.opacity)
+            } else {
+                Theme.surface
+            }
+        }
+        .frame(width: side, height: side)
+        .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+        .animation(Theme.artworkAnimation, value: media.artwork)
     }
 }
