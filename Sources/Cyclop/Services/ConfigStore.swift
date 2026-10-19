@@ -25,6 +25,21 @@ final class ConfigStore: ObservableObject {
         var fontSize: Double = 30
     }
 
+    /// The two lines of the AI tab that can be switched off on their own —
+    /// the limits are the reason the tab exists, so they stay.
+    private struct AI: Codable, Equatable {
+        var showStatus = true
+        var showSpending = true
+
+        init() {}
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            showStatus = try c.decodeIfPresent(Bool.self, forKey: .showStatus) ?? true
+            showSpending = try c.decodeIfPresent(Bool.self, forKey: .showSpending) ?? true
+        }
+    }
+
     private struct File: Codable, Equatable {
         var showOnAllDisplays = true
         var saveClipboardImages = true
@@ -32,6 +47,7 @@ final class ConfigStore: ObservableObject {
         var teleprompter = Teleprompter()
         var hiddenTabs: [String] = []
         var fullSizeDrawnNotch = false
+        var ai = AI()
 
         init() {}
 
@@ -49,6 +65,7 @@ final class ConfigStore: ObservableObject {
             teleprompter = try c.decodeIfPresent(Teleprompter.self, forKey: .teleprompter) ?? d.teleprompter
             hiddenTabs = try c.decodeIfPresent([String].self, forKey: .hiddenTabs) ?? d.hiddenTabs
             fullSizeDrawnNotch = try c.decodeIfPresent(Bool.self, forKey: .fullSizeDrawnNotch) ?? d.fullSizeDrawnNotch
+            ai = try c.decodeIfPresent(AI.self, forKey: .ai) ?? d.ai
         }
     }
 
@@ -130,6 +147,18 @@ final class ConfigStore: ObservableObject {
     var hiddenTabs: [String] {
         get { value.hiddenTabs }
         set { value.hiddenTabs = newValue; persist() }
+    }
+
+    /// The running turn under the AI tab's limits.
+    var aiShowsStatus: Bool {
+        get { value.ai.showStatus }
+        set { objectWillChange.send(); value.ai.showStatus = newValue; persist() }
+    }
+
+    /// What the logged work would have cost on the API.
+    var aiShowsSpending: Bool {
+        get { value.ai.showSpending }
+        set { objectWillChange.send(); value.ai.showSpending = newValue; persist() }
     }
 
     // MARK: - Migration
