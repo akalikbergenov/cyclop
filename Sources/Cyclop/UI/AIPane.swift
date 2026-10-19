@@ -18,7 +18,7 @@ struct AIPane: View {
             }
             if config.aiShowsStatus, let status = claude.status {
                 statusLine(status)
-                    .padding(.leading, inset)
+                    .frame(maxWidth: .infinity)
                     .transition(.opacity)
             }
         }
@@ -33,8 +33,10 @@ struct AIPane: View {
     private var limits: some View {
         if let limits = claude.limits {
             HStack(spacing: 8) {
-                ForEach(limits.windows) { window in
-                    limitCard(window, compact: limits.windows.count > 2)
+                // Session and the whole week; the per-model weeks are left
+                // to the Claude app, two cards read at a glance and four do not.
+                ForEach(limits.windows.filter { $0.kind == .session || $0.kind == .weekly }) { window in
+                    limitCard(window)
                 }
             }
         } else if claude.spending != nil {
@@ -61,19 +63,19 @@ struct AIPane: View {
         }
     }
 
-    private func limitCard(_ window: ClaudeUsage.Window, compact: Bool) -> some View {
+    private func limitCard(_ window: ClaudeUsage.Window) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(title(for: window.kind, compact: compact))
+            Text(title(for: window.kind))
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(Theme.secondary)
                 .lineLimit(1)
             Spacer(minLength: 4)
             HStack(alignment: .firstTextBaseline, spacing: 0) {
                 Text("\(Int(window.usedPercent.rounded()))")
-                    .font(.system(size: compact ? 20 : 26, weight: .semibold, design: .rounded).monospacedDigit())
+                    .font(.system(size: 26, weight: .semibold, design: .rounded).monospacedDigit())
                     .foregroundStyle(tint(for: window.usedPercent, text: true))
                 Text("%")
-                    .font(.system(size: compact ? 12 : 14, weight: .semibold, design: .rounded))
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
                     .foregroundStyle(Theme.secondary)
                     .padding(.leading, 1)
                 Spacer(minLength: 6)
@@ -109,15 +111,8 @@ struct AIPane: View {
         RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Theme.surface)
     }
 
-    /// Four cards leave no room for "Week · Opus"; the model's name alone
-    /// says it beside a card already titled "Week".
-    private func title(for kind: ClaudeUsage.Window.Kind, compact: Bool) -> String {
-        switch kind {
-        case .session: return localized("Session")
-        case .weekly: return localized("Week")
-        case .weeklyOpus: return compact ? "Opus" : localized("Week · Opus")
-        case .weeklySonnet: return compact ? "Sonnet" : localized("Week · Sonnet")
-        }
+    private func title(for kind: ClaudeUsage.Window.Kind) -> String {
+        kind == .session ? localized("Session") : localized("Week")
     }
 
     /// White until the limit is close: colour is for the one card that needs
