@@ -77,32 +77,31 @@ final class ClaudeUsageStore: ObservableObject {
         reading = true
         let reader = reader
         let firstRead = spending == nil
-        DispatchQueue.global(qos: .utility).async { [weak self] in
+        Task.detached(priority: .utility) { [weak self] in
             // The first walk through a month of logs takes seconds; the limits
             // are one small file and go up before it.
             if firstRead {
                 let limits = ClaudeLogReader.limits(now: Date())
-                DispatchQueue.main.async {
-                    MainActor.assumeIsolated {
-                        guard let self, self.isRunning else { return }
-                        self.hasHistory = limits.hasHistory
-                        self.limits = limits.limits
-                    }
-                }
+                await self?.apply(hasHistory: limits.hasHistory, limits: limits.limits)
             }
             let result = reader.read(now: Date())
-            DispatchQueue.main.async {
-                MainActor.assumeIsolated {
-                    guard let self else { return }
-                    self.reading = false
-                    guard self.isRunning else { return }
-                    self.hasHistory = result.hasHistory
-                    self.limits = result.limits
-                    self.spending = result.spending
-                    self.status = result.status
-                }
-            }
+            await self?.apply(result)
         }
+    }
+
+    private func apply(hasHistory: Bool, limits: ClaudeUsage.Limits?) {
+        guard isRunning else { return }
+        self.hasHistory = hasHistory
+        self.limits = limits
+    }
+
+    private func apply(_ result: ClaudeLogReader.Result) {
+        reading = false
+        guard isRunning else { return }
+        hasHistory = result.hasHistory
+        limits = result.limits
+        spending = result.spending
+        status = result.status
     }
 }
 
