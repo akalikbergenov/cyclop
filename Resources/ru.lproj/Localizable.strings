@@ -137,3 +137,7 @@
 "Keyboard and trackpad are locked" = "Клавиатура и трекпад заблокированы";
 "Hold Esc or − for %d s" = "Держи Esc или − %d с";
 "Unlocks by itself in %d s" = "Само снимется через %d с";
+
+/* Динамический остров */
+"Dynamic Island" = "Dynamic Island";
+"Equalizer Follows the Sound" = "Эквалайзер по звуку";

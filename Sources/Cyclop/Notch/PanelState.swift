@@ -49,8 +49,11 @@ final class PanelState: ObservableObject {
         vm.tab.wantsTallBody ? geometry.tallExpandedSize : geometry.expandedSize
     }
 
+    /// The folded body: the notch, or the island while it has music to show.
+    var foldedBodySize: CGSize { vm.showsIsland ? geometry.islandSize : geometry.collapsedSize }
+
     /// Size of the visible body for the current state.
-    var bodySize: CGSize { isActive ? openBodySize : geometry.collapsedSize }
+    var bodySize: CGSize { isActive ? openBodySize : foldedBodySize }
 
     /// Hover and click both land here. A tab that types takes the keyboard
     /// either way: showing a field one cannot type into is worse than briefly

@@ -17,6 +17,8 @@ struct SettingsPane: View {
     @State private var saveClipboardImages = NotchViewModel.saveClipboardImagesEnabled
     @State private var allDisplays = NotchGeometry.showsOnAllDisplays
     @State private var fullSizeNotch = NotchGeometry.drawsFullSizeNotch
+    @State private var dynamicIsland = false
+    @State private var liveEqualizer = false
     @State private var watchScreenshotFolder = false
     @State private var screenshotUsage: (files: Int, bytes: Int64) = (0, 0)
 
@@ -62,6 +64,35 @@ struct SettingsPane: View {
                         title: localized("Full-Height Notch Without a Cutout"),
                         isOn: fullSizeNotchBinding
                     )
+                    // Lives off the music tab, so it goes when that tab does.
+                    if vm.isVisible(.media) {
+                        toggleRow(
+                            symbol: "capsule.fill",
+                            title: localized("Dynamic Island"),
+                            isOn: Binding(
+                                get: { dynamicIsland },
+                                set: { wants in
+                                    dynamicIsland = wants
+                                    vm.islandEnabled = wants
+                                }
+                            )
+                        )
+                        // The one switch that costs a permission: macOS asks
+                        // for system audio recording the first time it runs.
+                        if dynamicIsland {
+                            toggleRow(
+                                symbol: "waveform",
+                                title: localized("Equalizer Follows the Sound"),
+                                isOn: Binding(
+                                    get: { liveEqualizer },
+                                    set: { wants in
+                                        liveEqualizer = wants
+                                        vm.liveEqualizerEnabled = wants
+                                    }
+                                )
+                            )
+                        }
+                    }
                 }
 
                 section(localized("Screenshots")) {
@@ -135,6 +166,8 @@ struct SettingsPane: View {
             saveClipboardImages = NotchViewModel.saveClipboardImagesEnabled
             allDisplays = NotchGeometry.showsOnAllDisplays
             fullSizeNotch = NotchGeometry.drawsFullSizeNotch
+            dynamicIsland = vm.islandEnabled
+            liveEqualizer = vm.liveEqualizerEnabled
             watchScreenshotFolder = screenshots.isEnabled
             refreshUsage()
         }

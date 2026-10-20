@@ -250,18 +250,28 @@ struct NotchGeometry {
     /// Size of the collapsed notch: the hole itself, or the strip we draw.
     var collapsedSize: CGSize { CGSize(width: notchSize.width, height: collapsedDepth) }
 
+    /// The folded notch while music plays with the island on: as tall as the
+    /// notch itself, with a wing on each side just wide enough for a cover
+    /// and a bit of air.
+    var islandSize: CGSize {
+        CGSize(width: notchSize.width + 2 * (notchSize.height + 6), height: notchSize.height)
+    }
+
     /// Hover target while collapsed, in global screen coordinates. Slightly
     /// taller than the notch so the panel opens just before the pointer lands.
-    var hoverRect: CGRect {
+    var hoverRect: CGRect { hoverRect(folded: collapsedSize) }
+
+    /// The same for a folded body of another size — the island's.
+    func hoverRect(folded size: CGSize) -> CGRect {
         // The slack is what makes the panel open just before the pointer lands.
         // Only a hole gets it: under a notch we drew there is a menu bar or
         // somebody's content, and either would feel it.
         let slack: CGFloat = isPhysical ? 4 : 0
         return includingTopEdge(CGRect(
-            x: notchCenterX - notchSize.width / 2 - 6,
-            y: screen.frame.maxY - collapsedDepth - slack,
-            width: notchSize.width + 12,
-            height: collapsedDepth + slack
+            x: notchCenterX - size.width / 2 - 6,
+            y: screen.frame.maxY - size.height - slack,
+            width: size.width + 12,
+            height: size.height + slack
         ))
     }
 

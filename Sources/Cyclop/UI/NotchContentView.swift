@@ -36,8 +36,15 @@ struct NotchContentView: View {
     /// state would draw its text onto a transparent background: white letters
     /// standing on the desktop with nothing behind them.
     private var paintsShape: Bool {
-        !panel.geometry.isPhysical || size != panel.geometry.notchSize
+        !panel.geometry.isPhysical || size != panel.geometry.notchSize || foldingOntoNotch
     }
+
+    /// Set for the length of a fold back onto the bare hole. The target size
+    /// is the notch from the first frame, so without this the fill would go
+    /// clear while the body is still shrinking — the island's wings fading
+    /// out instead of folding in, and the hole showing through them.
+    @State private var foldingOntoNotch = false
+    @State private var foldGeneration = 0
 
     var body: some View {
         // The shape is wider than the body by `topRadius` on each side: that
@@ -63,7 +70,16 @@ struct NotchContentView: View {
         }
         .frame(width: size.width + 2 * topRadius, height: size.height, alignment: .top)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .animation(Theme.openAnimation, value: isOpen)
+        .animation(isOpen ? Theme.openAnimation : Theme.foldAnimation, value: isOpen)
+        .onChange(of: size) { old, new in
+            guard panel.geometry.isPhysical, new == panel.geometry.notchSize, old != new else { return }
+            foldingOntoNotch = true
+            foldGeneration += 1
+            let generation = foldGeneration
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                if foldGeneration == generation { foldingOntoNotch = false }
+            }
+        }
         .animation(Theme.paneAnimation, value: vm.tab)
     }
 
@@ -77,6 +93,11 @@ struct NotchContentView: View {
 
     private var header: some View {
         HStack(spacing: 0) {
+            if !isOpen, vm.showsIsland {
+                IslandArtwork(media: vm.media, side: panel.geometry.notchSize.height - 10)
+                    .padding(.leading, 9)
+                    .transition(.opacity)
+            }
             if isOpen {
                 Text(vm.tab.title.uppercased())
                     .font(.system(size: 9, weight: .semibold))
@@ -89,6 +110,11 @@ struct NotchContentView: View {
             Spacer(minLength: 0)
             Color.clear.frame(width: panel.geometry.notchSize.width, height: 1)
             Spacer(minLength: 0)
+            if !isOpen, vm.showsIsland {
+                IslandWaveform(media: vm.media, meter: vm.levels, side: panel.geometry.notchSize.height - 10)
+                    .padding(.trailing, 9)
+                    .transition(.opacity)
+            }
             if isOpen {
                 trailing
                     .padding(.trailing, 16)
@@ -313,5 +339,28 @@ private struct Rail: View {
     private func fill(for tab: NotchViewModel.Tab) -> Color {
         if vm.tab == tab { return Theme.surfaceHover }
         return hovered == tab ? Theme.surface : .clear
+    }
+}
+
+/// The cover on the island's left wing. Observes the controller directly:
+/// folded, the model forwards nothing, and this is drawn only folded.
+private struct IslandArtwork: View {
+    @ObservedObject var media: MediaController
+    let side: CGFloat
+
+    var body: some View {
+        ZStack {
+            if let image = media.artwork {
+                Image(nsImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .transition(.opacity)
+            } else {
+                Theme.surface
+            }
+        }
+        .frame(width: side, height: side)
+        .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+        .animation(Theme.artworkAnimation, value: media.artwork)
     }
 }

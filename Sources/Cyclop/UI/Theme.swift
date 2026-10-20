@@ -2,6 +2,10 @@ import SwiftUI
 
 enum Theme {
     static let openAnimation = Animation.spring(response: 0.27, dampingFraction: 0.82)
+    /// Folding back onto a real notch must not overshoot: a body that springs
+    /// past its folded size for a few frames is smaller than the hole, and
+    /// the hole's own outline shows around it.
+    static let foldAnimation = Animation.spring(response: 0.3, dampingFraction: 1)
     static let contentAnimation = Animation.easeOut(duration: 0.16)
     /// Pane switching: the outgoing pane leaves faster than the incoming one
     /// arrives, so the two are never both half-visible for long.

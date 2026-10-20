@@ -45,6 +45,7 @@ final class NotchScreenPanel {
         cancellables.removeAll()
         panel?.acceptsKeyboard = false
         panel?.orderOut(nil)
+        if let panel { OverlaySpace.shared?.release(panel) }
         panel?.contentView = nil
         panel = nil
         rootView = nil
@@ -134,6 +135,7 @@ final class NotchScreenPanel {
         panel.contentView = root
         panel.ignoresMouseEvents = true
         panel.setFrame(geometry.windowFrame, display: false)
+        OverlaySpace.shared?.adopt(panel)
         panel.orderFrontRegardless()
 
         self.panel = panel
@@ -141,7 +143,7 @@ final class NotchScreenPanel {
 
         applyActiveRect(open: false)
 
-        pointer.openRect = geometry.hoverRect
+        pointer.openRect = geometry.hoverRect(folded: state.foldedBodySize)
         pointer.warmZone = geometry.warmZone
         // Cut for the tab that will be showing, not for the standard body: the
         // tab is shared, so a screen built while the teleprompter is up opens
@@ -187,6 +189,22 @@ final class NotchScreenPanel {
                     // A pass later: `openBodySize` reads `tab`, and this fires
                     // while the property is still being set.
                     DispatchQueue.main.async { self.refreshOpenRects() }
+                }
+            }
+            .store(in: &cancellables)
+
+        // The island grows and shrinks the folded body, and with it what
+        // answers the pointer. Open, nothing changes until the fold.
+        vm.$showsIsland
+            .removeDuplicates()
+            .sink { [weak self] _ in
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    // A pass later, for the same reason as the tab above.
+                    DispatchQueue.main.async {
+                        self.pointer.openRect = self.geometry.hoverRect(folded: self.state.foldedBodySize)
+                        if !self.state.isOpen { self.applyActiveRect(open: false) }
+                    }
                 }
             }
             .store(in: &cancellables)
@@ -296,7 +314,7 @@ final class NotchScreenPanel {
     /// The visual half of closing, one pass after the keyboard was let go.
     private func collapse() {
         guard state.isOpen else { return }
-        withAnimation(Theme.openAnimation) { state.isOpen = false }
+        withAnimation(Theme.foldAnimation) { state.isOpen = false }
 
         // The keyboard goes back only now, a pass after the fold has started:
         // `acceptsKeyboard` no longer does it on its own, precisely because the
@@ -350,7 +368,7 @@ final class NotchScreenPanel {
         // The open size is the current tab's, not a constant: the teleprompter
         // is taller, and a rect cut for 208 would leave the bottom half of it
         // visible but untouchable.
-        let size = open ? state.openBodySize : geometry.collapsedSize
+        let size = open ? state.openBodySize : state.foldedBodySize
         var rect = geometry.contentRect(for: size)
         if open {
             // Slack so the concave shoulders stay grabbable. Never while
