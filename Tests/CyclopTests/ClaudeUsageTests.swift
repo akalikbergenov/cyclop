@@ -138,4 +138,39 @@ struct ClaudeUsageTests {
         ])
         #expect(turn?.isWorking == false)
     }
+
+    // MARK: - Ответ Claude Code
+
+    @Test func usageReplyGivesSessionAndWeek() throws {
+        let reply: [String: Any] = [
+            "rate_limits_available": true,
+            "rate_limits": [
+                "five_hour": ["utilization": 26, "resets_at": "2026-10-22T15:39:59.684070+00:00"],
+                "seven_day": ["utilization": 77, "resets_at": "2026-10-22T21:59:59.684094+00:00"],
+                "seven_day_opus": NSNull(),
+            ],
+        ]
+        let limits = try #require(ClaudeUsage.limits(fromUsage: reply, at: Date()))
+        #expect(limits.windows.map(\.kind) == [.session, .weekly])
+        #expect(limits.windows[1].usedPercent == 77)
+        // Микросекунды отрезаются, секунды остаются.
+        #expect(limits.windows[1].resetsAt == Date(timeIntervalSince1970: 1_792_706_399))
+    }
+
+    /// Разлогиненный Claude Code отвечает без лимитов — это не нули.
+    @Test func signedOutReplyIsNothing() {
+        #expect(ClaudeUsage.limits(fromUsage: ["rate_limits_available": false], at: Date()) == nil)
+    }
+
+    /// Падение, прочитанное после дней без записей, могло быть где угодно в
+    /// этом разрыве — времени сброса оно не даёт.
+    @Test func dropAfterALongGapPlacesNoRenewal() throws {
+        let base: Double = 1_800_000_000
+        let samples = try #require(ClaudeUsage.samples(from: Self.history([
+            (base, 0, 51), (base + 5 * 86_400, 0, 0), (base + 5 * 86_400 + 600, 0, 4),
+        ])))
+        let now = Date(timeIntervalSince1970: base + 5 * 86_400 + 700)
+        let week = try #require(ClaudeUsage.limits(from: samples, now: now)?.windows.first { $0.kind == .weekly })
+        #expect(week.resetsAt == nil)
+    }
 }

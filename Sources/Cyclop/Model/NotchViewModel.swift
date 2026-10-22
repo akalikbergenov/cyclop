@@ -186,6 +186,7 @@ final class NotchViewModel: ObservableObject {
         if isVisible(.media) { media.setActive(active) }
         if isVisible(.calendar) { calendar.setActive(active) }
         if isVisible(.ai) { claude.setActive(active) }
+        claude.isShown = active && tab == .ai
     }
 
     private var started = false
@@ -219,6 +220,8 @@ final class NotchViewModel: ObservableObject {
             // Rates update on a timer already; opening the tab asks once more
             // so a stale cache from the last few hours does not sit there.
             if tab == .currency { currencies.refreshIfNeeded() }
+            // Claude Code is asked for fresh limits only while they are looked at.
+            claude.isShown = isPanelActive && tab == .ai
             // Leaving the notes sweeps out the blank ones — they cost one
             // hover to recreate, and a trail of empty cards is the clutter a
             // scratchpad exists to avoid.

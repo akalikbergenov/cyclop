@@ -131,18 +131,66 @@ enum ClaudeUsage {
         return samples[first].date
     }
 
-    /// The moment of the last drop. Allowances renew on the hour, so when the
-    /// two readings around a drop hold an hour boundary, that is the moment.
+    /// The moment of the last drop the readings pin down. Allowances renew on
+    /// the hour, so when the two readings around a drop hold an hour boundary,
+    /// that is the moment. A drop read after a day or more without readings
+    /// could sit anywhere in that gap and places nothing: the app writes
+    /// only while it runs, and days can pass between its readings.
     private static func weeklyRenewal(_ samples: [Sample], key: String) -> Date? {
         for index in samples.indices.dropFirst().reversed() {
             guard let before = samples[index - 1].used[key], let after = samples[index].used[key],
                   after + 1 < before else { continue }
             let earliest = samples[index - 1].date, latest = samples[index].date
+            guard latest.timeIntervalSince(earliest) < 86_400 else { continue }
             let hour = (earliest.timeIntervalSince1970 / 3600).rounded(.down) * 3600 + 3600
             let moment = Date(timeIntervalSince1970: hour)
             return moment <= latest ? moment : latest
         }
         return nil
+    }
+
+    // MARK: - Asking Claude Code
+
+    /// Limits from Claude Code's own `get_usage` — the answer behind its
+    /// `/usage`, fresh from the account. Nil when the reply has none, as when
+    /// Claude Code is signed out.
+    static func limits(fromUsage reply: [String: Any], at date: Date) -> Limits? {
+        guard reply["rate_limits_available"] as? Bool == true,
+              let windows = reply["rate_limits"] as? [String: Any] else { return nil }
+        let kinds: [(String, Window.Kind)] = [("five_hour", .session), ("seven_day", .weekly)]
+        let result: [Window] = kinds.compactMap { key, kind in
+            guard let window = windows[key] as? [String: Any],
+                  let used = window["utilization"] as? NSNumber,
+                  CFGetTypeID(used) != CFBooleanGetTypeID(), used.doubleValue.isFinite else { return nil }
+            return Window(kind: kind, usedPercent: min(100, max(0, used.doubleValue)),
+                          resetsAt: timestamp(window["resets_at"]))
+        }
+        return result.isEmpty ? nil : Limits(windows: result, checkedAt: date)
+    }
+
+    /// "2026-10-22T21:59:59.684094+00:00": microseconds, which the system
+    /// parser does not take, so the fraction is cut before parsing.
+    static func timestamp(_ value: Any?) -> Date? {
+        guard var text = value as? String else { return nil }
+        if let dot = text.firstIndex(of: "."),
+           let zone = text[dot...].firstIndex(where: { $0 == "+" || $0 == "-" || $0 == "Z" }) {
+            text.removeSubrange(dot..<zone)
+        }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.date(from: text)
+    }
+
+    /// The live reading as it stands now: a window that renewed since says
+    /// nothing about the one running, so it shows as fresh.
+    static func current(_ limits: Limits, now: Date) -> Limits {
+        Limits(windows: limits.windows.map { window in
+            guard let resets = window.resetsAt, resets <= now else { return window }
+            let length = window.kind == .session ? sessionLength : weekLength
+            var next = resets
+            while next <= now { next += length }
+            return Window(kind: window.kind, usedPercent: 0, resetsAt: window.kind == .session ? nil : next)
+        }, checkedAt: limits.checkedAt)
     }
 
     // MARK: - Session logs

@@ -30,6 +30,19 @@ final class ClaudeUsageStore: ObservableObject {
     /// Ticks with the timer so the elapsed time and the countdowns move.
     @Published private(set) var now = Date()
 
+    /// Whether the AI tab is on screen. Only then is Claude Code asked: the
+    /// file is enough for everything else, and every ask starts a process.
+    var isShown = false {
+        didSet { if isShown, !oldValue { askAccount(olderThan: 30) } }
+    }
+
+    /// From the Claude app's history file, and from Claude Code's own answer;
+    /// the newer of the two is shown.
+    private var fileLimits: ClaudeUsage.Limits?
+    private var accountLimits: ClaudeUsage.Limits?
+    private var asking = false
+    private var lastAsked = Date.distantPast
+
     private let reader = ClaudeLogReader()
     private var timer: Timer?
     private var isRunning = false
@@ -49,6 +62,8 @@ final class ClaudeUsageStore: ObservableObject {
         reader.reset()
         spending = nil
         status = nil
+        accountLimits = nil
+        lastAsked = .distantPast
     }
 
     func setActive(_ active: Bool) {
@@ -71,6 +86,9 @@ final class ClaudeUsageStore: ObservableObject {
 
     private func refresh() {
         now = Date()
+        if isShown { askAccount(olderThan: 60) }
+        // A window that renewed between asks shows as renewed.
+        if accountLimits != nil { showLimits() }
         // A first scan of a month of logs can outlast a tick; ticks that land
         // meanwhile are dropped rather than queued behind it.
         guard !reading else { return }
@@ -92,14 +110,42 @@ final class ClaudeUsageStore: ObservableObject {
     private func apply(hasHistory: Bool, limits: ClaudeUsage.Limits?) {
         guard isRunning else { return }
         self.hasHistory = hasHistory
-        self.limits = limits
+        fileLimits = limits
+        showLimits()
+    }
+
+    /// In the background, at most once in `olderThan` seconds.
+    private func askAccount(olderThan seconds: TimeInterval) {
+        guard isRunning, !asking, Date().timeIntervalSince(lastAsked) > seconds else { return }
+        asking = true
+        lastAsked = Date()
+        Task.detached(priority: .userInitiated) { [weak self] in
+            let limits = ClaudeCodeUsage.fetch()
+            await self?.apply(account: limits)
+        }
+    }
+
+    private func apply(account limits: ClaudeUsage.Limits?) {
+        asking = false
+        guard isRunning else { return }
+        if let limits { accountLimits = limits }
+        showLimits()
+    }
+
+    private func showLimits() {
+        if let account = accountLimits, account.checkedAt >= (fileLimits?.checkedAt ?? .distantPast) {
+            limits = ClaudeUsage.current(account, now: Date())
+        } else {
+            limits = fileLimits
+        }
     }
 
     private func apply(_ result: ClaudeLogReader.Result) {
         reading = false
         guard isRunning else { return }
         hasHistory = result.hasHistory
-        limits = result.limits
+        fileLimits = result.limits
+        showLimits()
         spending = result.spending
         status = result.status
     }
