@@ -193,6 +193,18 @@ final class MediaController: ObservableObject {
         }
     }
 
+    /// Says a cover is still coming, with nothing to cut it short.
+    ///
+    /// For the path that asks someone directly: the completion is the answer
+    /// and it always arrives, so the skeleton holds until it does. Any
+    /// deadline left over from the previous track goes — it was scheduled
+    /// against a key nobody is waiting on any more.
+    private func awaitArtwork() {
+        artworkDeadline?.cancel()
+        artworkDeadline = nil
+        artworkIsPending = true
+    }
+
     /// Gives a new track a bounded window to produce a cover.
     ///
     /// One shot, scheduled by a track change and cancelled by the cover or by
@@ -200,8 +212,7 @@ final class MediaController: ObservableObject {
     /// known, so a run of coverless tracks costs one pending item, not one per
     /// track.
     private func expectArtwork(for key: String) {
-        artworkDeadline?.cancel()
-        artworkIsPending = true
+        awaitArtwork()
         // Неизолировано: блок `DispatchWorkItem` помечен `@Sendable` в SDK, и
         // изоляцию из окружения не наследует. Выполняется он на главной
         // очереди — отсюда `assumeIsolated`, как у таймера ниже.
@@ -295,11 +306,21 @@ final class MediaController: ObservableObject {
             guard self.artworkKey != state.key else { return }
             self.artworkKey = state.key
             self.artwork = nil
-            self.expectArtwork(for: state.key)
+            // Whether a deadline makes sense depends on who is being asked.
+            // Spotify's road is ours: up to three `URLSession` requests, and
+            // a session always answers — a timer beside it could only say
+            // "no cover" while those requests were still running, and then be
+            // contradicted by the cover arriving. Apple Music's road is an
+            // Apple event, which can sit on a player that has stopped
+            // answering, so there the bounded window stays.
+            switch state.app {
+            case .spotify: self.awaitArtwork()
+            case .music: self.expectArtwork(for: state.key)
+            }
             PlayerBridge.artwork(for: state) { [weak self] image in
                 guard let self, self.artworkKey == state.key else { return }
                 // Both roads have been walked by the time this returns, so a
-                // nil is the final answer and does not wait out the deadline.
+                // nil here is the final answer.
                 self.settleArtwork(image)
             }
         }
