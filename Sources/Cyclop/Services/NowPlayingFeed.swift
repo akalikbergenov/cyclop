@@ -44,12 +44,32 @@ final class NowPlayingFeed {
     var onUpdate: ((Snapshot) -> Void)?
     /// Raised when the helper cannot run at all, so the caller can fall back.
     var onUnavailable: (() -> Void)?
+    /// Raised on the first snapshot after `onUnavailable`: the route is open
+    /// again and the caller can stand its fallback down.
+    var onAvailable: (() -> Void)?
 
     private var process: Process?
     private var input: FileHandle?
     private var buffer = Data()
     private var failures = 0
     private var stopped = false
+    /// Whether the caller was told the route is closed and has not yet been
+    /// told otherwise.
+    private var reportedUnavailable = false
+
+    /// Delays before the helper is started again after it exited, in seconds.
+    /// The first two are quick: a helper that died on one bad frame is usually
+    /// fine on the next. From the third on it is a crash loop — something in
+    /// the current session keeps killing it — and the retries thin out to a
+    /// slow poll rather than stopping. The session that kills it will end,
+    /// and the pane should notice when it does. It did not, once: three aborts
+    /// in four seconds on 10.09.2026, then three days of an empty pane while
+    /// Music played, because the third death was read as the route being gone
+    /// for the rest of the app's life.
+    private static let relaunchDelays: [TimeInterval] = [2, 2, 15, 60, 300]
+    /// How long to wait before looking again after the helper itself said the
+    /// route is closed. Rare, and a system update can close it — or open it.
+    private static let closedRouteRetry: TimeInterval = 600
 
     private var helperPath: String? {
         Bundle.main.path(forResource: "libcyclopmedia", ofType: "dylib")
@@ -64,15 +84,32 @@ final class NowPlayingFeed {
 
     func stop() {
         stopped = true
+        terminateHelper()
+    }
+
+    private func terminateHelper() {
+        guard let process else { return }
         input = nil
-        process?.terminate()
-        process = nil
+        process.terminate()
+        self.process = nil
+    }
+
+    private func declareUnavailable() {
+        guard !reportedUnavailable else { return }
+        reportedUnavailable = true
+        onUnavailable?()
+    }
+
+    private func relaunch(after delay: TimeInterval) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in self?.launch() }
     }
 
     private func launch() {
-        guard !stopped else { return }
+        guard !stopped, process == nil else { return }
         guard let helperPath, FileManager.default.isExecutableFile(atPath: "/usr/bin/perl") else {
-            onUnavailable?()
+            // Nothing to retry: the dylib is missing from the bundle or perl
+            // from the system, and neither comes back while we run.
+            declareUnavailable()
             return
         }
 
@@ -111,15 +148,18 @@ final class NowPlayingFeed {
             Task { @MainActor in self?.consume(chunk) }
         }
 
-        task.terminationHandler = { @Sendable [weak self] _ in
-            Task { @MainActor in self?.handleTermination() }
+        task.terminationHandler = { @Sendable [weak self] finished in
+            let pid = finished.processIdentifier
+            Task { @MainActor in self?.handleTermination(of: pid) }
         }
 
         do {
             try task.run()
         } catch {
             NSLog("Cyclop: helper failed to launch: \(error.localizedDescription)")
-            onUnavailable?()
+            failures += 1
+            declareUnavailable()
+            relaunch(after: Self.closedRouteRetry)
             return
         }
 
@@ -127,18 +167,22 @@ final class NowPlayingFeed {
         input = commands.fileHandleForWriting
     }
 
-    private func handleTermination() {
-        guard !stopped else { return }
-        process = nil
+    /// Only the exit of the helper we are running now counts. One we
+    /// terminated ourselves was let go of before it exited, and so was one
+    /// replaced by `stop()` and `start()` in quick succession — its exit can
+    /// land after the new helper is up, and must not take that one's place.
+    private func handleTermination(of pid: Int32) {
+        guard !stopped, let process, process.processIdentifier == pid else { return }
+        self.process = nil
         input = nil
         failures += 1
-        // Three straight crashes means the route is gone — perl removed, or the
-        // daemon closed to platform binaries too. Let the caller fall back.
-        guard failures < 3 else {
-            onUnavailable?()
-            return
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in self?.launch() }
+        let delay = Self.relaunchDelays[min(failures, Self.relaunchDelays.count) - 1]
+        // Three straight crashes and the caller is told, so it can script the
+        // players it knows meanwhile. The helper keeps being retried under
+        // that: the first line it delivers again raises `onAvailable`.
+        if failures >= 3 { declareUnavailable() }
+        NSLog("Cyclop: helper exited (\(failures) in a row), relaunch in \(Int(delay))s")
+        relaunch(after: delay)
     }
 
     // MARK: - Commands
@@ -198,12 +242,19 @@ final class NowPlayingFeed {
             // The helper just said it cannot work at all. Left alone, its perl
             // host would idle in the sleep loop for the rest of the app's life,
             // holding memory for a route that is closed (#8) — so the process
-            // goes down with the route, and `stopped` keeps it down.
-            stop()
-            onUnavailable?()
+            // goes down with the route, and comes back for one more look every
+            // ten minutes.
+            NSLog("Cyclop: helper reports \(object["error"] ?? "error"), next look in \(Int(Self.closedRouteRetry))s")
+            terminateHelper()
+            declareUnavailable()
+            relaunch(after: Self.closedRouteRetry)
             return
         }
         failures = 0
+        if reportedUnavailable {
+            reportedUnavailable = false
+            onAvailable?()
+        }
 
         var snapshot = Snapshot()
         snapshot.isPlaying = object["playing"] as? Bool ?? false

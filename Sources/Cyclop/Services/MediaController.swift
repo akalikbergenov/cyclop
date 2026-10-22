@@ -56,6 +56,7 @@ final class MediaController: ObservableObject {
     func start() {
         feed.onUpdate = { [weak self] snapshot in self?.apply(snapshot) }
         feed.onUnavailable = { [weak self] in self?.switchToScriptingFallback() }
+        feed.onAvailable = { [weak self] in self?.restoreFeed() }
         feed.start()
     }
 
@@ -264,6 +265,18 @@ final class MediaController: ObservableObject {
             })
         }
         refreshFromPlayers()
+    }
+
+    /// The helper is back after the route was declared closed. Scripting is
+    /// stood down — its observers go, `activeApp` with them — and the snapshot
+    /// that raised this repaints the pane from the feed as if nothing happened.
+    private func restoreFeed() {
+        guard !feedAvailable else { return }
+        feedAvailable = true
+        activeApp = nil
+        observers.forEach { DistributedNotificationCenter.default().removeObserver($0) }
+        observers.removeAll()
+        NSLog("Cyclop: Now Playing helper is back, scripting fallback stood down")
     }
 
     private func refreshFromPlayers() {

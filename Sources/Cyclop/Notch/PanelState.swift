@@ -43,12 +43,14 @@ final class PanelState: ObservableObject {
     /// leaves room for two lines in the standard body, and two lines is not a
     /// teleprompter — it is a countdown. The extra height buys the paragraph
     /// the reader needs to see coming.
+    /// Asked of the tab rather than naming the teleprompter, so that a tab
+    /// added for the same reason needs nothing here.
     var openBodySize: CGSize {
-        vm.tab == .teleprompter ? geometry.tallExpandedSize : geometry.expandedSize
+        vm.tab.wantsTallBody ? geometry.tallExpandedSize : geometry.expandedSize
     }
 
     /// Size of the visible body for the current state.
-    var bodySize: CGSize { isActive ? openBodySize : geometry.notchSize }
+    var bodySize: CGSize { isActive ? openBodySize : geometry.collapsedSize }
 
     /// Hover and click both land here. A tab that types takes the keyboard
     /// either way: showing a field one cannot type into is worse than briefly

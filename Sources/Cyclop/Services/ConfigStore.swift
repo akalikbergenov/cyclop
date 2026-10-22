@@ -31,6 +31,25 @@ final class ConfigStore: ObservableObject {
         var privacy: [String] = []
         var teleprompter = Teleprompter()
         var hiddenTabs: [String] = []
+        var fullSizeDrawnNotch = false
+
+        init() {}
+
+        /// Every key optional, falling back to the default above. The
+        /// synthesized decoder treats a key it does not find as a broken
+        /// file, so the first setting added after release would have turned
+        /// every existing `config.json` read-only in one go — the file written
+        /// by the previous version simply does not have it.
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            let d = File()
+            showOnAllDisplays = try c.decodeIfPresent(Bool.self, forKey: .showOnAllDisplays) ?? d.showOnAllDisplays
+            saveClipboardImages = try c.decodeIfPresent(Bool.self, forKey: .saveClipboardImages) ?? d.saveClipboardImages
+            privacy = try c.decodeIfPresent([String].self, forKey: .privacy) ?? d.privacy
+            teleprompter = try c.decodeIfPresent(Teleprompter.self, forKey: .teleprompter) ?? d.teleprompter
+            hiddenTabs = try c.decodeIfPresent([String].self, forKey: .hiddenTabs) ?? d.hiddenTabs
+            fullSizeDrawnNotch = try c.decodeIfPresent(Bool.self, forKey: .fullSizeDrawnNotch) ?? d.fullSizeDrawnNotch
+        }
     }
 
     static let shared = ConfigStore()
@@ -71,6 +90,13 @@ final class ConfigStore: ObservableObject {
     var showOnAllDisplays: Bool {
         get { value.showOnAllDisplays }
         set { value.showOnAllDisplays = newValue; persist() }
+    }
+
+    /// Brings back the notch drawn the full height of the menu bar on displays
+    /// without a cutout. Off by default: see `NotchGeometry.collapsedDepth`.
+    var fullSizeDrawnNotch: Bool {
+        get { value.fullSizeDrawnNotch }
+        set { value.fullSizeDrawnNotch = newValue; persist() }
     }
 
     /// Off switch for people who copy images all day and do not want them

@@ -16,6 +16,7 @@
 
 #import <Foundation/Foundation.h>
 #import <dlfcn.h>
+#include <math.h>
 
 typedef void (*MRGetInfoFn)(dispatch_queue_t, void (^)(CFDictionaryRef));
 typedef void (*MRGetBoolFn)(dispatch_queue_t, void (^)(Boolean));
@@ -54,12 +55,43 @@ typedef NS_ENUM(int, MRCommand) {
 
 static id activePlayerPath(void);
 
+/// The writer refuses a payload it cannot serialise with an
+/// NSInvalidArgumentException, not an error out-parameter — and an exception
+/// nobody catches inside a dispatch block terminates the process. That is the
+/// perl host: it aborted three times in four seconds on 10.09.2026 over a NaN
+/// duration, and the feed in the app took three straight deaths as the route
+/// being gone. A frame that will not serialise is dropped, never fatal.
 static void emit(NSDictionary *payload) {
-    NSData *json = [NSJSONSerialization dataWithJSONObject:payload options:0 error:NULL];
+    if (![NSJSONSerialization isValidJSONObject:payload]) {
+        fprintf(stderr, "cyclop-helper: frame is not valid JSON, dropped\n");
+        return;
+    }
+    NSData *json = nil;
+    @try {
+        json = [NSJSONSerialization dataWithJSONObject:payload options:0 error:NULL];
+    } @catch (NSException *e) {
+        fprintf(stderr, "cyclop-helper: %s\n", e.reason.UTF8String ?: "JSON write failed");
+        return;
+    }
     if (!json) return;
     fwrite(json.bytes, 1, json.length, stdout);
     fputc('\n', stdout);
     fflush(stdout);
+}
+
+/// MediaRemote passes numbers on as the player reported them, and a player may
+/// report a duration it does not know as NaN, or an infinite one for a live
+/// stream. Neither is a JSON number. Anything not finite goes out as 0, which
+/// the app already reads as "unknown".
+static NSNumber *finiteNumber(id value) {
+    if (![value isKindOfClass:NSNumber.class]) return @0;
+    return isfinite([value doubleValue]) ? value : @0;
+}
+
+/// A text field that is not text — a browser tab can put anything into the
+/// MediaSession record — is sent as empty rather than risked on the wire.
+static NSString *textValue(id value) {
+    return [value isKindOfClass:NSString.class] ? value : @"";
 }
 
 /// What the player says it accepts, refreshed alongside each publish and read
@@ -85,17 +117,24 @@ static void refreshCommands(void) {
     if (!path) return;
     sGetCommandsForPlayer(path, sQueue, ^(NSArray *infos) {
         NSMutableArray *codes = [NSMutableArray array];
-        for (id info in infos) {
-            id code = [info valueForKey:@"command"];
-            id enabled = [info valueForKey:@"enabled"];
-            // A command can be listed and still be off right now. Only what is
-            // both listed and enabled counts as offered.
-            if ([code isKindOfClass:NSNumber.class] &&
-                (enabled == nil || [enabled boolValue])) {
-                [codes addObject:code];
+        // `valueForKey:` on a private class throws if the key is ever renamed;
+        // inside this block that would take the host down. Caught, the list
+        // simply stays what it was.
+        @try {
+            for (id info in infos) {
+                id code = [info valueForKey:@"command"];
+                id enabled = [info valueForKey:@"enabled"];
+                // A command can be listed and still be off right now. Only what is
+                // both listed and enabled counts as offered.
+                if ([code isKindOfClass:NSNumber.class] &&
+                    (enabled == nil || [enabled boolValue])) {
+                    [codes addObject:code];
+                }
             }
+            sCommands = codes;
+        } @catch (NSException *e) {
+            fprintf(stderr, "cyclop-helper: commands unreadable: %s\n", e.reason.UTF8String ?: "");
         }
-        sCommands = codes;
     });
 }
 
@@ -114,7 +153,7 @@ static void publish(void) {
     sGetIsPlaying(sQueue, ^(Boolean playing) {
         sGetInfo(sQueue, ^(CFDictionaryRef raw) {
             NSDictionary *info = (__bridge NSDictionary *)raw;
-            NSString *title = info[@"kMRMediaRemoteNowPlayingInfoTitle"] ?: @"";
+            NSString *title = textValue(info[@"kMRMediaRemoteNowPlayingInfoTitle"]);
 
             NSMutableDictionary *out = [NSMutableDictionary dictionary];
             // `playing ? @YES : @NO`, not `@(playing ? YES : NO)`: in C the
@@ -124,20 +163,22 @@ static void publish(void) {
             // describing a flag as a count.
             out[@"playing"] = playing ? @YES : @NO;
             out[@"title"] = title;
-            out[@"artist"] = info[@"kMRMediaRemoteNowPlayingInfoArtist"] ?: @"";
-            out[@"album"] = info[@"kMRMediaRemoteNowPlayingInfoAlbum"] ?: @"";
-            out[@"duration"] = info[@"kMRMediaRemoteNowPlayingInfoDuration"] ?: @0;
-            out[@"elapsed"] = info[@"kMRMediaRemoteNowPlayingInfoElapsedTime"] ?: @0;
-            out[@"rate"] = info[@"kMRMediaRemoteNowPlayingInfoPlaybackRate"] ?: @0;
+            out[@"artist"] = textValue(info[@"kMRMediaRemoteNowPlayingInfoArtist"]);
+            out[@"album"] = textValue(info[@"kMRMediaRemoteNowPlayingInfoAlbum"]);
+            out[@"duration"] = finiteNumber(info[@"kMRMediaRemoteNowPlayingInfoDuration"]);
+            out[@"elapsed"] = finiteNumber(info[@"kMRMediaRemoteNowPlayingInfoElapsedTime"]);
+            out[@"rate"] = finiteNumber(info[@"kMRMediaRemoteNowPlayingInfoPlaybackRate"]);
             out[@"pid"] = @(sOwnerPID);
 
             id stamp = info[@"kMRMediaRemoteNowPlayingInfoTimestamp"];
             out[@"timestamp"] = [stamp isKindOfClass:NSDate.class]
-                ? @([(NSDate *)stamp timeIntervalSince1970])
+                ? finiteNumber(@([(NSDate *)stamp timeIntervalSince1970]))
                 : @0;
 
-            NSString *artworkID = info[@"kMRMediaRemoteNowPlayingInfoArtworkIdentifier"] ?: title;
-            NSData *artwork = info[@"kMRMediaRemoteNowPlayingInfoArtworkData"];
+            NSString *artworkID = textValue(info[@"kMRMediaRemoteNowPlayingInfoArtworkIdentifier"]);
+            if (artworkID.length == 0) artworkID = title;
+            id artworkValue = info[@"kMRMediaRemoteNowPlayingInfoArtworkData"];
+            NSData *artwork = [artworkValue isKindOfClass:NSData.class] ? artworkValue : nil;
             if (artwork.length > 0 && ![artworkID isEqualToString:sArtworkID]) {
                 out[@"artwork"] = [artwork base64EncodedStringWithOptions:0];
                 sArtworkID = artworkID;

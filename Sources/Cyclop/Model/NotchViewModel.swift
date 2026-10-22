@@ -4,7 +4,7 @@ import Combine
 @MainActor
 final class NotchViewModel: ObservableObject {
     enum Tab: String, CaseIterable, Identifiable {
-        case media, shelf, clipboard, snippets, calendar, translate, currency, notes, teleprompter, settings
+        case media, shelf, clipboard, snippets, calendar, translate, currency, notes, teleprompter, utilities, settings
         var id: String { rawValue }
 
         var symbol: String {
@@ -18,6 +18,7 @@ final class NotchViewModel: ObservableObject {
             case .currency: return "dollarsign.circle"
             case .notes: return "note.text"
             case .teleprompter: return "text.viewfinder"
+            case .utilities: return "wrench.and.screwdriver.fill"
             case .settings: return "gearshape.fill"
             }
         }
@@ -33,6 +34,7 @@ final class NotchViewModel: ObservableObject {
             case .currency: return localized("Currency")
             case .notes: return localized("Notes")
             case .teleprompter: return localized("Teleprompter")
+            case .utilities: return localized("Utilities")
             case .settings: return localized("Settings")
             }
         }
@@ -42,6 +44,16 @@ final class NotchViewModel: ObservableObject {
         var needsKeyboard: Bool {
             self == .translate || self == .currency || self == .snippets || self == .notes
         }
+
+        /// Tabs whose content needs more than the standard 208 pt.
+        ///
+        /// The teleprompter, which has to fit a paragraph to be read at a
+        /// glance rather than to be scrolled; and settings, whose sections
+        /// are lists — which tabs are on the panel, the screenshots, the
+        /// privacy sections — where a list of ten switches in 208 pt is a
+        /// list of three and a scroll, and settings is the one tab somebody
+        /// opens specifically to go through the whole of it.
+        var wantsTallBody: Bool { self == .teleprompter || self == .settings }
 
         /// Every tab can be taken off the rail except the one the switches
         /// live on: with Settings gone there would be no way back.
@@ -61,7 +73,7 @@ final class NotchViewModel: ObservableObject {
         /// calendar, so it sits last, furthest from the tabs people actually
         /// rest on.
         static let leftRail: [Tab] = [.media, .shelf, .clipboard, .snippets, .calendar, .translate]
-        static let rightRail: [Tab] = [.notes, .currency, .teleprompter, .settings]
+        static let rightRail: [Tab] = [.notes, .currency, .teleprompter, .utilities, .settings]
     }
 
     /// What every screen's panel adds up to, kept by `NotchController`: this
@@ -139,7 +151,7 @@ final class NotchViewModel: ObservableObject {
             screenshotFolder.resumeIfEnabled()
         case .currency:
             currencies.start()
-        case .snippets, .translate, .notes, .teleprompter, .settings:
+        case .snippets, .translate, .notes, .teleprompter, .utilities, .settings:
             break
         }
     }
@@ -151,6 +163,9 @@ final class NotchViewModel: ObservableObject {
         case .calendar: calendar.stop()
         case .shelf: screenshotFolder.stop()
         case .currency: currencies.stop()
+        // Taking the tab off the rail with the screen still covered would
+        // leave the tap installed and no way back to it.
+        case .utilities: keyboardLock.unlock()
         case .snippets, .translate, .notes, .teleprompter, .settings: break
         }
     }
@@ -232,6 +247,10 @@ final class NotchViewModel: ObservableObject {
     let teleprompter: TeleprompterStore
     /// Shared by every pane that shows something worth not showing.
     let privacy = PrivacyMode()
+    /// Here rather than in the controller, which now rebuilds a window per
+    /// display: the lock is a system-wide mode and must outlive plugging a
+    /// monitor in mid-wipe. The model is what survives a reconfiguration.
+    let keyboardLock = KeyboardLock()
 
     private var cancellables = Set<AnyCancellable>()
 

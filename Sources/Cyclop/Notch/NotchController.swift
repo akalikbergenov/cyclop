@@ -10,6 +10,7 @@ import Combine
 final class NotchController {
     private var vm: NotchViewModel?
     private var panels: [CGDirectDisplayID: NotchScreenPanel] = [:]
+    private let cleaning = CleaningOverlay()
     private var cancellables = Set<AnyCancellable>()
 
     func install() {
@@ -20,7 +21,7 @@ final class NotchController {
 
         for name in [
             NSApplication.didChangeScreenParametersNotification,
-            NotchGeometry.allDisplaysChanged,
+            NotchGeometry.settingsChanged,
         ] {
             NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
                 MainActor.assumeIsolated { self?.rebuild() }
@@ -29,6 +30,25 @@ final class NotchController {
         onWorkspace(NSWorkspace.activeSpaceDidChangeNotification) { $0.activeSpaceChanged() }
         onWorkspace(NSWorkspace.screensDidSleepNotification) { $0.screensSlept() }
         onWorkspace(NSWorkspace.screensDidWakeNotification) { $0.screensWoke() }
+
+        // The cleaning mode blacks out every display and swallows the pointer,
+        // so each panel is in the same position as on a sleeping screen: nothing
+        // to hover, nothing worth showing underneath the cover.
+        vm.keyboardLock.$isLocked
+            .removeDuplicates()
+            .sink { [weak self] locked in
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    if locked {
+                        self.panels.values.forEach { $0.screensSlept() }
+                        self.cleaning.show(lock: vm.keyboardLock)
+                    } else {
+                        self.cleaning.hide()
+                        self.panels.values.forEach { $0.screensWoke() }
+                    }
+                }
+            }
+            .store(in: &cancellables)
 
         vm.teleprompter.$isRunning
             .removeDuplicates()
@@ -47,6 +67,9 @@ final class NotchController {
     }
 
     func teardown() {
+        // Quitting mid-wipe must not leave the tap installed.
+        vm?.keyboardLock.unlock()
+        cleaning.hide()
         vm?.stop()
         panels.values.forEach { $0.teardown() }
     }
@@ -144,22 +167,5 @@ final class NotchController {
         // panel. The next hover is the one nobody planned, and it must not
         // open onto a row somebody revealed ten minutes ago.
         vm.privacy.coverEverything()
-        // Menu bar icons come and go with the apps that own them, and how far
-        // left they reach is what decides how deep the collapsed target may be.
-        // Re-measured with the panel folded: that is both when the target
-        // matters again and when rebuilding costs nothing.
-        remeasure()
-    }
-
-    /// Rebuilds only if a display's notch is no longer what it was measured to
-    /// be. `matches` covers everything the panel is cut from, so an unchanged
-    /// arrangement with an unchanged menu bar does nothing at all.
-    private func remeasure() {
-        let fresh = NotchGeometry.all()
-        let stale = fresh.count != panels.count || fresh.contains { geometry in
-            guard let id = geometry.displayID, let panel = panels[id] else { return true }
-            return !panel.geometry.matches(geometry)
-        }
-        if stale { rebuild() }
     }
 }

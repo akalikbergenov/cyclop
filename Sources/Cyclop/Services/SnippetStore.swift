@@ -85,13 +85,23 @@ final class SnippetStore: ObservableObject {
 
     /// `~/Library/Application Support/Cyclop/snippets.json`. A plain array of
     /// `{"label": "...", "text": "..."}`, where `label` may be left out.
-    static let file = Support.file("snippets.json")
+    ///
+    /// Given rather than looked up, for one reason: every failure this class
+    /// has had — #7, #14, #64 — was in reading or writing this file, and that
+    /// is exactly what a test wants to reach. A test against the real path
+    /// would be editing the snippets of whoever ran it. The app never passes
+    /// anything, so for the app nothing changed.
+    let file: URL
+
+    init(file: URL = Support.file("snippets.json")) {
+        self.file = file
+    }
 
     /// Re-read on every visit to the tab. The file is edited from outside the
     /// app, so the only sensible moment to trust what is in memory is the
     /// moment before it is shown.
     func reload() {
-        guard let data = try? Data(contentsOf: Self.file) else {
+        guard let data = try? Data(contentsOf: file) else {
             // No file is an honest empty list, and writing one is safe.
             items = []
             fileBroken = false
@@ -200,7 +210,7 @@ final class SnippetStore: ObservableObject {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .withoutEscapingSlashes]
         do {
-            try encoder.encode(items).write(to: Self.file, options: .atomic)
+            try encoder.encode(items).write(to: file, options: .atomic)
         } catch {
             NSLog("Cyclop: cannot write snippets.json: \(error.localizedDescription)")
         }
@@ -221,7 +231,7 @@ final class SnippetStore: ObservableObject {
     /// nothing opens, nothing errors. Before the first snippet is added there
     /// is nothing to select, so an empty list is written first: the same
     /// state `reload()` already treats as a valid, empty file.
-    static func reveal() {
+    func reveal() {
         if !FileManager.default.fileExists(atPath: file.path) {
             try? Data("[]".utf8).write(to: file)
         }

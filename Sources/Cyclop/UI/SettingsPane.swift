@@ -16,6 +16,7 @@ struct SettingsPane: View {
     @State private var menuBarIconVisible = AppDelegate.isMenuBarIconVisible
     @State private var saveClipboardImages = NotchViewModel.saveClipboardImagesEnabled
     @State private var allDisplays = NotchGeometry.showsOnAllDisplays
+    @State private var fullSizeNotch = NotchGeometry.drawsFullSizeNotch
     @State private var watchScreenshotFolder = false
     @State private var screenshotUsage: (files: Int, bytes: Int64) = (0, 0)
 
@@ -56,6 +57,11 @@ struct SettingsPane: View {
                         title: localized("Show on All Displays"),
                         isOn: allDisplaysBinding
                     )
+                    toggleRow(
+                        symbol: "rectangle.topthird.inset.filled",
+                        title: localized("Full-Height Notch Without a Cutout"),
+                        isOn: fullSizeNotchBinding
+                    )
                 }
 
                 section(localized("Screenshots")) {
@@ -89,7 +95,7 @@ struct SettingsPane: View {
 
                 section(localized("Snippets")) {
                     actionRow(symbol: "doc.text", title: localized("Show Snippets File")) {
-                        SnippetStore.reveal()
+                        vm.snippets.reveal()
                     }
                 }
 
@@ -128,6 +134,7 @@ struct SettingsPane: View {
             menuBarIconVisible = AppDelegate.isMenuBarIconVisible
             saveClipboardImages = NotchViewModel.saveClipboardImagesEnabled
             allDisplays = NotchGeometry.showsOnAllDisplays
+            fullSizeNotch = NotchGeometry.drawsFullSizeNotch
             watchScreenshotFolder = screenshots.isEnabled
             refreshUsage()
         }
@@ -193,6 +200,19 @@ struct SettingsPane: View {
             set: { wants in
                 allDisplays = wants
                 NotchGeometry.showsOnAllDisplays = wants
+            }
+        )
+    }
+
+    /// Where a display has no cutout, the notch is drawn as a thin strip along
+    /// the top edge; this brings back the old one, the height of the menu bar.
+    /// Panels rebuild on the spot, so the switch is its own confirmation.
+    private var fullSizeNotchBinding: Binding<Bool> {
+        Binding(
+            get: { fullSizeNotch },
+            set: { wants in
+                fullSizeNotch = wants
+                NotchGeometry.drawsFullSizeNotch = wants
             }
         )
     }

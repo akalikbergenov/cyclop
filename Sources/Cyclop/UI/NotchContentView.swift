@@ -28,8 +28,9 @@ struct NotchContentView: View {
     /// nothing of its own to show.
     ///
     /// "Nothing of its own" is asked of the body rather than of `isOpen`, and
-    /// the difference is not stylistic. The body is the notch exactly when
-    /// there is nothing to show — that is what `bodySize` returns and why —
+    /// the difference is not stylistic. On a hole the body is the notch exactly
+    /// when there is nothing to show — folded, `bodySize` is `collapsedSize`,
+    /// and on a hole that is the notch itself —
     /// so any future state that grows the folded strip paints itself without
     /// anyone remembering to come back here. Keyed on `isOpen`, the next such
     /// state would draw its text onto a transparent background: white letters
@@ -131,6 +132,8 @@ struct NotchContentView: View {
             NotesCounter(notes: vm.notes)
         case .teleprompter:
             EmptyView()
+        case .utilities:
+            EmptyView()
         case .settings:
             EmptyView()
         }
@@ -200,6 +203,8 @@ struct NotchContentView: View {
             NotesPane(notes: vm.notes, privacy: vm.privacy, wantsKeyboard: $panel.wantsKeyboard)
         case .teleprompter:
             TeleprompterPane(prompter: vm.teleprompter, wantsKeyboard: $panel.wantsKeyboard)
+        case .utilities:
+            UtilitiesPane(lock: vm.keyboardLock)
         case .settings:
             SettingsPane(vm: vm, shelf: vm.shelf, screenshots: vm.screenshotFolder)
         }

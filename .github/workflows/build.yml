@@ -6,12 +6,12 @@ name: build
 # только swift build.
 on:
   push:
-    # Бета собирается наравне с main: канал, куда людей зовут собирать из
-    # исходников, обязан хотя бы гарантировать, что оно собирается.
-    branches: [main, beta]
+    # Бета собиралась здесь же, пока канал работал; закрыт 6 октября 2026,
+    # см. docs/beta.md.
+    branches: [main]
     paths-ignore: ['**.md', 'docs/**']
   pull_request:
-    branches: [main, beta]
+    branches: [main]
   workflow_dispatch:
 
 jobs:
@@ -70,6 +70,13 @@ jobs:
           key: swiftpm-${{ runner.os }}-${{ hashFiles('Package.swift') }}-${{ github.sha }}
           restore-keys: |
             swiftpm-${{ runner.os }}-${{ hashFiles('Package.swift') }}-
+
+      - name: Тесты на сторы
+        # Раньше сборки приложения: разбор snippets.json ломался трижды (#7,
+        # #14, #64), и узнавать об этом после десятиминутной сборки бандла —
+        # ровно то, чего эти тесты и должны избавить. Панель сюда не входит,
+        # см. CONTRIBUTING.md.
+        run: ./Scripts/test.sh
 
       - name: Сборка приложения
         run: ./Scripts/bundle.sh release
