@@ -134,6 +134,8 @@ struct NotchContentView: View {
             EmptyView()
         case .utilities:
             EmptyView()
+        case .ai:
+            AIHeaderBadge(claude: vm.claude)
         case .settings:
             EmptyView()
         }
@@ -205,6 +207,8 @@ struct NotchContentView: View {
             TeleprompterPane(prompter: vm.teleprompter, wantsKeyboard: $panel.wantsKeyboard)
         case .utilities:
             UtilitiesPane(lock: vm.keyboardLock)
+        case .ai:
+            AIPane(claude: vm.claude)
         case .settings:
             SettingsPane(vm: vm, shelf: vm.shelf, screenshots: vm.screenshotFolder)
         }

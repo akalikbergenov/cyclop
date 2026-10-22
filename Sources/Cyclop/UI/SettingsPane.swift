@@ -51,6 +51,24 @@ struct SettingsPane: View {
                     }
                 }
 
+                // The tab's own switch is here as well as in the list above:
+                // this is where somebody looking for the AI settings looks.
+                section(localized("AI")) {
+                    toggleRow(symbol: NotchViewModel.Tab.ai.symbol, title: localized("Show AI Tab"), isOn: visibilityBinding(.ai))
+                    if vm.isVisible(.ai) {
+                        toggleRow(
+                            symbol: "waveform",
+                            title: localized("Show Claude Status"),
+                            isOn: Binding(get: { config.aiShowsStatus }, set: { config.aiShowsStatus = $0 })
+                        )
+                        toggleRow(
+                            symbol: "dollarsign.circle",
+                            title: localized("Show Spending"),
+                            isOn: Binding(get: { config.aiShowsSpending }, set: { config.aiShowsSpending = $0 })
+                        )
+                    }
+                }
+
                 section(localized("Displays")) {
                     toggleRow(
                         symbol: "display.2",

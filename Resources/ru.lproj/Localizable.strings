@@ -137,3 +137,28 @@
 "Keyboard and trackpad are locked" = "Клавиатура и трекпад заблокированы";
 "Hold Esc or − for %d s" = "Держи Esc или − %d с";
 "Unlocks by itself in %d s" = "Само снимется через %d с";
+
+/* Вкладка ИИ */
+"AI" = "ИИ";
+"Session" = "Сессия";
+"Week" = "Неделя";
+"No limits from the Claude app yet" = "Приложение Claude пока не записало лимиты";
+"No recent limits from the Claude app" = "Свежих лимитов от приложения Claude нет";
+"The app records them while its menu bar icon is on." = "Оно пишет их, пока включена его иконка в меню-баре.";
+"Today" = "Сегодня";
+"7 days" = "7 дней";
+"30 days" = "30 дней";
+"Working" = "Работает";
+"%@ tokens" = "%@ токенов";
+"%d sessions" = "сессий: %d";
+"checked just now" = "обновлено только что";
+"checked %d min ago" = "обновлено %d мин назад";
+"checked %d h ago" = "обновлено %d ч назад";
+"checked %d d ago" = "обновлено %d д назад";
+"Show Claude Status" = "Показывать статус Claude";
+"Show Spending" = "Показывать расходы";
+"%d min" = "%d мин";
+"%d h" = "%d ч";
+"%d h %d min" = "%d ч %d мин";
+"%d d" = "%d дн";
+"Show AI Tab" = "Показывать вкладку ИИ";
