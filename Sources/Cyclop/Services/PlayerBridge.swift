@@ -138,15 +138,26 @@ enum PlayerBridge {
 
     // MARK: - Artwork
 
-    /// Hosts that could not be reached at all in this session.
+    /// Hosts that did not answer, and when they went silent.
     ///
     /// A CDN blocked by the network does not become reachable for the next
     /// track: asking again buys nothing but the same wait on every track
     /// change, with the pane sitting on a placeholder until it times out.
     /// A 404 is not this — that is a clear answer from a live host, and says
-    /// something about one track, not about the host. Forgotten on quit,
-    /// because the network the app wakes up on may be another one.
-    private static var unreachableHosts: Set<String> = []
+    /// something about one track, not about the host.
+    ///
+    /// Each entry expires, because six seconds of silence cannot tell "this
+    /// network blocks the host" from "the host was slow just now" — and the
+    /// app sits in the menu bar for weeks, while the network under it changes
+    /// far more often: a laptop wakes up, a VPN switches, a train goes into a
+    /// tunnel. Without a lifetime one such minute sent every cover the long
+    /// way round until the next launch.
+    private static var unreachableHosts: [String: Date] = [:]
+
+    /// How long a host stays written off: long enough not to re-ask a blocked
+    /// CDN on every track change, short enough that the ban does not outlive
+    /// the network it was earned on.
+    private static let unreachableTTL: TimeInterval = 15 * 60
 
     static func artwork(for state: PlayerState, completion: @escaping @MainActor (NSImage?) -> Void) {
         switch state.app {
@@ -222,7 +233,12 @@ enum PlayerBridge {
     /// or some private scheme answers to nobody.
     private static func isReachable(_ url: URL) -> Bool {
         guard url.scheme?.lowercased() == "https", let host = url.host else { return false }
-        return !unreachableHosts.contains(host)
+        guard let since = unreachableHosts[host] else { return true }
+        guard Date().timeIntervalSince(since) < unreachableTTL else {
+            unreachableHosts.removeValue(forKey: host)
+            return true
+        }
+        return false
     }
 
     /// The one place on this path that touches the network, so the timeout and
@@ -241,8 +257,9 @@ enum PlayerBridge {
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     if unreachable, let host {
-                        unreachableHosts.insert(host)
-                        NSLog("Cyclop: artwork host \(host) unreachable, skipping it this session")
+                        unreachableHosts[host] = Date()
+                        let minutes = Int(unreachableTTL / 60)
+                        NSLog("Cyclop: artwork host \(host) did not answer, skipping it for \(minutes) min")
                     }
                     completion(data)
                 }
