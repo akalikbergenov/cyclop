@@ -222,8 +222,15 @@ enum PlayerBridge {
     /// the pane then measures for squareness. `MediaController` builds covers
     /// the same way for the same reason.
     private static func cover(from data: Data?) -> NSImage? {
-        guard let data, !data.isEmpty,
-              let rep = NSBitmapImageRep(data: data), let bitmap = rep.cgImage else { return nil }
+        guard let data, !data.isEmpty else { return nil }
+        // `NSImage` behind it, not instead of it: `raw data of artwork 1` is
+        // whatever the file held, and anything `NSBitmapImageRep` declines to
+        // parse showed up fine before. The dpi reason only applies to covers
+        // it does parse, so the stricter reader goes first and the forgiving
+        // one catches what it drops.
+        guard let rep = NSBitmapImageRep(data: data), let bitmap = rep.cgImage else {
+            return NSImage(data: data)
+        }
         return NSImage(cgImage: bitmap, size: NSSize(width: rep.pixelsWide, height: rep.pixelsHigh))
     }
 
