@@ -24,7 +24,12 @@ typedef void (*MRGetBoolFn)(dispatch_queue_t, void (^)(Boolean));
 typedef void (*MRRegisterFn)(dispatch_queue_t);
 typedef void (*MRGetPIDFn)(dispatch_queue_t, void (^)(int));
 typedef void (*MRGetClientsFn)(dispatch_queue_t, void (^)(NSArray *));
-typedef void (*MRSendCommandToPlayerFn)(int, CFDictionaryRef, id, id, id, void (^)(id));
+// Path third, then an options word, the reply queue and the reply. Read off
+// the disassembly of `MRMediaRemoteSendCommandToClient`, which builds a path
+// and hands it on in exactly this order.
+typedef void (*MRSendCommandToPlayerFn)(int, CFDictionaryRef, id, uint32_t, dispatch_queue_t, void (^)(id));
+typedef void (*MRSetOverrideEnabledFn)(Boolean);
+typedef void (*MRSetOverriddenAppFn)(CFStringRef);
 typedef void (*MRGetCommandsForPlayerFn)(id, dispatch_queue_t, void (^)(NSArray *));
 typedef int (*MRClientPIDFn)(id);
 typedef CFStringRef (*MRClientStringFn)(id);
@@ -36,6 +41,8 @@ static MRGetBoolFn sGetIsPlaying;
 static MRGetPIDFn sGetPID;
 static MRGetClientsFn sGetClients;
 static MRSendCommandToPlayerFn sSendCommandToPlayer;
+static MRSetOverrideEnabledFn sSetOverrideEnabled;
+static MRSetOverriddenAppFn sSetOverriddenApp;
 static MRGetCommandsForPlayerFn sGetCommandsForPlayer;
 static MRClientPIDFn sClientPID;
 static MRClientStringFn sClientBundle;
@@ -43,7 +50,6 @@ static MRClientStringFn sClientName;
 static MRClientStringFn sClientParent;
 static MRGetInfoForPlayerFn sGetInfoForPlayer;
 static MRArtworkCopyDataFn sArtworkCopyData;
-static CFStringRef sItemOptionKey;
 static int sOwnerPID;
 static dispatch_queue_t sQueue;
 static NSString *sArtworkID;
@@ -55,10 +61,10 @@ static NSString *sChosen;
 /// system's current one. Nil means the system's active player, which is the
 /// only path commands are known to always reach.
 static id sTargetPath;
-/// The picked player's current item. Commands to a path that is not the
-/// system's are scoped to it, or the service may hand them to whoever is
-/// current instead.
-static NSString *sItemID;
+/// Who `sTargetPath` points at, as the daemon knows it: the client's own
+/// bundle id (a browser's media helper, not the browser) and its pid.
+static NSString *sTargetClient;
+static int sTargetPID;
 
 static NSString *const kMediaRemotePath =
     @"/System/Library/PrivateFrameworks/MediaRemote.framework/MediaRemote";
@@ -79,6 +85,7 @@ typedef NS_ENUM(int, MRCommand) {
 
 static id activePlayerPath(void);
 static void runCommand(NSString *line);
+static void publish(void);
 
 /// The writer refuses a payload it cannot serialise with an
 /// NSInvalidArgumentException, not an error out-parameter — and an exception
@@ -218,7 +225,8 @@ static void addSources(NSMutableDictionary *out, NSArray *sources, NSString *nam
 /// still the one used whenever the choice is automatic.
 static void publishSystem(NSArray *sources, NSString *name) {
     sTargetPath = nil;
-    sItemID = nil;
+    sTargetClient = nil;
+    sTargetPID = 0;
     sGetIsPlaying(sQueue, ^(Boolean playing) {
         sGetInfo(sQueue, ^(CFDictionaryRef raw) {
             NSDictionary *info = (__bridge NSDictionary *)raw;
@@ -236,6 +244,8 @@ static void publishSystem(NSArray *sources, NSString *name) {
 static void publishChosen(NSDictionary *source, NSArray *sources) {
     id path = source[@"path"];
     sTargetPath = path;
+    sTargetClient = source[@"client"];
+    sTargetPID = [source[@"pid"] intValue];
     sGetInfoForPlayer(path, true, sQueue, ^(NSDictionary *info, void *cover) {
         NSData *artwork = nil;
         if (cover && sArtworkCopyData) {
@@ -246,7 +256,6 @@ static void publishChosen(NSDictionary *source, NSArray *sources) {
             id value = info[@"kMRMediaRemoteNowPlayingInfoArtworkData"];
             artwork = [value isKindOfClass:NSData.class] ? value : nil;
         }
-        sItemID = textValue(info[@"kMRMediaRemoteNowPlayingInfoContentItemIdentifier"]);
         BOOL playing = [finiteNumber(info[@"kMRMediaRemoteNowPlayingInfoPlaybackRate"]) doubleValue] > 0;
         NSMutableDictionary *out = payload(info ?: @{}, playing, artwork, [source[@"pid"] intValue]);
         addSources(out, sources, source[@"name"]);
@@ -304,7 +313,7 @@ static void survey(NSArray *clients) {
             if (textValue(info[@"kMRMediaRemoteNowPlayingInfoTitle"]).length > 0) {
                 BOOL playing = [finiteNumber(info[@"kMRMediaRemoteNowPlayingInfoPlaybackRate"]) doubleValue] > 0;
                 [found addObject:@{
-                    @"bundle": bundle, @"name": name.length ? name : @"", @"pid": @(pid),
+                    @"bundle": bundle, @"client": own, @"name": name.length ? name : @"", @"pid": @(pid),
                     @"playing": playing ? @YES : @NO, @"path": path,
                 }];
             }
@@ -319,6 +328,15 @@ static void survey(NSArray *clients) {
     void (^finish)(void) = ^{
         if (done) return;
         done = YES;
+        // An app may be listed twice: once through a web view's media helper
+        // and once on its own. Its own entry goes first — it is the only one
+        // the override below can single out, the helper's bundle id being
+        // shared with every other web view on the Mac.
+        [found sortWithOptions:NSSortStable usingComparator:^NSComparisonResult(NSDictionary *a, NSDictionary *b) {
+            BOOL ownA = [a[@"client"] isEqualToString:a[@"bundle"]];
+            BOOL ownB = [b[@"client"] isEqualToString:b[@"bundle"]];
+            return ownA == ownB ? NSOrderedSame : (ownA ? NSOrderedAscending : NSOrderedDescending);
+        }];
         NSMutableArray *sources = [NSMutableArray array];
         NSMutableSet *seen = [NSMutableSet set];
         for (NSDictionary *source in found) {
@@ -326,10 +344,23 @@ static void survey(NSArray *clients) {
             [seen addObject:source[@"bundle"]];
             [sources addObject:@{@"bundle": source[@"bundle"], @"name": source[@"name"], @"playing": source[@"playing"]}];
         }
+        // Clients come back in no fixed order, and a list that reshuffles
+        // between two identical answers redraws the picker for nothing.
+        [sources sortUsingDescriptors:@[[NSSortDescriptor sortDescriptorWithKey:@"bundle" ascending:YES]]];
         NSDictionary *chosen = nil, *owner = nil;
         for (NSDictionary *source in found) {
             if (sChosen && !chosen && [source[@"bundle"] isEqualToString:sChosen]) chosen = source;
             if (!owner && [source[@"pid"] intValue] == sOwnerPID) owner = source;
+        }
+        // Left to the system, the panel still should not sit on a paused
+        // player while another one plays. The system keeps the last app that
+        // started playing as current, paused or not — close Yandex Music's
+        // window with SoundCloud playing all along and the system goes on
+        // naming Yandex, or nobody. Whatever actually plays wins then.
+        if (!sChosen && ![owner[@"playing"] boolValue]) {
+            for (NSDictionary *source in found) {
+                if ([source[@"playing"] boolValue]) { chosen = source; break; }
+            }
         }
         // The picked app is shown through its own path only when it is not
         // the system's player already: the system's path is the one that
@@ -360,9 +391,8 @@ static void publish(void) {
 
 /// The service already tracks which player is "active" for the whole
 /// system — asking it directly gives an already-resolved, already-matched
-/// path. Building one by hand from a bundle id resolves too, but the
-/// per-client API then reports it supports nothing and silently drops every
-/// command sent to it; this is the only form that has ever worked.
+/// path. A path built by hand reads fine, but commands sent along it end up
+/// with the current player regardless (see `sendCommandToShownPlayer`).
 /// `activePlayerPath` also answers nil until `MRMediaRemoteGetNowPlayingClients`
 /// has been called at least once in this process — `startFeed` does that once,
 /// at launch.
@@ -371,16 +401,56 @@ static id activePlayerPath(void) {
     return [serviceClient performSelector:@selector(activePlayerPath)];
 }
 
+static void sendToActivePlayer(MRCommand command, NSDictionary *options) {
+    id path = activePlayerPath();
+    if (!path) return;
+    sSendCommandToPlayer(command, (__bridge CFDictionaryRef)options, path, 0, sQueue, ^(id result){});
+}
+
+/// Waits for the override to take before sending: until the daemon names the
+/// target as current, "current" is still the other app, or nobody — and a
+/// Play sent to nobody makes macOS launch Music.
+static void sendOnceElected(MRCommand command, NSDictionary *options, int pid, int attempt) {
+    sGetPID(sQueue, ^(int owner) {
+        if (owner == pid) {
+            sendToActivePlayer(command, options);
+            // Long enough for the command to be on its way; the election it
+            // caused stays, the override does not.
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 300 * NSEC_PER_MSEC), sQueue, ^{
+                sSetOverrideEnabled(false);
+                publish();
+            });
+        } else if (attempt < 10) {
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 50 * NSEC_PER_MSEC), sQueue, ^{
+                sendOnceElected(command, options, pid, attempt + 1);
+            });
+        } else {
+            // A browser's media helper shares its bundle id with every other
+            // browser's, and the override can only name a bundle id. When it
+            // lands on someone else, nothing is sent.
+            fprintf(stderr, "cyclop-helper: could not make %d current\n", pid);
+            sSetOverrideEnabled(false);
+            publish();
+        }
+    });
+}
+
+/// The daemon takes commands for the current player only. A path naming any
+/// other is answered as if it named the current one — checked on macOS 26
+/// with a reply that reports where the command went. So a player that is not
+/// current is made current for the moment of the command, through the same
+/// override Control Center would use, and released right after.
 static void sendCommandToShownPlayer(MRCommand command, NSDictionary *options) {
     if (!sSendCommandToPlayer) return;
-    id path = sTargetPath ?: activePlayerPath();
-    if (!path) return;
-    if (sTargetPath && sItemID.length && sItemOptionKey) {
-        NSMutableDictionary *scoped = [options mutableCopy] ?: [NSMutableDictionary dictionary];
-        scoped[(__bridge NSString *)sItemOptionKey] = sItemID;
-        options = scoped;
+    if (!sTargetPath) {
+        sendToActivePlayer(command, options);
+        publish();
+        return;
     }
-    sSendCommandToPlayer(command, (__bridge CFDictionaryRef)options, nil, path, nil, ^(id result){});
+    if (!sSetOverrideEnabled || !sSetOverriddenApp || !sGetPID || sTargetClient.length == 0) return;
+    sSetOverrideEnabled(true);
+    sSetOverriddenApp((__bridge CFStringRef)sTargetClient);
+    sendOnceElected(command, options, sTargetPID, 0);
 }
 
 static void handleCommand(NSString *line) {
@@ -395,11 +465,9 @@ static void runCommand(NSString *line) {
         publish();
     } else if ([line hasPrefix:@"cmd "]) {
         sendCommandToShownPlayer((MRCommand)[line substringFromIndex:4].intValue, nil);
-        publish();
     } else if ([line hasPrefix:@"seek "]) {
         double seconds = [line substringFromIndex:5].doubleValue;
         sendCommandToShownPlayer(MRCommandSeekToPlaybackPosition, @{@"kMRMediaRemoteOptionPlaybackPosition": @(seconds)});
-        publish();
     } else if ([line hasPrefix:@"source "]) {
         NSString *bundle = [line substringFromIndex:7];
         sChosen = [bundle isEqualToString:@"-"] ? nil : bundle;
@@ -421,6 +489,8 @@ static void startFeed(void) {
         sGetPID = (MRGetPIDFn)dlsym(handle, "MRMediaRemoteGetNowPlayingApplicationPID");
         sGetClients = (MRGetClientsFn)dlsym(handle, "MRMediaRemoteGetNowPlayingClients");
         sSendCommandToPlayer = (MRSendCommandToPlayerFn)dlsym(handle, "MRMediaRemoteSendCommandToPlayer");
+        sSetOverrideEnabled = (MRSetOverrideEnabledFn)dlsym(handle, "MRMediaRemoteSetNowPlayingApplicationOverrideEnabled");
+        sSetOverriddenApp = (MRSetOverriddenAppFn)dlsym(handle, "MRMediaRemoteSetOverriddenNowPlayingApplication");
         sGetCommandsForPlayer = (MRGetCommandsForPlayerFn)dlsym(handle, "MRMediaRemoteGetSupportedCommandsForPlayer");
         sClientPID = (MRClientPIDFn)dlsym(handle, "MRNowPlayingClientGetProcessIdentifier");
         sClientBundle = (MRClientStringFn)dlsym(handle, "MRNowPlayingClientGetBundleIdentifier");
@@ -428,8 +498,6 @@ static void startFeed(void) {
         sClientParent = (MRClientStringFn)dlsym(handle, "MRNowPlayingClientGetParentAppBundleIdentifier");
         sGetInfoForPlayer = (MRGetInfoForPlayerFn)dlsym(handle, "MRMediaRemoteGetNowPlayingInfoForPlayer");
         sArtworkCopyData = (MRArtworkCopyDataFn)dlsym(handle, "MRNowPlayingArtworkCopyImageData");
-        CFStringRef *itemKey = (CFStringRef *)dlsym(handle, "kMRMediaRemoteOptionNowPlayingContentItemID");
-        if (itemKey) sItemOptionKey = *itemKey;
 
         MRRegisterFn registerNotifications =
             (MRRegisterFn)dlsym(handle, "MRMediaRemoteRegisterForNowPlayingNotifications");
