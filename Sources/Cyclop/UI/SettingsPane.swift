@@ -187,6 +187,7 @@ struct SettingsPane: View {
             set: { wants in
                 saveClipboardImages = wants
                 NotchViewModel.saveClipboardImagesEnabled = wants
+                vm.updateClipboardWatch()
             }
         )
     }

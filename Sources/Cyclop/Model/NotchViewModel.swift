@@ -139,7 +139,7 @@ final class NotchViewModel: ObservableObject {
             media.start()
             if isPanelActive { media.setActive(true) }
         case .clipboard:
-            clipboard.start()
+            updateClipboardWatch()
         case .calendar:
             // Only picks up where it left off if access was granted earlier;
             // it never prompts on its own.
@@ -149,6 +149,7 @@ final class NotchViewModel: ObservableObject {
             // Off until the user grants a folder through `requestAccess`;
             // this only re-arms a watch already approved on a previous launch.
             screenshotFolder.resumeIfEnabled()
+            updateClipboardWatch()
         case .currency:
             currencies.start()
         case .snippets, .translate, .notes, .teleprompter, .utilities, .settings:
@@ -159,9 +160,11 @@ final class NotchViewModel: ObservableObject {
     private func stopBackground(of target: Tab) {
         switch target {
         case .media: media.stop()
-        case .clipboard: clipboard.stop()
+        case .clipboard: updateClipboardWatch()
         case .calendar: calendar.stop()
-        case .shelf: screenshotFolder.stop()
+        case .shelf:
+            screenshotFolder.stop()
+            updateClipboardWatch()
         case .currency: currencies.stop()
         // Taking the tab off the rail with the screen still covered would
         // leave the tap installed and no way back to it.
@@ -309,6 +312,20 @@ final class NotchViewModel: ObservableObject {
         set { ConfigStore.shared.saveClipboardImages = newValue }
     }
 
+    /// The pasteboard poll serves two tabs: the Clipboard tab's history and
+    /// the shelf's clipboard screenshots. It used to follow the Clipboard tab
+    /// alone, so hiding that tab silently stopped screenshots reaching the
+    /// shelf. It runs while either one still needs it.
+    func updateClipboardWatch() {
+        let history = isVisible(.clipboard)
+        let images = isVisible(.shelf) && Self.saveClipboardImagesEnabled
+        guard started, history || images else {
+            clipboard.stop()
+            return
+        }
+        clipboard.start()
+    }
+
     func start() {
         shelf.load()
         snippets.reload()
@@ -321,7 +338,10 @@ final class NotchViewModel: ObservableObject {
         // here after the fact: turned off, a copied picture used to be encoded
         // to PNG in full just to be dropped on this doorstep — pure heat on
         // exactly the machines whose owners turned the feature off.
-        clipboard.wantsImages = { Self.saveClipboardImagesEnabled }
+        clipboard.wantsImages = { [weak self] in
+            Self.saveClipboardImagesEnabled && self?.isVisible(.shelf) == true
+        }
+        clipboard.wantsHistory = { [weak self] in self?.isVisible(.clipboard) == true }
         clipboard.onImage = { [weak self] png in
             guard let self, let url = ScreenshotVault.save(png) else { return }
             self.receivedScreenshot(at: url)
