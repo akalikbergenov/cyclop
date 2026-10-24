@@ -44,6 +44,8 @@ final class MediaController: ObservableObject {
     private var anchor: (position: TimeInterval, at: Date)?
     /// Where we asked the player to jump, and when — see `apply`.
     private var pendingSeek: (target: TimeInterval, at: Date)?
+    /// The state the button was flipped to, and when — see `apply`.
+    private var pendingPlayState: (playing: Bool, at: Date)?
     private var ticker: Timer?
     private var observers: [Any] = []
     /// Whether the panel is open — the ticker below runs only then.
@@ -90,6 +92,7 @@ final class MediaController: ObservableObject {
     func choose(_ bundleID: String?) {
         guard bundleID != chosenSource else { return }
         chosenSource = bundleID
+        pendingPlayState = nil
         ConfigStore.shared.mediaSource = bundleID ?? ""
         feed.chosenSource = bundleID
     }
@@ -99,6 +102,7 @@ final class MediaController: ObservableObject {
     func togglePlayPause() {
         // Optimistic flip so the button feels instant; the feed corrects it.
         isPlaying.toggle()
+        pendingPlayState = (isPlaying, Date())
         setAnchor(position)
         // The per-client command set has no toggle of its own (#23) — Play
         // and Pause are sent explicitly, by the state just flipped to above.
@@ -146,8 +150,24 @@ final class MediaController: ObservableObject {
         guard !snapshot.isEmpty else { return clear() }
 
         let key = "\(snapshot.title)|\(snapshot.artist)|\(snapshot.album)"
+        // Another track, or another player: the flip was meant for the old one.
+        if track?.key != key { pendingPlayState = nil }
         track = Track(title: snapshot.title, artist: snapshot.artist, album: snapshot.album, key: key)
-        isPlaying = snapshot.isPlaying || snapshot.rate > 0
+        // Same story as a seek: the helper answers a command with a frame
+        // read before the player has acted on it, so the old state comes
+        // back for a moment and the button blinks to it and back. The flip
+        // holds until the player agrees or plainly did not act on it.
+        let reportedPlaying = snapshot.isPlaying || snapshot.rate > 0
+        if let pending = pendingPlayState {
+            let settled = reportedPlaying == pending.playing
+            let expired = Date().timeIntervalSince(pending.at) > 1.5
+            if settled || expired {
+                pendingPlayState = nil
+                isPlaying = reportedPlaying
+            }
+        } else {
+            isPlaying = reportedPlaying
+        }
         duration = snapshot.duration
         sourceName = snapshot.source
         // Both directions travel together: no player has ever offered one
@@ -200,6 +220,7 @@ final class MediaController: ObservableObject {
 
     private func clear() {
         activeApp = nil
+        pendingPlayState = nil
         track = nil
         artwork = nil
         artworkKey = nil
