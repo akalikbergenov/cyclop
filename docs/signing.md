@@ -3,7 +3,8 @@
 Релиз подписывается сертификатом Developer ID и нотаризуется у Apple. Тогда
 приложение открывается с первого раза, без «Открыть всё равно», а подменённый
 файл внутри бандла не запускается вовсе (#20). Делает это раннер в
-`release.yml`; ему нужны пять секретов. Как их получить — ниже, один раз.
+`release.yml`; ему нужны шесть секретов: пять для Apple и ключ обновлений.
+Как их получить — ниже, один раз.
 
 Локальная сборка (`Scripts/bundle.sh`) остаётся ad-hoc и ничего из этого не
 требует.
@@ -80,6 +81,54 @@ NOTARIZE=1 NOTARY_PROFILE=cyclop \
 ещё не запускали: разница между «у меня работает» и «у него открылось» — и
 есть суть проверки (#20).
 
+## 5. Ключ обновлений Sparkle
+
+Приложение ставит обновление, только если образ подписан этим ключом.
+Открытая половина вшивается в каждую выпущенную копию (`SUPublicEDKey` в
+Info.plist, из `Scripts/sparkle-public-key`), закрытая живёт в связке ключей
+и в секрете `SPARKLE_ED_PRIVATE_KEY`.
+
+**Потерять закрытый ключ — значит рисковать обновлениями у всех, кто уже
+поставил Cyclop.** Их копии верят этому ключу. Без него обновление пройдёт
+только по запасному правилу Sparkle — если новое приложение подписано тем же
+Developer ID, что и установленное, — и с новым ключом внутри. Потерять и ключ,
+и сертификат той же команды — значит оставить их без обновлений навсегда:
+сообщить им что-то новое будет нечем. Поэтому копия — сразу в
+`~/Documents/Cyclop-signing`, рядом с остальным.
+
+Инструменты — из того же релиза Sparkle, что в `Package.swift`:
+
+```sh
+mkdir -p ~/Downloads/sparkle-2.10.0 && cd ~/Downloads/sparkle-2.10.0
+curl -fLO https://github.com/sparkle-project/Sparkle/releases/download/2.10.0/Sparkle-2.10.0.tar.xz
+echo "c2bf58aa8387266ac179357b1415d6f2635f044da8be41042af32425dae6da0c  Sparkle-2.10.0.tar.xz" | shasum -a 256 -c -
+tar -xf Sparkle-2.10.0.tar.xz
+```
+
+Пара ключей. Своя учётная запись `cyclop`, а не общая по умолчанию: если
+Sparkle уже стоял для другого приложения, `generate_keys` молча взял бы его
+ключ. Связка ключей спросит разрешения сохранить — разрешить.
+
+```sh
+./bin/generate_keys --account cyclop          # закрытый — в login, открытый — на экран
+./bin/generate_keys --account cyclop -x cyclop-sparkle.key
+cp cyclop-sparkle.key ~/Documents/Cyclop-signing/
+gh secret set SPARKLE_ED_PRIVATE_KEY -R akalikbergenov/cyclop < cyclop-sparkle.key
+rm cyclop-sparkle.key
+```
+
+Открытый ключ — в репозиторий, одной строкой вместо заглушки, и коммитом в
+`main` до тега:
+
+```sh
+./bin/generate_keys --account cyclop -p > ~/code/cyclop/Scripts/sparkle-public-key
+```
+
+Пока там заглушка, сборка с Developer ID отказывается собираться, а ad-hoc
+собирается без ключа и не обновляется. Ключ не истекает; менять его без
+крайней нужды не стоит — смена держится на том, что Developer ID в этом
+обновлении остаётся прежним.
+
 ## Что где лежит
 
 | Секрет | Что это |
@@ -89,6 +138,7 @@ NOTARIZE=1 NOTARY_PROFILE=cyclop \
 | `NOTARY_KEY_ID` | Key ID ключа App Store Connect |
 | `NOTARY_ISSUER_ID` | Issuer ID команды |
 | `NOTARY_KEY_P8` | сам ключ `.p8`, base64 |
+| `SPARKLE_ED_PRIVATE_KEY` | закрытый ключ обновлений, как его выдал `generate_keys -x` |
 
 Без первых двух раннер собирает ad-hoc и релиз по тегу не выпускает; пробный
 прогон (ручной запуск `release.yml`) работает и без них.
