@@ -11,6 +11,7 @@ struct SettingsPane: View {
     @ObservedObject var shelf: ShelfStore
     let screenshots: ScreenshotFolderWatcher
     @ObservedObject private var config = ConfigStore.shared
+    @ObservedObject private var updates = Updates.shared
 
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var menuBarIconVisible = AppDelegate.isMenuBarIconVisible
@@ -111,6 +112,27 @@ struct SettingsPane: View {
                     }
                 }
 
+                // Above Quit rather than in General: read once in a while, to
+                // see the number or turn the daily check off — the one request
+                // the app makes for itself (SECURITY.md).
+                section(localized("Updates")) {
+                    infoRow(symbol: "info.circle", title: "Cyclop \(Bundle.main.shortVersion)")
+                    if updates.isAvailable {
+                        toggleRow(
+                            symbol: "arrow.down.circle",
+                            title: localized("Install Updates Automatically"),
+                            isOn: automaticUpdatesBinding
+                        )
+                        actionRow(symbol: "arrow.clockwise", title: localized("Check for Updates")) {
+                            updates.checkNow()
+                        }
+                    } else {
+                        // A switch that does nothing would be a lie; say why
+                        // there is none instead.
+                        infoRow(symbol: "hammer", title: localized("This build does not update itself"))
+                    }
+                }
+
                 // The one door left once the menu bar icon is gone (#5): a
                 // status item is not required to hide it any more, so quitting
                 // must not require one either. Last on purpose — leaving is
@@ -165,6 +187,13 @@ struct SettingsPane: View {
                 }
                 launchAtLogin = SMAppService.mainApp.status == .enabled
             }
+        )
+    }
+
+    private var automaticUpdatesBinding: Binding<Bool> {
+        Binding(
+            get: { updates.automatic },
+            set: { wants in updates.setAutomatic(wants) }
         )
     }
 
@@ -293,6 +322,21 @@ struct SettingsPane: View {
             Toggle("", isOn: isOn)
                 .toggleStyle(NotchToggleStyle())
                 .labelsHidden()
+        }
+        .padding(.horizontal, 8)
+        .frame(height: 26)
+    }
+
+    private func infoRow(symbol: String, title: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: symbol)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(Theme.secondary)
+                .frame(width: 16)
+            Text(title)
+                .font(.system(size: 11.5, weight: .medium))
+                .foregroundStyle(Theme.secondary)
+            Spacer(minLength: 8)
         }
         .padding(.horizontal, 8)
         .frame(height: 26)

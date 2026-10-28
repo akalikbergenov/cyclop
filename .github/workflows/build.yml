@@ -60,16 +60,17 @@ jobs:
         run: swift --version
 
       - name: Кэш сборки
-        # Зависимостей у пакета нет, кэшируются собственные объектные файлы:
-        # правка в одном файле пересобирает один файл, а не всё с нуля. Ключ
-        # уникален на коммит, чтобы кэш обновлялся, а восстанавливается по
-        # префиксу — с ближайшего предыдущего.
+        # Кэшируются собственные объектные файлы и скачанный Sparkle —
+        # единственная зависимость: правка в одном файле пересобирает один
+        # файл, а не всё с нуля. Ключ уникален на коммит, чтобы кэш
+        # обновлялся, а восстанавливается по префиксу — с ближайшего
+        # предыдущего; новая версия Sparkle меняет Package.resolved и префикс.
         uses: actions/cache@v6
         with:
           path: .build
-          key: swiftpm-${{ runner.os }}-${{ hashFiles('Package.swift') }}-${{ github.sha }}
+          key: swiftpm-${{ runner.os }}-${{ hashFiles('Package.swift', 'Package.resolved') }}-${{ github.sha }}
           restore-keys: |
-            swiftpm-${{ runner.os }}-${{ hashFiles('Package.swift') }}-
+            swiftpm-${{ runner.os }}-${{ hashFiles('Package.swift', 'Package.resolved') }}-
 
       - name: Тесты на сторы
         # Раньше сборки приложения: разбор snippets.json ломался трижды (#7,
@@ -91,6 +92,17 @@ jobs:
           # приложение с пропавшей таблицей запускается и выглядит целым.
           test -f "$APP/Contents/Resources/en.lproj/Localizable.strings"
           test -f "$APP/Contents/Resources/ru.lproj/Localizable.strings"
+          # Sparkle: без фреймворка в бандле приложение не запустится вовсе
+          # (dyld не найдёт библиотеку), без rpath — тоже, а без адреса
+          # appcast молча перестанут приходить обновления.
+          FW="$APP/Contents/Frameworks/Sparkle.framework"
+          test -x "$FW/Versions/B/Sparkle"
+          test -x "$FW/Versions/B/Autoupdate"
+          test -d "$FW/Versions/B/Updater.app"
+          otool -l "$APP/Contents/MacOS/Cyclop" | grep -q '@executable_path/../Frameworks' \
+              || { echo "в бинарнике нет rpath на Contents/Frameworks"; exit 1; }
+          /usr/libexec/PlistBuddy -c 'Print SUFeedURL' "$APP/Contents/Info.plist" | grep -q '^https://'
+          codesign --verify --strict "$FW"
           INSIDE="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$APP/Contents/Info.plist")"
           test "$INSIDE" = "$VERSION" || { echo "версия в бандле $INSIDE, в Scripts/version $VERSION"; exit 1; }
           # То же самое для сайта. README обещает, что номер записан в одном
