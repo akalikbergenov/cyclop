@@ -24,6 +24,11 @@ final class NoteStore: ObservableObject {
     /// Which note the editor shows. Lives here rather than in the pane so the
     /// choice survives the pane being unmounted with the panel.
     @Published var selected: Note.ID?
+    /// True when `notes.json` exists but cannot be read. Writing then stops:
+    /// a file that failed to parse still holds the notes, and the first
+    /// keystroke used to write an empty list over them. Same rule as
+    /// `SnippetStore.fileBroken` (#7).
+    @Published private(set) var fileBroken = false
 
     private static let file = Support.file("notes.json")
 
@@ -72,10 +77,34 @@ final class NoteStore: ObservableObject {
     // MARK: - Persistence
 
     private func load() {
-        guard let data = try? Data(contentsOf: Self.file),
-              let stored = try? JSONDecoder().decode([Note].self, from: data) else { return }
-        notes = stored
+        // No file is an honest empty list.
+        guard let data = try? Data(contentsOf: Self.file) else { return }
+        do {
+            notes = try JSONDecoder().decode([Note].self, from: data)
+            fileBroken = false
+            selected = notes.first?.id
+        } catch {
+            fileBroken = true
+            NSLog("Cyclop: notes.json is not readable: \(error.localizedDescription)")
+        }
+    }
+
+    /// Tries the broken file again, on the next visit to the tab — it may have
+    /// been mended by hand meanwhile. What was typed in the meantime is kept
+    /// and goes on top of what the file holds.
+    func retryIfBroken() {
+        guard fileBroken else { return }
+        let typed = notes.filter { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        load()
+        guard !fileBroken else { return }
+        let known = Set(notes.map(\.id))
+        notes.insert(contentsOf: typed.filter { !known.contains($0.id) }, at: 0)
         selected = notes.first?.id
+        if !typed.isEmpty { scheduleSave() }
+    }
+
+    func reveal() {
+        NSWorkspace.shared.activateFileViewerSelecting([Self.file])
     }
 
     /// A moment after the typing pauses, not on every keystroke: the text
@@ -88,6 +117,10 @@ final class NoteStore: ObservableObject {
     func flush() { saves.flush() }
 
     private func persist() {
+        guard !fileBroken else {
+            NSLog("Cyclop: refusing to write over an unreadable notes.json")
+            return
+        }
         do {
             try JSONEncoder().encode(notes).write(to: Self.file, options: .atomic)
         } catch {

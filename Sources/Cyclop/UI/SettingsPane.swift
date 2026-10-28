@@ -130,6 +130,9 @@ struct SettingsPane: View {
         // between visits to this tab (#11 taught the same lesson for the menu
         // this replaces).
         .onAppear {
+            // `config.json` is meant to be edited by hand too: what the
+            // switches below show is what the file says now, not at launch.
+            ConfigStore.shared.reload()
             launchAtLogin = SMAppService.mainApp.status == .enabled
             // Also flipped by a ⌘-drag off the bar, not only by the switch
             // below it — re-read for the same reason as the rest of this block.
@@ -137,7 +140,6 @@ struct SettingsPane: View {
             saveClipboardImages = NotchViewModel.saveClipboardImagesEnabled
             allDisplays = NotchGeometry.showsOnAllDisplays
             fullSizeNotch = NotchGeometry.drawsFullSizeNotch
-            // `config.json` is meant to be edited by hand too.
             openDelay = ConfigStore.shared.openDelay
             watchScreenshotFolder = screenshots.isEnabled
             refreshUsage()

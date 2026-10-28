@@ -65,6 +65,7 @@
 "Delete" = "Delete";
 "Nothing here yet — add with +" = "Nothing here yet — add with +";
 "snippets.json is broken — click to open; nothing is overwritten" = "snippets.json is broken — click to open; nothing is overwritten";
+"notes.json is broken — click to open; nothing is overwritten" = "notes.json is broken — click to open; nothing is overwritten";
 
 /* Notes */
 "Notes" = "Notes";
