@@ -20,15 +20,19 @@ struct NotesPane: View {
     }
 
     var body: some View {
-        HStack(spacing: 10) {
-            list
-            editor
+        VStack(spacing: 6) {
+            if notes.fileBroken { brokenNotice }
+            HStack(spacing: 10) {
+                list
+                editor
+            }
         }
         .padding(.top, 2)
         // Arriving means arriving to type. With nothing to select, an empty
         // note is created on the spot: a welcome screen with a button would be
         // slower than the editor window this tab exists to replace.
         .onAppear {
+            notes.retryIfBroken()
             if notes.notes.isEmpty {
                 notes.add()
                 // Same deal as the + button below: a note born under the caret
@@ -41,6 +45,24 @@ struct NotesPane: View {
             }
         }
         .onChange(of: wantsKeyboard) { _, wants in focused = wants }
+    }
+
+    /// Same notice as `SnippetsPane.brokenNotice`: the refusal to write over
+    /// the file is only honest if it is said out loud.
+    private var brokenNotice: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(Color.yellow.opacity(0.85))
+            Text("notes.json is broken — click to open; nothing is overwritten")
+                .font(.system(size: 10))
+                .foregroundStyle(Theme.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .onTapGesture { notes.reveal() }
     }
 
     /// What lies over the editor while the chosen note is covered. The editor
