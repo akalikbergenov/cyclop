@@ -26,7 +26,7 @@ reconfiguration; a display whose notch has not moved keeps its panel untouched.
 Mirrored displays are skipped — a second panel drawn over the same picture.
 Settings → Displays folds it all back to one screen.
 
-**Click-through.** The window frame is 700 × 252 pt at the top centre of the
+**Click-through.** The window frame is 700 × 444 pt at the top centre of the
 screen, and most of the time almost all of it is transparent. Returning `nil`
 from `hitTest` does not help: the window server has already chosen our window as
 the recipient, and `nil` merely discards the event instead of passing it down.
@@ -180,7 +180,8 @@ Language & Region → Applications.
 **The keyboard.** The panel cannot become key by default: taking focus means
 dimming the title of whatever window the user is in and stopping the caret
 blinking in their text, which is far too rude for a window one merely hovered.
-The Translate tab turns `canBecomeKey` on for as long as it is open;
+A tab that takes typing — Translate, Currency, Snippets, Notes, an empty
+Teleprompter — turns `canBecomeKey` on for as long as it needs the keyboard;
 `.nonactivatingPanel` allows keyboard input without activating the app, so the
 editor underneath stays active. The keyboard goes back on Esc, on a tab change,
 on a click into another app — which the panel catches as the loss of key status —
@@ -235,7 +236,7 @@ bar and without it.
 
 The strip is reached by throwing the pointer up, while a pointer travelling to a
 menu bar icon or a tab stays below it. The delay before opening is the same
-200 ms. The old full-height notch comes back with a switch in Settings.
+200 ms by default, adjustable in Settings from 50 to 600. The old full-height notch comes back with a switch in Settings.
 
 **Now Playing.** In macOS 15.4 the `mediaremoted` daemon began answering only
 clients it trusts. For an ordinary app that looks like this (checked on 15.7.5
