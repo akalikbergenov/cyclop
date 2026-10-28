@@ -345,9 +345,10 @@ final class NotchViewModel: ObservableObject {
         started = false
         for target in Tab.allCases { stopBackground(of: target) }
         // Whatever was typed makes it to disk even when quitting mid-thought —
-        // the script waits out the same short delay as notes.
+        // the script and the settings wait out the same short delay as notes.
         notes.flush()
         teleprompter.flush()
+        ConfigStore.shared.flush()
     }
 
     /// A screenshot that arrived on its own — copied elsewhere, or synced

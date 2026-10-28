@@ -91,14 +91,14 @@ final class ConfigStore: ObservableObject {
     /// pull it back to one screen, not the way to ask for the rest.
     var showOnAllDisplays: Bool {
         get { value.showOnAllDisplays }
-        set { value.showOnAllDisplays = newValue; persist() }
+        set { update { $0.showOnAllDisplays = newValue } }
     }
 
     /// Brings back the notch drawn the full height of the menu bar on displays
     /// without a cutout. Off by default: see `NotchGeometry.collapsedDepth`.
     var fullSizeDrawnNotch: Bool {
         get { value.fullSizeDrawnNotch }
-        set { value.fullSizeDrawnNotch = newValue; persist() }
+        set { update { $0.fullSizeDrawnNotch = newValue } }
     }
 
     /// Seconds the pointer has to stay on the notch before the panel opens.
@@ -115,7 +115,7 @@ final class ConfigStore: ObservableObject {
     /// number, and the file cannot ask for what the screen does not show.
     var openDelay: Double {
         get { min(max(value.openDelay, Self.openDelayRange.lowerBound), Self.openDelayRange.upperBound) }
-        set { value.openDelay = newValue; persist() }
+        set { update { $0.openDelay = newValue } }
     }
 
     /// What the slider offers, and so all `openDelay` can be.
@@ -125,7 +125,7 @@ final class ConfigStore: ObservableObject {
     /// kept. Defaults to on: the feature is the reason the folder exists.
     var saveClipboardImages: Bool {
         get { value.saveClipboardImages }
-        set { value.saveClipboardImages = newValue; persist() }
+        set { update { $0.saveClipboardImages = newValue } }
     }
 
     /// Raw `PrivacyMode.Section` values. Kept as strings here rather than that
@@ -133,17 +133,17 @@ final class ConfigStore: ObservableObject {
     /// `hiddenTabs` below is `[String]` and not `[NotchViewModel.Tab]`.
     var privacy: [String] {
         get { value.privacy }
-        set { value.privacy = newValue; persist() }
+        set { update { $0.privacy = newValue } }
     }
 
     var teleprompterSpeed: Double {
         get { value.teleprompter.speed }
-        set { value.teleprompter.speed = newValue; persist() }
+        set { update { $0.teleprompter.speed = newValue } }
     }
 
     var teleprompterFontSize: Double {
         get { value.teleprompter.fontSize }
-        set { value.teleprompter.fontSize = newValue; persist() }
+        set { update { $0.teleprompter.fontSize = newValue } }
     }
 
     /// Tabs switched off in Settings (#80), by `Tab.rawValue`. Kept as the set
@@ -151,7 +151,7 @@ final class ConfigStore: ObservableObject {
     /// version shows up for everyone instead of arriving hidden.
     var hiddenTabs: [String] {
         get { value.hiddenTabs }
-        set { value.hiddenTabs = newValue; persist() }
+        set { update { $0.hiddenTabs = newValue } }
     }
 
     // MARK: - Migration
@@ -190,8 +190,49 @@ final class ConfigStore: ObservableObject {
 
     // MARK: - Storage
 
-    private func persist() {
-        write(value)
+    /// Waits a moment before touching the disk: a slider sends dozens of
+    /// values a second, and each used to be a synchronous write on the main
+    /// thread. Flushed on quit, so the last value is never lost.
+    private let saves = DebouncedWrite(after: 0.3)
+    /// Something is waiting to be written, and it is newer than the file.
+    private var writePending = false
+
+    /// Re-reads the file. It is meant to be edited by hand (#67), and a copy
+    /// read once at launch would be written back over any such edit by the
+    /// next switch flipped in Settings — the edit undone, silently, by an app
+    /// that promises to keep the file honest. Same rule as `SnippetStore.add`.
+    ///
+    /// A missing file changes nothing: what is in memory stays the truth and
+    /// the next write puts the file back. A broken one raises the flag again,
+    /// and a mended one lowers it.
+    func reload() {
+        guard !writePending else { return }
+        guard let data = try? Data(contentsOf: Self.file) else { return }
+        do {
+            value = try JSONDecoder().decode(File.self, from: data)
+            fileBroken = false
+        } catch {
+            fileBroken = true
+            NSLog("Cyclop: config.json is not readable: \(error.localizedDescription)")
+        }
+    }
+
+    /// Every setting goes through here: read what the file says now, apply
+    /// the one change, write it back a moment later.
+    private func update(_ change: (inout File) -> Void) {
+        reload()
+        change(&value)
+        writePending = true
+        saves.schedule { [weak self] in
+            guard let self else { return }
+            writePending = false
+            write(value)
+        }
+    }
+
+    /// Writes what is waiting right now. Called when the app quits.
+    func flush() {
+        saves.flush()
     }
 
     /// Pretty-printed, and slashes left alone — same reason as
