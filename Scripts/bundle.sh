@@ -19,6 +19,8 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/Cyclop"
 
+# Тексты системных диалогов здесь — английские, как язык разработки; русские
+# лежат в Resources/ru.lproj/InfoPlist.strings и подставляются самой macOS.
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -41,11 +43,11 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>NSSupportsAutomaticTermination</key><false/>
     <key>NSSupportsSuddenTermination</key><false/>
     <key>NSAppleEventsUsageDescription</key>
-    <string>Cyclop читает название текущего трека и управляет воспроизведением в Apple Music и Spotify.</string>
+    <string>Cyclop reads the current track and controls playback in Apple Music and Spotify.</string>
     <key>NSCalendarsFullAccessUsageDescription</key>
-    <string>Cyclop показывает ближайшие встречи и кнопку подключения к ним.</string>
+    <string>Cyclop shows your next meetings and a button to join them.</string>
     <key>NSCalendarsUsageDescription</key>
-    <string>Cyclop показывает ближайшие встречи и кнопку подключения к ним.</string>
+    <string>Cyclop shows your next meetings and a button to join them.</string>
     <key>NSHumanReadableCopyright</key><string>MIT License</string>
 </dict>
 </plist>

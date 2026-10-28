@@ -1,0 +1,4 @@
+/* Тексты системных диалогов разрешений. Ключи — из Info.plist (Scripts/bundle.sh). */
+"NSAppleEventsUsageDescription" = "Cyclop читает название текущего трека и управляет воспроизведением в Apple Music и Spotify.";
+"NSCalendarsFullAccessUsageDescription" = "Cyclop показывает ближайшие встречи и кнопку подключения к ним.";
+"NSCalendarsUsageDescription" = "Cyclop показывает ближайшие встречи и кнопку подключения к ним.";
