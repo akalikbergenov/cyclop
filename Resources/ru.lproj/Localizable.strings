@@ -87,12 +87,12 @@
 "Join · %@" = "Подключиться · %@";
 "No other meetings this week" = "Других встреч на неделе нет";
 "See your next meetings" = "Показать ближайшие встречи";
-"Cyclop needs access to Calendar. It is the only permission\nthe app asks for, and only for this tab." = "Нужен доступ к Календарю. Это единственное разрешение,\nкоторое просит Cyclop — и только для этой вкладки.";
+"Cyclop needs access to Calendar for this tab only.\nIt is asked for when you press the button, never at launch." = "Доступ к Календарю нужен только этой вкладке.\nОн спрашивается по кнопке, никогда — при запуске.";
 "Continue" = "Продолжить";
 "Calendar access is off" = "Доступ к Календарю закрыт";
 "Settings → Privacy → Calendars" = "Настройки → Конфиденциальность → Календари";
 "No more meetings" = "Встреч больше нет";
-"Nothing on the calendar for the next day" = "В ближайшие сутки календарь пуст";
+"Nothing on the calendar for the coming week" = "На неделю вперёд календарь пуст";
 "Untitled" = "Без названия";
 "Calendars" = "Календари";
 "Done" = "Готово";

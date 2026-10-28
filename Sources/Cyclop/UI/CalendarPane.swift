@@ -281,7 +281,7 @@ struct CalendarPane: View {
             Text("See your next meetings")
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(Theme.secondary)
-            Text("Cyclop needs access to Calendar. It is the only permission\nthe app asks for, and only for this tab.")
+            Text("Cyclop needs access to Calendar for this tab only.\nIt is asked for when you press the button, never at launch.")
                 .font(.system(size: 10))
                 .foregroundStyle(Theme.tertiary)
                 .multilineTextAlignment(.center)
@@ -331,7 +331,7 @@ struct CalendarPane: View {
             Text("No more meetings")
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(Theme.secondary)
-            Text("Nothing on the calendar for the next day")
+            Text("Nothing on the calendar for the coming week")
                 .font(.system(size: 10))
                 .foregroundStyle(Theme.tertiary)
         }
