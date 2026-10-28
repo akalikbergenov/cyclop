@@ -1,7 +1,7 @@
 import AppKit
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemValidation {
     private var controller: NotchController?
     private var statusItem: NSStatusItem?
     private var privacyItem: NSMenuItem?
@@ -12,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         controller = NotchController()
         controller?.install()
         installStatusItem()
+        Updates.shared.start()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -46,6 +47,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let menu = NSMenu()
         menu.delegate = self
         menu.addItem(withTitle: "Cyclop \(Bundle.main.shortVersion)", action: nil, keyEquivalent: "")
+        // Under the version it answers: "is this the latest?" is asked
+        // while looking at the number.
+        let update = NSMenuItem(
+            title: localized("Check for Updates…"),
+            action: #selector(checkForUpdates),
+            keyEquivalent: ""
+        )
+        update.target = self
+        menu.addItem(update)
         menu.addItem(.separator())
 
         let toggle = NSMenuItem(
@@ -107,6 +117,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// between: a menu nobody is looking at deserves no bookkeeping.
     func menuWillOpen(_ menu: NSMenu) {
         refreshPrivacyItems()
+    }
+
+    @objc private func checkForUpdates() {
+        Updates.shared.checkNow()
+    }
+
+    /// Greyed out while Sparkle is busy with a check of its own, and in a
+    /// build without the update key, where there is nothing to check with.
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if menuItem.action == #selector(checkForUpdates) {
+            return Updates.shared.canCheck
+        }
+        return true
     }
 
     @objc private func quit() {

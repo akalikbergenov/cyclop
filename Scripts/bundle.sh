@@ -9,6 +9,24 @@ CONFIG="${1:-release}"
 APP="$ROOT/build/Cyclop.app"
 source "$ROOT/Scripts/sdk.sh"
 VERSION="$(sed -n 's/^VERSION=//p' "$ROOT/Scripts/version" 2>/dev/null || echo 0.1.0)"
+IDENTITY="${CODESIGN_IDENTITY:--}"
+
+# Публичный ключ обновлений. По нему Sparkle сверяет подпись каждого
+# скачанного образа, и он навсегда вшит в каждую выпущенную копию: заменить
+# его потом нельзя, не потеряв обновления у всех, кто уже поставил. Пока в
+# файле заглушка, ключа в бандле нет и приложение не запускает Sparkle
+# вовсе: без ключа тот не стартует и говорит об этом окном. Настоящая
+# подпись с заглушкой отказывается собираться: релиз, который никогда не
+# обновится, хуже релиза, который не вышел.
+SPARKLE_KEY="$(head -n 1 "$ROOT/Scripts/sparkle-public-key" | tr -d '[:space:]')"
+if ! printf '%s' "$SPARKLE_KEY" | grep -Eq '^[A-Za-z0-9+/]{43}=$'; then
+    if [ "$IDENTITY" != "-" ]; then
+        echo "!!! в Scripts/sparkle-public-key нет публичного ключа Sparkle — см. docs/signing.md" >&2
+        exit 1
+    fi
+    echo "==> ключа Sparkle нет (Scripts/sparkle-public-key): обновления в этой сборке выключены"
+    SPARKLE_KEY=""
+fi
 
 echo "==> swift build -c $CONFIG"
 swift build -c "$CONFIG" --package-path "$ROOT"
@@ -47,9 +65,22 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>NSCalendarsUsageDescription</key>
     <string>Cyclop показывает ближайшие встречи и кнопку подключения к ним.</string>
     <key>NSHumanReadableCopyright</key><string>MIT License</string>
+    <key>SUFeedURL</key>
+    <string>https://github.com/akalikbergenov/cyclop/releases/latest/download/appcast.xml</string>
+    <key>SUEnableAutomaticChecks</key><true/>
+    <key>SUAutomaticallyUpdate</key><true/>
+    <key>SUScheduledCheckInterval</key><integer>86400</integer>
+    <key>SUEnableSystemProfiling</key><false/>
 </dict>
 </plist>
 PLIST
+
+# Ключ дописывается отдельно, а не строкой в шаблоне выше: без ключа ключа
+# не должно быть вовсе — пустая строка для Sparkle та же ошибка, что и его
+# отсутствие, а приложение по отсутствию решает не запускать обновления.
+if [ -n "$SPARKLE_KEY" ]; then
+    /usr/libexec/PlistBuddy -c "Add :SUPublicEDKey string $SPARKLE_KEY" "$APP/Contents/Info.plist"
+fi
 
 if [ -f "$ROOT/Resources/AppIcon.icns" ]; then
     cp "$ROOT/Resources/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
@@ -74,12 +105,35 @@ clang -dynamiclib -fobjc-arc -O2 \
     -o "$APP/Contents/Resources/libcyclopmedia.dylib" \
     "$ROOT/Sources/CyclopMediaHelper/helper.m"
 
+# Sparkle — бинарная зависимость SwiftPM: фреймворк лежит рядом с бинарником,
+# а ищет его бинарник в Contents/Frameworks (rpath в Package.swift).
+# Заголовки и модуль нужны компилятору, а не приложению — их Xcode тоже
+# выбрасывает при копировании. XPC-сервисы Sparkle включаются только ключами
+# Info.plist для приложения в песочнице; Cyclop не в песочнице, и без этих
+# ключей Sparkle их не запускает — нечего подписывать и нотаризовать.
+echo "==> Sparkle.framework"
+FW="$APP/Contents/Frameworks/Sparkle.framework"
+mkdir -p "$APP/Contents/Frameworks"
+ditto "$(dirname "$BIN")/Sparkle.framework" "$FW"
+rm -rf "$FW/Headers" "$FW/PrivateHeaders" "$FW/Modules" "$FW/XPCServices" \
+    "$FW/Versions/B/Headers" "$FW/Versions/B/PrivateHeaders" \
+    "$FW/Versions/B/Modules" "$FW/Versions/B/XPCServices"
+# Sparkle приходит универсальным, а приложение собирается под одну
+# архитектуру — под ту, на которой собирали. Вторая половина фреймворка
+# никогда не исполнится, а весит столько же, сколько первая.
+ARCHS="$(lipo -archs "$APP/Contents/MacOS/Cyclop")"
+if [ "$(echo "$ARCHS" | wc -w)" -eq 1 ]; then
+    for f in "$FW/Versions/B/Sparkle" "$FW/Versions/B/Autoupdate" \
+        "$FW/Versions/B/Updater.app/Contents/MacOS/Updater"; do
+        lipo "$f" -thin "$ARCHS" -output "$f"
+    done
+fi
+
 # Подпись. Кем — решает CODESIGN_IDENTITY: пусто или «-» — ad-hoc, как для
 # любой локальной сборки; «Developer ID Application: …» — настоящая, с
 # hardened runtime и отметкой времени, как для релиза. Ключ и сертификат
 # в скрипте не живут, они в связке ключей того, кто выпускает, или в
 # секретах раннера (см. docs/signing.md).
-IDENTITY="${CODESIGN_IDENTITY:--}"
 if [ "$IDENTITY" = "-" ]; then
     echo "==> ad-hoc signing"
 else
@@ -108,16 +162,38 @@ xattr -cr "$APP"
 # бандл, про который codesign говорит «code object is not signed at all».
 # Заметить это можно было только по возвращающимся запросам TCC — то есть у
 # того, кто уже поставил приложение.
-if [ "$IDENTITY" = "-" ]; then
-    codesign --force --sign - "$APP/Contents/Resources/libcyclopmedia.dylib"
-    codesign --force --sign - "$APP"
-else
-    codesign --force --timestamp --sign "$IDENTITY" \
-        "$APP/Contents/Resources/libcyclopmedia.dylib"
-    codesign --force --timestamp --options runtime \
-        --entitlements "$ROOT/Resources/Cyclop.entitlements" \
-        --sign "$IDENTITY" "$APP"
-fi || {
+#
+# Порядок внутри Sparkle — тот, что требует его документация: Autoupdate и
+# Updater.app запускаются отдельными процессами и подписываются как свои
+# программы, потом фреймворк, который их запечатывает. Под hardened runtime
+# фреймворк обязан быть подписан той же командой, что и приложение, иначе
+# library validation не даст его загрузить — поэтому он переподписывается,
+# а не едет с подписью Sparkle.
+sign_code() {
+    if [ "$IDENTITY" = "-" ]; then
+        codesign --force --sign - "$@"
+    else
+        codesign --force --timestamp --options runtime --sign "$IDENTITY" "$@"
+    fi
+}
+sign_bundle() {
+    sign_code "$FW/Versions/B/Autoupdate" &&
+    sign_code "$FW/Versions/B/Updater.app" &&
+    sign_code "$FW" &&
+    if [ "$IDENTITY" = "-" ]; then
+        codesign --force --sign - "$APP/Contents/Resources/libcyclopmedia.dylib" &&
+        codesign --force --sign - "$APP"
+    else
+        codesign --force --timestamp --sign "$IDENTITY" \
+            "$APP/Contents/Resources/libcyclopmedia.dylib" &&
+        codesign --force --timestamp --options runtime \
+            --entitlements "$ROOT/Resources/Cyclop.entitlements" \
+            --sign "$IDENTITY" "$APP"
+    fi
+}
+# Цепочка через &&, а не построчно: под `||` set -e не действует, и отказ
+# на середине иначе прошёл бы незамеченным, стоило последней подписи удаться.
+sign_bundle || {
     echo "!!! codesign не смог подписать бандл — см. вывод выше" >&2
     exit 1
 }

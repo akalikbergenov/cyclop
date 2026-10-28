@@ -25,6 +25,12 @@ jobs:
       # секретов, а релиз без подписи не выпустится — шаг ниже это проверит.
       HAS_CERT: ${{ secrets.DEVELOPER_ID_P12 != '' }}
       HAS_NOTARY: ${{ secrets.NOTARY_KEY_P8 != '' }}
+      HAS_SPARKLE: ${{ secrets.SPARKLE_ED_PRIVATE_KEY != '' }}
+      # sign_update берётся из того же релиза Sparkle, что вшит в приложение
+      # (Package.swift), и сверяется по SHA-256 — тот, что публикует GitHub
+      # для этого файла релиза. Поднимать все три вместе.
+      SPARKLE_VERSION: '2.10.0'
+      SPARKLE_SHA256: c2bf58aa8387266ac179357b1415d6f2635f044da8be41042af32425dae6da0c
     steps:
       - uses: actions/checkout@v7
         with:
@@ -35,6 +41,14 @@ jobs:
         if: github.ref_type == 'tag' && (env.HAS_CERT != 'true' || env.HAS_NOTARY != 'true')
         run: |
           echo "нет секретов подписи или нотаризации — см. docs/signing.md"
+          exit 1
+
+      - name: Релиз без ключа обновлений не выпускается
+        # Без него нет appcast.xml, и все, кто уже поставил приложение с
+        # обновлениями, остаются на прошлой версии, ничего об этом не узнав.
+        if: github.ref_type == 'tag' && env.HAS_SPARKLE != 'true'
+        run: |
+          echo "нет секрета SPARKLE_ED_PRIVATE_KEY — без него обновление никому не придёт, см. docs/signing.md"
           exit 1
 
       - name: Сертификат Developer ID во временную связку ключей
@@ -87,6 +101,21 @@ jobs:
             test -f "docs/releases/$VERSION.md" || { echo "нет docs/releases/$VERSION.md — релиз без заметок не выпускается"; exit 1; }
           fi
 
+      - name: sign_update из релиза Sparkle
+        if: env.HAS_SPARKLE == 'true'
+        run: |
+          # Версия в Package.resolved — та, что реально собрана; разойтись с
+          # SPARKLE_VERSION она может только правкой одного из двух мест.
+          RESOLVED="$(/usr/bin/python3 -c 'import json; print(next(p["state"]["version"] for p in json.load(open("Package.resolved"))["pins"] if p["identity"] == "sparkle"))')"
+          test "$RESOLVED" = "$SPARKLE_VERSION" || { echo "Sparkle в Package.resolved $RESOLVED, а в release.yml $SPARKLE_VERSION"; exit 1; }
+          DIR="$RUNNER_TEMP/sparkle"
+          mkdir -p "$DIR"
+          curl -fsSL -o "$DIR/sparkle.tar.xz" \
+              "https://github.com/sparkle-project/Sparkle/releases/download/$SPARKLE_VERSION/Sparkle-$SPARKLE_VERSION.tar.xz"
+          echo "$SPARKLE_SHA256  $DIR/sparkle.tar.xz" | shasum -a 256 -c -
+          tar -xf "$DIR/sparkle.tar.xz" -C "$DIR" ./bin/sign_update
+          echo "SIGN_UPDATE=$DIR/bin/sign_update" >> "$GITHUB_ENV"
+
       - name: Образ
         # С CODESIGN_IDENTITY и NOTARIZE=1 из шагов выше — подписанный и
         # нотаризованный; без них — ad-hoc, для пробного прогона.
@@ -96,6 +125,23 @@ jobs:
         run: |
           shasum -a 256 "build/Cyclop-$VERSION.dmg" | tee build/SHA256SUMS
           codesign --verify --strict "build/Cyclop.app"
+          # Под hardened runtime фреймворк чужой команды не загрузится —
+          # приложение упадёт при запуске, а нотаризация это пропустит.
+          team() { codesign -dv "$1" 2>&1 | sed -n 's/^TeamIdentifier=//p'; }
+          test "$(team build/Cyclop.app)" = "$(team build/Cyclop.app/Contents/Frameworks/Sparkle.framework)" \
+              || { echo "Sparkle.framework подписан не той командой, что приложение"; exit 1; }
+
+      - name: appcast.xml
+        # После нотаризации и скрепки: обе меняют образ, а подпись Sparkle
+        # и длина в appcast должны быть от того файла, что скачают.
+        if: env.HAS_SPARKLE == 'true'
+        env:
+          SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+        run: |
+          ./Scripts/appcast.sh "build/Cyclop-$VERSION.dmg"
+          # Постоянное имя для ссылки releases/latest/download/Cyclop.dmg на
+          # сайте: версионное имя каждый релиз новое.
+          cp "build/Cyclop-$VERSION.dmg" build/Cyclop.dmg
 
       - name: Пробный прогон — образ артефактом
         if: github.event_name == 'workflow_dispatch'
@@ -105,6 +151,7 @@ jobs:
           path: |
             build/Cyclop-${{ env.VERSION }}.dmg
             build/SHA256SUMS
+            build/appcast.xml
 
       - name: Релиз на GitHub
         if: github.ref_type == 'tag'
@@ -125,5 +172,8 @@ jobs:
           SUM="$(cut -d' ' -f1 build/SHA256SUMS)"
           printf '\n\n**SHA-256** `%s`\n\nПроверить: `shasum -a 256 Cyclop-%s.dmg`\n' "$SUM" "$VERSION" >> "$BODY"
           [ -n "$GENERATED" ] && printf '\n\n---\n\n%s\n' "$GENERATED" >> "$BODY"
-          gh release create "$TAG" "$DMG" --title "Cyclop $VERSION" --notes-file "$BODY" --latest
+          # Все файлы одним вызовом: релиз, отмеченный последним, но без
+          # appcast.xml, на сутки оставил бы обновления без ответа.
+          gh release create "$TAG" "$DMG" build/Cyclop.dmg build/appcast.xml \
+              --title "Cyclop $VERSION" --notes-file "$BODY" --latest
           gh release view "$TAG" --json url --jq '.url'

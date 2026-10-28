@@ -140,3 +140,10 @@
 "Keyboard and trackpad are locked" = "Клавиатура и трекпад заблокированы";
 "Hold Esc or − for %d s" = "Держи Esc или − %d с";
 "Unlocks by itself in %d s" = "Само снимется через %d с";
+
+/* Обновления через Sparkle: настройки и пункт меню-бара. */
+"Updates" = "Обновления";
+"Install Updates Automatically" = "Обновлять автоматически";
+"Check for Updates" = "Проверить обновления";
+"Check for Updates…" = "Проверить обновления…";
+"This build does not update itself" = "Эта сборка не обновляется сама";

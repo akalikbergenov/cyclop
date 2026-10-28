@@ -141,3 +141,10 @@
 "Keyboard and trackpad are locked" = "Keyboard and trackpad are locked";
 "Hold Esc or − for %d s" = "Hold Esc or − for %d s";
 "Unlocks by itself in %d s" = "Unlocks by itself in %d s";
+
+/* Updates through Sparkle: Settings and the menu bar item. */
+"Updates" = "Updates";
+"Install Updates Automatically" = "Install Updates Automatically";
+"Check for Updates" = "Check for Updates";
+"Check for Updates…" = "Check for Updates…";
+"This build does not update itself" = "This build does not update itself";

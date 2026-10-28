@@ -31,6 +31,13 @@ if git rev-parse "$TAG" >/dev/null 2>&1; then
     fail "тег $TAG уже есть. Подними номер в Scripts/version"
 fi
 
+# Без ключа обновлений раннер релиз не выпустит, но тег к тому времени уже
+# будет стоять. Поэтому проверяется до тега.
+grep -Eq '^[A-Za-z0-9+/]{43}=$' "$ROOT/Scripts/sparkle-public-key" \
+    || fail "в Scripts/sparkle-public-key заглушка вместо ключа — см. docs/signing.md, раздел 5"
+gh secret list --json name --jq '.[].name' 2>/dev/null | grep -qx SPARKLE_ED_PRIVATE_KEY \
+    || fail "нет секрета SPARKLE_ED_PRIVATE_KEY — см. docs/signing.md, раздел 5"
+
 # Заметки к релизу состоят из двух частей, и первую не напишет никто, кроме
 # человека. Список коммитов отвечает на вопрос "что изменилось в коде";
 # пришедший спрашивает "что мне это даст" — это разные ответы, и второй

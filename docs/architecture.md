@@ -303,3 +303,23 @@ polling reads one change counter twice a second, and image data is not touched
 while screenshot saving is off — it used to be encoded to PNG in full and thrown
 away. Every timer carries a tolerance so the system can coalesce wake-ups. And
 no leaks: `leaks` against the live process finds zero.
+
+**Updates.** Sparkle 2, not an updater of our own. The hard part of updating is
+not noticing a new version but replacing a running app on somebody else's Mac
+and refusing a forged one — and a mistake there is the one kind the next update
+cannot fix, because it never arrives. Sparkle installs only what carries an
+EdDSA signature matching the key baked into Info.plist — or, so that this key
+can be replaced, an Apple code signature matching the installed app's; a
+broken Apple signature is refused either way.
+
+There is no server. The appcast is a file attached to every GitHub release and
+holds one item — that release. `releases/latest/download/appcast.xml` always
+resolves to the newest one, so publishing a release is publishing the update.
+The runner signs the image with the private key from the repository secrets
+after notarisation and stapling, since both change the file, and checks the
+signature against the public key inside the app before anything is uploaded.
+
+An update is downloaded in the background and put in place when Cyclop quits,
+never in the middle of work: a relaunch would also wipe the clipboard history,
+which lives only in memory. Sparkle's XPC services are dropped from the bundle
+— they serve sandboxed apps only, and Cyclop is not one.
