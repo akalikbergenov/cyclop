@@ -1,0 +1,19 @@
+{
+  "name": "cyclop-site",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "release-info": "node scripts/release-info.mjs",
+    "build": "node scripts/release-info.mjs && astro build",
+    "dev": "astro dev",
+    "deploy": "npm run build && wrangler deploy"
+  },
+  "dependencies": {
+    "@astrojs/rss": "4.0.12",
+    "@astrojs/sitemap": "3.6.0",
+    "astro": "5.18.2"
+  },
+  "devDependencies": {
+    "wrangler": "4.150.0"
+  }
+}

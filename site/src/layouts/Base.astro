@@ -1,0 +1,128 @@
+---
+// Общая обёртка страниц. Ни одного внешнего ресурса и ни одного скрипта: стили
+// встроены, шрифты системные. Страница должна целиком приходить в первые
+// килобайты ответа (см. astro.config.mjs).
+import { t, prefix } from "../i18n.js";
+
+const {
+  lang = "en",
+  title,
+  description,
+  // Пути этой же страницы на обоих языках — для hreflang и переключателя.
+  alternates = null,
+  jsonld = null,
+  ogType = "website",
+} = Astro.props;
+
+const s = t[lang];
+const site = "https://cyclopnotch.app";
+const canonical = new URL(Astro.url.pathname, site).href;
+const other = lang === "ru" ? "en" : "ru";
+const otherHref = alternates?.[other] ?? s.nav.otherHref;
+const p = prefix(lang);
+---
+<!doctype html>
+<html lang={s.htmlLang}>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{title}</title>
+<meta name="description" content={description}>
+<link rel="canonical" href={canonical}>
+{alternates && (
+  <>
+    <link rel="alternate" hreflang="en" href={new URL(alternates.en, site).href}>
+    <link rel="alternate" hreflang="ru" href={new URL(alternates.ru, site).href}>
+    <link rel="alternate" hreflang="x-default" href={new URL(alternates.en, site).href}>
+  </>
+)}
+<meta property="og:type" content={ogType}>
+<meta property="og:site_name" content="Cyclop">
+<meta property="og:title" content={title}>
+<meta property="og:description" content={description}>
+<meta property="og:url" content={canonical}>
+<meta property="og:image" content={`${site}/panel.png`}>
+<meta property="og:locale" content={s.ogLocale}>
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#0b0b0c">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="alternate" type="application/rss+xml" title={`Cyclop — ${s.blogTitle}`} href={`${p}/rss.xml`}>
+{jsonld && <script type="application/ld+json" set:html={JSON.stringify(jsonld)} />}
+</head>
+<body>
+<header class="top">
+  <a class="brand" href={`${p}/`} aria-label="Cyclop">
+    <svg viewBox="0 0 100 100" width="22" height="22" aria-hidden="true"><rect width="100" height="100" rx="22" fill="currentColor" opacity=".14"/><rect x="26" y="18" width="48" height="16" rx="7" fill="currentColor"/><circle cx="50" cy="62" r="13" fill="currentColor"/></svg>
+    Cyclop
+  </a>
+  <nav>
+    <a href={`${p}/blog/`}>{s.nav.blog}</a>
+    <a href="/github">{s.nav.github}</a>
+    <a href={otherHref} hreflang={other} lang={other}>{s.nav.other}</a>
+  </nav>
+</header>
+<main>
+  <slot />
+</main>
+<footer class="foot">
+  <p>{s.footer}</p>
+  <p class="links">
+    <a href={`${p}/privacy/`}>{s.nav.privacy}</a>
+    <a href={`${p}/blog/`}>{s.nav.blog}</a>
+    <a href="/github">GitHub</a>
+    <a href={`${p}/rss.xml`}>RSS</a>
+  </p>
+</footer>
+</body>
+</html>
+
+<style is:global>
+:root {
+  color-scheme: dark;
+  --bg: #0b0b0c;
+  --surface: #151517;
+  --line: #26262a;
+  --ink: #f2f2f0;
+  --muted: #a3a3a8;
+  --accent: #f5c84c;
+  --accent-ink: #141006;
+  --max: 1080px;
+  --text: 680px;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-size: 17px; line-height: 1.6; }
+a { color: inherit; }
+img { max-width: 100%; height: auto; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+.top, main, .foot { max-width: var(--max); margin: 0 auto; padding-inline: max(20px, env(safe-area-inset-left, 0px)) max(20px, env(safe-area-inset-right, 0px)); }
+.top { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-block: 18px; }
+.brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 700; text-decoration: none; letter-spacing: -0.01em; }
+.top nav { display: flex; gap: 20px; font-size: 15px; }
+.top nav a { color: var(--muted); text-decoration: none; }
+.top nav a:hover { color: var(--ink); }
+h1, h2, h3 { line-height: 1.15; letter-spacing: -0.02em; text-wrap: balance; }
+h1 { font-size: clamp(36px, 6vw, 60px); margin: 0 0 18px; font-weight: 800; }
+h2 { font-size: clamp(26px, 3.4vw, 36px); margin: 0 0 14px; font-weight: 750; }
+h3 { font-size: 18px; margin: 0 0 6px; }
+.muted { color: var(--muted); }
+.btn { display: inline-flex; align-items: center; gap: 10px; padding: 14px 22px; border-radius: 12px; background: var(--accent); color: var(--accent-ink); font-weight: 700; text-decoration: none; font-size: 17px; }
+.btn:hover { filter: brightness(1.06); }
+.btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); font-weight: 600; }
+.prose { max-width: var(--text); }
+.prose h2 { font-size: 26px; margin-top: 40px; }
+.prose h3 { margin-top: 28px; }
+.prose p, .prose li { color: #dcdcd8; }
+.prose code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .9em; background: var(--surface); padding: 1px 5px; border-radius: 5px; }
+.prose blockquote { margin: 20px 0; padding: 4px 0 4px 16px; border-left: 3px solid var(--accent); color: var(--muted); }
+.foot { border-top: 1px solid var(--line); margin-top: 72px; padding-block: 28px 40px; color: var(--muted); font-size: 14px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; }
+.foot p { margin: 0; }
+.foot .links { display: flex; gap: 18px; }
+.foot a { color: var(--muted); }
+@media (max-width: 560px) {
+  body { font-size: 16px; }
+  .top nav { gap: 14px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
