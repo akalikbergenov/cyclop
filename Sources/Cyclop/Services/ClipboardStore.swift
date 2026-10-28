@@ -47,6 +47,11 @@ final class ClipboardStore: ObservableObject {
     /// would otherwise be encoded in full and then thrown away.
     var wantsImages: () -> Bool = { true }
 
+    /// Whether text and file copies go into history. The store also runs for
+    /// the shelf alone, with the Clipboard tab off the rail, and then it must
+    /// only pick up screenshots — not keep a history nobody asked for.
+    var wantsHistory: () -> Bool = { true }
+
     private var timer: Timer?
     private var lastChangeCount = NSPasteboard.general.changeCount
     private let limit = 40
@@ -62,7 +67,11 @@ final class ClipboardStore: ObservableObject {
     ]
 
     func start() {
-        stop()
+        // Asked by two tabs, so a second call while running changes nothing.
+        // Starting from cold skips whatever was copied while stopped: it is
+        // not a fresh copy, and an old screenshot must not be saved again.
+        guard timer == nil else { return }
+        lastChangeCount = NSPasteboard.general.changeCount
         let timer = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.poll() }
         }
@@ -117,7 +126,8 @@ final class ClipboardStore: ObservableObject {
 
         // A copied file arrives as a URL, not as image data, so URLs win first.
         let options: [NSPasteboard.ReadingOptionKey: Any] = [.urlReadingFileURLsOnly: true]
-        if let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: options) as? [URL],
+        if wantsHistory(),
+           let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: options) as? [URL],
            let url = urls.first {
             record(ClipItem(payload: .file(url), date: Date()))
             return
@@ -141,7 +151,8 @@ final class ClipboardStore: ObservableObject {
             }
         }
 
-        guard let string = pasteboard.string(forType: .string),
+        guard wantsHistory(),
+              let string = pasteboard.string(forType: .string),
               !string.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         record(ClipItem(payload: .text(string), date: Date()))
     }
@@ -158,7 +169,8 @@ final class ClipboardStore: ObservableObject {
         // that merely offered an image alongside its text would go unrecorded.
         guard attempt < 12 else {
             let pasteboard = NSPasteboard.general
-            guard pasteboard.changeCount == changeCount,
+            guard wantsHistory(),
+                  pasteboard.changeCount == changeCount,
                   let string = pasteboard.string(forType: .string),
                   !string.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
             record(ClipItem(payload: .text(string), date: Date()))
