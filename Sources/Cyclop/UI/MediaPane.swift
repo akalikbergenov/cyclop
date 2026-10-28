@@ -75,8 +75,18 @@ struct MediaPane: View {
                     .resizable()
                     .aspectRatio(contentMode: isSquare(image) ? .fill : .fit)
                     .transition(.opacity)
-            } else {
+            } else if media.artworkIsPending {
                 SkeletonBox(cornerRadius: 14)
+            } else {
+                // Every source has been asked and none had a cover. The
+                // shimmer would go on claiming one is coming, so it steps
+                // aside for a plain mark that says the opposite (#78).
+                Theme.surface
+                Image(systemName: "music.note")
+                    .font(.system(size: 34, weight: .light))
+                    .foregroundStyle(Theme.tertiary)
+                    .transition(.opacity)
+                    .accessibilityLabel(Text(localized("No artwork")))
             }
         }
         .frame(width: 118, height: 118)
@@ -93,6 +103,7 @@ struct MediaPane: View {
         )
         .shadow(color: .black.opacity(0.5), radius: 12, y: 5)
         .animation(Theme.artworkAnimation, value: media.artwork)
+        .animation(Theme.artworkAnimation, value: media.artworkIsPending)
     }
 
     // MARK: - Scrubber
