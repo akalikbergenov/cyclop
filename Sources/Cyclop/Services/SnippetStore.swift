@@ -146,7 +146,15 @@ final class SnippetStore: ObservableObject {
         persist()
     }
 
+    /// Re-reads first, like `add` and `update`: removing one row must not
+    /// also undo whatever was written into the file by hand since the tab
+    /// was opened.
     func remove(_ snippet: Snippet) {
+        reload()
+        guard !fileBroken else {
+            NSLog("Cyclop: refusing to write over an unreadable snippets.json")
+            return
+        }
         items.removeAll { $0.id == snippet.id }
         persist()
     }
