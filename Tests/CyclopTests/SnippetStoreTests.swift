@@ -231,4 +231,79 @@ struct SnippetStoreTests {
         store.query = "   "
         #expect(store.filtered.count == 2)
     }
+
+    // MARK: - Группы (#106)
+
+    /// Группе своё значение не нужно, и требовать его с неё — значит объявить
+    /// нечитаемым совершенно нормальный файл.
+    @Test func aGroupNeedsNoValueOfItsOwn() throws {
+        let (store, _) = try Self.makeStore(contents: #"""
+        [{"label":"стенд","items":[{"label":"адрес","text":"nox"}]}]
+        """#)
+        store.reload()
+        #expect(store.fileBroken == false)
+        #expect(store.items.count == 1)
+        #expect(store.items[0].isGroup)
+        #expect(store.items[0].items?.count == 1)
+    }
+
+    /// А с обычной строки — требовать, и это та же защита, что и у битого
+    /// файла. Опечатка в ключе, разобранная в пустую строку, флаг не поднимет,
+    /// и первая же запись положит эту пустоту поверх значения.
+    @Test func aRowWithoutAValueIsStillABreakage() throws {
+        let (store, file) = try Self.makeStore(contents: #"""
+        [{"label":"почта","txet":"me@example.com"}]
+        """#)
+        store.reload()
+        #expect(store.fileBroken)
+
+        store.add(label: "новая", text: "значение")
+        #expect(try String(contentsOf: file, encoding: .utf8).contains("me@example.com"))
+    }
+
+    /// Файл правят руками, поэтому правка внутри группы начинается с того же
+    /// перечитывания, что `add` и `update`: иначе добавление строки в группу
+    /// молча отменяет всё, что дописали редактором с прошлого захода.
+    @Test func anEditInsideAGroupRereadsWhatWasEditedByHand() throws {
+        let (store, file) = try Self.makeStore()
+        store.addGroup(label: "стенд", itemLabel: "адрес", itemText: "nox")
+        try Data(#"""
+        [{"label":"стенд","items":[{"label":"адрес","text":"nox"}]},
+         {"label":"из редактора","text":"значение"}]
+        """#.utf8).write(to: file)
+
+        store.addToGroup(store.items[0], label: "порт", text: "8080")
+
+        #expect(store.items.map(\.label) == ["стенд", "из редактора"])
+        #expect(store.items[0].items?.map(\.label) == ["адрес", "порт"])
+        #expect(try Self.read(file).map(\.label) == ["стенд", "из редактора"])
+    }
+
+    /// `updateIntoAnExactCopyDoesNotDestroyTheNeighbour`, только внутри группы:
+    /// индекс, взятый до удаления тёзки, после него показывает на соседа.
+    @Test func updateInsideAGroupDoesNotDestroyTheNeighbour() throws {
+        let (store, file) = try Self.makeStore()
+        store.addGroup(label: "стенд", itemLabel: "а", itemText: "1")
+        store.addToGroup(store.items[0], label: "б", text: "2")
+        store.addToGroup(store.items[0], label: "в", text: "3")
+        // Строки группы: [а, б, в]. Правим среднюю в копию верхней.
+        let group = store.items[0]
+        store.update(group.items![1], in: group, label: "а", text: "1")
+
+        #expect(store.items[0].items?.map(\.text) == ["1", "3"])
+        #expect(try Self.read(file)[0].items?.map(\.text) == ["1", "3"])
+    }
+
+    /// Ключи группы и обычной строки живут в разных пространствах. Иначе
+    /// заготовка с именем `group` и значением `prod` — это та же строка, что
+    /// группа `prod`, и создание группы удалило бы её молча.
+    @Test func aGroupKeyDoesNotCollideWithASnippet() throws {
+        let (store, _) = try Self.makeStore()
+        store.add(label: "group", text: "prod")
+        store.addGroup(label: "prod", itemLabel: "адрес", itemText: "nox")
+
+        #expect(store.items.count == 2)
+        #expect(store.items.contains { !$0.isGroup && $0.label == "group" && $0.text == "prod" })
+        #expect(store.items.contains { $0.isGroup && $0.label == "prod" })
+    }
 }

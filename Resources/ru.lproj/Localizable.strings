@@ -140,3 +140,5 @@
 "Keyboard and trackpad are locked" = "Клавиатура и трекпад заблокированы";
 "Hold Esc or − for %d s" = "Держи Esc или − %d с";
 "Unlocks by itself in %d s" = "Само снимется через %d с";
+"Add a group" = "Добавить группу";
+"Group" = "Группа";
