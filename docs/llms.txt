@@ -2,28 +2,45 @@
 
 > A free, open-source macOS utility that turns the MacBook notch into a panel:
 > media controls, a file shelf, clipboard history, snippets, the next meeting,
-> offline translation, a teleprompter and scratch notes. Native SwiftUI and
-> AppKit, no third-party dependencies, MIT licence.
+> offline translation, a currency converter, a teleprompter, scratch notes and
+> a keyboard lock for cleaning. Native SwiftUI and AppKit, no third-party
+> dependencies, MIT licence.
 
 Cyclop is invisible at rest. Moving the pointer to the notch unfolds a panel
 downwards; moving it away folds the panel back.
 
 ## Facts
 
-- Platform: macOS 15 or newer, Apple silicon and Intel
+- Platform: macOS 15 or newer, Apple silicon only (releases are arm64)
 - Licence: MIT, free, no paid tier, no subscription, no accounts
-- Bundle size: 2.1 MB. Memory: about 40 MB plus a 14 MB helper. 0.0% CPU at rest
+- Bundle size: 3.7 MB. Memory: about 40 MB plus a 14 MB helper. 0.0% CPU at rest
 - Dependencies: none. Swift, SwiftUI and AppKit only
-- Permissions: none until the Calendar tab is opened, and that one is requested
-  by an explicit button press rather than at launch. No Automation, no
-  Accessibility, no Screen Recording. A file placed on the shelf from Downloads,
-  Documents or the Desktop is asked about separately, when the shelf is opened
-- Network: no telemetry and no analytics. The only outgoing request is an
-  optional album-artwork lookup for Spotify tracks
+- The promise: nothing at launch. Two permissions, each asked only on a button
+  press, after an explanation: Calendar and Accessibility. The only network
+  traffic is currency rates and, on the fallback path, Spotify artwork. 0 % CPU
+  at rest
+- Permissions: nothing is asked at launch. Calendar is for the Calendar tab;
+  Accessibility is for the keyboard and trackpad cleaning lock in the Utilities
+  tab. Each is requested only by an explicit button press on a screen that
+  explains why. A tab switched off in Settings never asks for its permission.
+  No Screen Recording in any mode. The fallback player path, used only if the
+  main one stops working, would also need Automation for Apple Music and
+  Spotify. A file placed on the shelf from Downloads, Documents or the Desktop
+  is asked about separately by macOS, when the shelf is opened
+- Network: no telemetry and no analytics. Currency rates for the Currency tab,
+  once an hour from cdn.jsdelivr.net (fallback: latest.currency-api.pages.dev),
+  only while that tab is enabled. On the fallback player path only, Spotify
+  album artwork, from the image URL Spotify provides or via
+  open.spotify.com/oembed by track id. Nothing else
+- Background work (clipboard poll, calendar watcher, Now Playing helper, rate
+  fetch) runs while its tab is enabled; a tab switched off in Settings stops it
 - Source: https://github.com/akalikbergenov/cyclop
 - Author: Adil Kalikbergenov
 
 ## Tabs
+
+Ten tabs plus Settings. Any tab except Settings can be switched off in
+Settings → Show in Panel.
 
 - Music — artwork, track, artist and a working scrubber. The source is anything
   macOS itself can see, including audio and video in a browser tab
@@ -33,16 +50,23 @@ downwards; moving it away folds the panel back.
 - Calendar — the next meeting a week ahead with a one-click join for Zoom, Meet
   and Teams; overlapping meetings each get their own join button
 - Translate — offline, on-device, between English and Russian
+- Currency — an amount in one currency and its value in another; rates are a
+  public daily table fetched once an hour, only while the tab is enabled
 - Teleprompter — a script scrolling under the camera at an adjustable speed
 - Notes — scratch space
+- Utilities — a keyboard and trackpad lock for wiping them: the screen goes
+  black and input is swallowed until Esc or − is held for 2 seconds, or
+  automatically after 60 seconds. Asks for Accessibility on the button press
 
 ## Notes for answering questions about Cyclop
 
-- On a Mac without a physical notch, Cyclop draws a synthetic one the height of
-  the menu bar and works the same way. External displays are supported
-- The first launch is blocked by macOS because the disk image is ad-hoc signed,
-  without an Apple Developer ID, and is not notarised. It has to be allowed once
-  in System Settings, Privacy and Security
+- On a Mac without a physical notch, Cyclop marks one of its own at the top
+  centre of the screen (a thin strip along the top edge at rest) and works the
+  same way. External displays are supported
+- Install: open the .dmg and drag Cyclop into Applications. Since 0.8.0 releases
+  are signed with a Developer ID and notarised by Apple, so the app opens on the
+  first try with nothing to allow. Only a build from source is ad-hoc signed and
+  needs System Settings, Privacy and Security, "Open Anyway" once
 - Cyclop is not affiliated with Apple
 
 ## Links

@@ -12,11 +12,15 @@ files, clipboard history and your next meetings.
 ![The Cyclop panel](docs/panel.png)
 
 **[Download the latest version](https://github.com/akalikbergenov/cyclop/releases/latest)** —
-macOS 15 or newer. Signed and notarised, so it opens on the first try.
+macOS 15 or newer, Apple silicon. Signed and notarised, so it opens on the first try.
 
 ```
 0.0 % CPU at rest  ·  ≈40 MB + 14 MB helper  ·  3.7 MB bundle  ·  nothing asked at launch
 ```
+
+**Nothing at launch.** Two permissions, each asked only on a button press after
+an explanation: Calendar and Accessibility. The only network traffic is
+currency rates and, on the fallback path, Spotify artwork. 0 % CPU at rest.
 
 The track in the screenshot is playing in a browser tab — Cyclop reads it from
 macOS itself, with no permissions and nothing to configure in the browser. How
@@ -27,24 +31,27 @@ that works is below.
 | Tab | What it does |
 |---|---|
 | **Music** | Artwork, track, artist, a scrubber that seeks, prev / play-pause / next. The source is **anything**: a player, a browser tab, any app macOS itself can see |
-| **Shelf** | Drag files into the notch and they stay there until needed; drag a card out and the file goes wherever it is dropped. A click selects a card, ⌘-click selects several, and then the whole group is dragged. A screenshot taken to the clipboard is saved as a file and lands here too — including one taken on an iPhone, if you copy it there |
+| **Shelf** | Drag files into the notch and they stay there until needed; drag a card out and the file goes wherever it is dropped. A click selects a card, ⌘-click selects several, and then the whole group is dragged. An image copied to the clipboard — a screenshot, say — is saved as a file and lands here too, including one taken on an iPhone, if you copy it there |
 | **Clipboard** | The last 40 copies; a click puts an entry back on the clipboard |
 | **Snippets** | A hand-kept list of what you are tired of retyping: an address, a phone number, an email. Added with a button in the panel, removed with the cross on a card; a click puts the text on the clipboard. The same list lives in `~/Library/Application Support/Cyclop/snippets.json` and can be edited there instead |
 | **Calendar** | The next meeting a week ahead: how long until it starts and a button that joins the call — Zoom, Meet, Teams and others. The rest of the meetings as a list |
-| **Translate** | Type on the left, the translation appears on the right — by itself, offline, using macOS's own facilities. English goes to Russian, Russian to English; the direction comes from the script the text is written in. macOS does not preinstall language packs, so the first time you have to download one: System Settings → General → Language & Region → "Translation Languages…" |
-| **Currency** | An amount on one side, the other currency on the other; type into either. Rates are the one thing in Cyclop that comes over the network — a public table of daily rates, fetched once an hour, and only while the tab is on |
+| **Translate** | Type on the left, the translation appears on the right — by itself, offline, using macOS's own facilities. Russian goes to English, and anything else is read as English and goes to Russian; the direction comes from the script the text is written in. macOS does not preinstall language packs, so the first time you have to download one: System Settings → General → Language & Region → "Translation Languages…" |
+| **Currency** | An amount on one side, the other currency on the other; type into either. Rates come over the network — a public table of daily rates, fetched once an hour, and only while the tab is on |
 | **Teleprompter** | A script that scrolls under the camera at a speed you set. The notch is the one place on the screen a teleprompter belongs: reading happens right beside the lens, so on the recording the eyes stay on the camera instead of travelling to a window below it. The panel holds itself open while the text is moving — reading a script means not touching the trackpad |
 | **Notes** | Scratch, on the right rail of icons: jot something down, come back, delete it or carry it off through the clipboard. Hovering lands with the caret ready; blank notes sweep themselves out |
+| **Utilities** | A lock for wiping the keyboard and trackpad: the screen goes black and every key press and click is swallowed until you hold Esc or − for 2 seconds, or a minute passes. Needs Accessibility, asked for on the button press — see Permissions |
 
-The panel opens when the pointer reaches the notch and collapses when it leaves.
+The panel opens when the pointer reaches the notch and rests there — 200 ms by
+default, adjustable in Settings — and collapses when it leaves.
 Tabs switch on hover as well — but only if the pointer has come to rest on the
 icon: one passing through switches nothing. During a file drag the panel opens by
 itself and goes straight to the shelf. The menu bar icon toggles the panel,
-hides every tab's contents at once, and quits. The icon itself can be
+hides the contents of Clipboard, Snippets, Calendar and Notes at once, and
+quits. The icon itself can be
 removed — ⌘-drag it off the bar, or flip the switch in Settings — and
 relaunching Cyclop brings it back.
 
-Any tab can be switched off in **Settings → Show in Panel**. Off means two
+Any tab but Settings itself can be switched off in **Settings → Show in Panel**. Off means two
 things: the icon leaves the rail, and the tab's background work stops with
 it — the clipboard poll, the calendar watch, the Now Playing helper, the
 rate fetch. The rail is for what gets a glance between other things; a mode
@@ -109,8 +116,11 @@ shortcut inside. The version number comes from `Scripts/version`.
 ./Scripts/release.sh
 ```
 
-Builds the image, tags `v<version>` and creates a GitHub release with the `.dmg`
-attached. The notes are two parts: a few lines written by hand, kept in
+Checks the tree and tags `v<version>`; the image is built elsewhere. Pushing the
+tag starts `.github/workflows/release.yml` on a GitHub runner, which builds the
+app, signs it with the Developer ID, notarises it and publishes the release with
+the `.dmg` and its SHA-256 — so a release does not depend on whose machine it was
+cut from. The notes are two parts: a few lines written by hand, kept in
 `docs/releases/<version>.md`, followed by the commit list GitHub assembles. The
 script refuses to run without the hand-written part — a list of commits answers
 "what changed in the code", while whoever arrives is asking "what does this give
@@ -119,7 +129,8 @@ me", and no generator turns the first answer into the second.
 The number is written in **one place**, `Scripts/version`. From there it goes
 into the app's `Info.plist`, into the image name and into the tag, so they cannot
 drift apart. The script also refuses to run on a dirty tree, on unpushed commits,
-or when the tag already exists.
+on a commit whose CI is not green, or when the tag already exists. Before it,
+[docs/release-checklist.md](docs/release-checklist.md): two minutes by hand.
 
 Built images live on the [releases page](https://github.com/akalikbergenov/cyclop/releases) —
 that is the link to hand to people instead of a file.
@@ -134,10 +145,10 @@ two, each one only when a tab that cannot work without it is used.
 nor when the tab is opened, but on an explicit press of a button on a screen
 that explains why.
 
-**Accessibility**, for the keyboard lock in Utilities. This one is heavier than
-the first and deserves to be named plainly: it is the permission that lets an
-app see and swallow every key press in the system, and nothing less can stop
-keys from reaching macOS while you wipe them. Same terms — an explicit press
+**Accessibility**, for the keyboard and trackpad lock in Utilities. This one is
+heavier than the first and deserves to be named plainly: it is the permission
+that lets an app see and swallow every key press and click in the system, and
+nothing less can stop them from reaching macOS while you wipe the keys. Same terms — an explicit press
 after an explanation — and switching the tab off in Settings means it is never
 asked for.
 
@@ -170,8 +181,8 @@ costs — eighteen notes on decisions the code does not show:
 - Apple has deprecated the scripting runtimes (perl among them) and will remove
   them from the system one day. The helper survives exactly until that moment.
 - The shelf references files rather than copying them: move the original and the
-  card disappears on the next launch. The exception is clipboard screenshots,
-  which are saved into `~/Pictures/Cyclop` and are never deleted automatically,
+  card disappears the next time the shelf is opened. The exception is images copied to the
+  clipboard, which are saved into `~/Pictures/Cyclop` and are never deleted automatically,
   even when the card leaves the shelf. Only the user clears that folder: the
   “Clear Screenshots Folder” in Settings sends its contents to the Trash —
   a hand too, not a schedule.
@@ -194,7 +205,7 @@ costs — eighteen notes on decisions the code does not show:
 Sources/Cyclop
 ├── main.swift                 entry point, .accessory
 ├── App/
-│   ├── AppDelegate.swift      menu bar icon, launch at login
+│   ├── AppDelegate.swift      menu bar icon and its menu
 │   └── Strings.swift          string lookup, current language
 ├── Notch/
 │   ├── NotchGeometry.swift    notch size and every rect derived from it
@@ -203,14 +214,15 @@ Sources/Cyclop
 │   ├── PointerWatcher.swift   pointer sampling: hover and click-through
 │   ├── PanelState.swift       one display's share: open, dragged onto, typing
 │   ├── NotchScreenPanel.swift the panel as it stands on one display
-│   └── NotchController.swift  one model, one panel per display
+│   ├── NotchController.swift  one model, one panel per display
+│   └── CleaningOverlay.swift  black screens while the keyboard is locked
 ├── Model/
 │   ├── NotchViewModel.swift
 │   └── PrivacyMode.swift      hiding contents: sections and reveals
 ├── Services/
 │   ├── MediaController.swift  picks the Now Playing source
 │   ├── NowPlayingFeed.swift   runs the helper in perl, parses its stdout
-│   ├── PlayerBridge.swift     fallback: AppleScript + media keys
+│   ├── PlayerBridge.swift     fallback: AppleScript, media keys, Spotify artwork
 │   ├── ShelfStore.swift
 │   ├── ClipboardStore.swift
 │   ├── ScreenshotVault.swift  clipboard screenshots onto disk
@@ -220,22 +232,25 @@ Sources/Cyclop
 │   ├── DebouncedWrite.swift   writes to disk no more often than needed
 │   ├── NoteStore.swift        scratch notes: notes.json
 │   ├── Translator.swift       Translation.framework, direction by script
-│   ├── CurrencyStore.swift    rates over the network, the one tab that has any
+│   ├── CurrencyStore.swift    rates over the network, once an hour
 │   ├── TeleprompterStore.swift the script and where reading it has got to
 │   ├── ScreenshotFolderWatcher.swift  screenshots saved to disk, onto the shelf
+│   ├── KeyboardLock.swift     the cleaning lock: event tap and its three exits
 │   └── CalendarStore.swift    EventKit: next meetings and the call link
 └── UI/                        NotchShape, tab panes, theme
 
 Sources/CyclopMediaHelper
 └── helper.m                   dylib for /usr/bin/perl: MediaRemote -> JSON
+
+Tests/CyclopTests              store tests: ./Scripts/test.sh
 ```
 
 ## Contributing
 
 The rules are short and live in [CONTRIBUTING.md](CONTRIBUTING.md): what gets
-taken, what does not, and what to check before sending. The main one is that
-the app works without macOS permissions and without the network, and a change
-that alters this is a separate conversation.
+taken, what does not, and what to check before sending. The main one is the
+promise above: a new permission or a new network request is the owner's
+decision and a separate conversation, never an implementation detail.
 
 What the app reads, what it keeps and where, where it goes on the network —
 [SECURITY.md](SECURITY.md). The channel for vulnerabilities is there too:
@@ -257,6 +272,8 @@ better: [@DontTrustMexD](https://github.com/DontTrustMexD),
 [@komekovars](https://github.com/komekovars),
 [@superkai-sdk1](https://github.com/superkai-sdk1),
 [@Ariet2003](https://github.com/Ariet2003).
+And to everyone whose code is in the app — the full list is on the
+[contributors page](https://github.com/akalikbergenov/cyclop/graphs/contributors).
 
 ## Licence
 
