@@ -20,6 +20,8 @@
 "General" = "General";
 "Launch at Login" = "Launch at Login";
 "Show Menu Bar Icon" = "Show Menu Bar Icon";
+"Open Delay" = "Open Delay";
+"%d ms" = "%d ms";
 "Show in Panel" = "Show in Panel";
 "Displays" = "Displays";
 "Show on All Displays" = "Show on All Displays";

@@ -19,6 +19,8 @@
 "General" = "Общее";
 "Launch at Login" = "Запускать при входе";
 "Show Menu Bar Icon" = "Показывать иконку в меню-баре";
+"Open Delay" = "Задержка открытия";
+"%d ms" = "%d мс";
 "Show in Panel" = "Показывать в панели";
 "Displays" = "Дисплеи";
 "Show on All Displays" = "Показывать на всех дисплеях";
