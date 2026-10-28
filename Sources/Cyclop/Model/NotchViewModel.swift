@@ -232,7 +232,9 @@ final class NotchViewModel: ObservableObject {
     /// the camera, hands nowhere near the trackpad. The exception is kept as
     /// narrow as it can be. It applies to one tab, only while the script is
     /// actually moving, and it ends three ways that need no explaining: the
-    /// script runs out, Escape, or a click anywhere outside the panel.
+    /// script runs out, the pause button, or a click anywhere outside the
+    /// panel (`NotchScreenPanel.clickedOutside`). Not Escape: while the script
+    /// moves the panel does not hold the keyboard, so the key never reaches it.
     var holdsOpen: Bool { tab == .teleprompter && teleprompter.isRunning }
 
     let media: MediaController

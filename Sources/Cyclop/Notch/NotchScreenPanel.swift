@@ -20,7 +20,26 @@ final class NotchScreenPanel {
     /// controller for the one screen the take was started from — see
     /// `NotchViewModel.holdsOpen` for why the exception exists at all, and
     /// `NotchController.updatePin` for why it is granted to a single screen.
-    var isPinned = false
+    var isPinned = false {
+        didSet { updateClickWatch() }
+    }
+
+    /// Opened from the menu bar, and the pointer has not reached it yet.
+    ///
+    /// The menu is the one way to open the panel with the pointer somewhere
+    /// else — on the menu bar icon, usually far to the right. Under the usual
+    /// rule ("the pointer decides") that is a panel the pointer has already
+    /// left: it folded 50 ms after opening, and the second way to open Cyclop
+    /// looked like a button that does nothing. So until the pointer arrives,
+    /// the panel waits; once it has, the usual rule takes over. A click
+    /// anywhere else, or the menu item again, closes it.
+    private var heldByMenu = false {
+        didSet { updateClickWatch() }
+    }
+    /// Watches for clicks outside the panel, and only while something above
+    /// holds it open without the pointer. Mouse clicks need no permission to
+    /// watch; the monitor sees where a click was, never what was clicked.
+    private var clickMonitor: Any?
 
     private let vm: NotchViewModel
     private let pointer = PointerWatcher()
@@ -40,6 +59,9 @@ final class NotchScreenPanel {
     }
 
     func teardown() {
+        heldByMenu = false
+        if let clickMonitor { NSEvent.removeMonitor(clickMonitor) }
+        clickMonitor = nil
         pointer.stop()
         closeActiveRectWork?.cancel()
         cancellables.removeAll()
@@ -51,8 +73,17 @@ final class NotchScreenPanel {
     }
 
     func toggle() {
-        setOpen(!state.isOpen)
-        pointer.setInside(state.isOpen)
+        if state.isOpen {
+            setOpen(false)
+            pointer.setInside(false)
+        } else {
+            heldByMenu = true
+            setOpen(true)
+            // Truthfully outside: the pointer is on the menu bar. The panel
+            // stays because of `heldByMenu`, not because the watcher was told
+            // a pointer is on it that is not.
+            pointer.setInside(false)
+        }
     }
 
     /// Same display, same notch, moved: keep the panel and everything on it.
@@ -166,13 +197,20 @@ final class NotchScreenPanel {
             // Guarded here rather than inside `setOpen` so that the reasons
             // that are not the pointer, like the screen going to sleep, still
             // close a running teleprompter.
-            if !inside, holdsOpen { return }
+            if !inside, holdsOpen || heldByMenu { return }
             setOpen(inside)
         }
         // Everything outside the visible panel must reach the app underneath:
         // a `nil` from hitTest only discards the event, it does not forward it.
         pointer.onInteractiveChange = { [weak self] interactive in
-            self?.panel?.ignoresMouseEvents = !interactive
+            guard let self else { return }
+            self.panel?.ignoresMouseEvents = !interactive
+            // The pointer has reached a panel opened from the menu bar: from
+            // here on it decides, as it does everywhere else.
+            if interactive, heldByMenu {
+                heldByMenu = false
+                pointer.setInside(true)
+            }
         }
         pointer.start()
 
@@ -231,6 +269,30 @@ final class NotchScreenPanel {
     /// Whether this screen is the one a running script is pinning open.
     private var holdsOpen: Bool { isPinned && vm.holdsOpen }
 
+    private func updateClickWatch() {
+        let wanted = heldByMenu || isPinned
+        if wanted, clickMonitor == nil {
+            // Global monitors see only clicks in other apps — a click on the
+            // panel itself never arrives here, which is exactly "outside".
+            clickMonitor = NSEvent.addGlobalMonitorForEvents(
+                matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]
+            ) { [weak self] _ in
+                MainActor.assumeIsolated { self?.clickedOutside() }
+            }
+        } else if !wanted, let monitor = clickMonitor {
+            NSEvent.removeMonitor(monitor)
+            clickMonitor = nil
+        }
+    }
+
+    /// A click somewhere else: the panel opened from the menu closes, and a
+    /// running script stops — after which the pointer decides again, and a
+    /// pointer that is elsewhere folds the panel on the next tick.
+    private func clickedOutside() {
+        if heldByMenu { setOpen(false) }
+        if isPinned { vm.teleprompter.suspend() }
+    }
+
     /// Hands the keyboard to the panel, or gives it back.
     private func setKeyboard(_ wants: Bool) {
         if wants {
@@ -268,6 +330,9 @@ final class NotchScreenPanel {
     /// would be a panel stuck open on a screen nobody is looking at.
     private func setOpen(_ open: Bool) {
         guard state.isOpen != open else { return }
+        // Whatever closes the panel — the menu, a click, the space changing,
+        // the screen sleeping — ends the wait for the pointer with it.
+        if !open { heldByMenu = false }
         // Closing ends the take, but only on the screen reading it: the pin is
         // a consequence of the script moving, so the script stops with the
         // panel it is moving on — and not with any other panel folding away.
