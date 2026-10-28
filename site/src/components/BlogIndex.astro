@@ -1,0 +1,39 @@
+---
+import Base from "../layouts/Base.astro";
+import { getCollection } from "astro:content";
+import { t, prefix } from "../i18n.js";
+
+const { lang = "en" } = Astro.props;
+const s = t[lang];
+const p = prefix(lang);
+const posts = (await getCollection("blog", (e) => e.data.lang === lang))
+  .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
+const slug = (id) => id.split("/").pop();
+const fmt = new Intl.DateTimeFormat(s.dateLocale, { day: "numeric", month: "long", year: "numeric" });
+---
+<Base lang={lang} title={`${s.blogTitle} — Cyclop`} description={s.blogLede} alternates={{ en: "/blog/", ru: "/ru/blog/" }}>
+  <section class="head">
+    <h1>{s.blogTitle}</h1>
+    <p class="muted">{s.blogLede}</p>
+  </section>
+  <ul class="posts">
+    {posts.map((post) => (
+      <li>
+        <a href={`${p}/blog/${slug(post.id)}/`}>
+          <time datetime={post.data.date.toISOString().slice(0, 10)}>{fmt.format(post.data.date)}</time>
+          <h2>{post.data.title}</h2>
+          <p>{post.data.description}</p>
+        </a>
+      </li>
+    ))}
+  </ul>
+</Base>
+<style>
+.head { padding-block: 40px 8px; }
+.posts { list-style: none; padding: 0; margin: 24px 0 0; display: grid; gap: 14px; max-width: 760px; }
+.posts a { display: block; text-decoration: none; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; }
+.posts a:hover { border-color: #3a3a40; }
+.posts time { color: var(--muted); font-size: 14px; }
+.posts h2 { font-size: 22px; margin: 6px 0 6px; }
+.posts p { color: var(--muted); margin: 0; }
+</style>

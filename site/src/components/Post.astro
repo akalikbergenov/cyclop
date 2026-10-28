@@ -1,0 +1,58 @@
+---
+import Base from "../layouts/Base.astro";
+import { getCollection, render } from "astro:content";
+import { t, prefix } from "../i18n.js";
+import release from "../data/release.json";
+
+const { post } = Astro.props;
+const lang = post.data.lang;
+const s = t[lang];
+const p = prefix(lang);
+const slug = (id) => id.split("/").pop();
+const { Content } = await render(post);
+
+// Перевод этой же статьи, если он есть: по общему ключу pair.
+let alternates = null;
+if (post.data.pair) {
+  const twins = await getCollection("blog", (e) => e.data.pair === post.data.pair);
+  const en = twins.find((e) => e.data.lang === "en");
+  const ru = twins.find((e) => e.data.lang === "ru");
+  if (en && ru) alternates = { en: `/blog/${slug(en.id)}/`, ru: `/ru/blog/${slug(ru.id)}/` };
+}
+const fmt = new Intl.DateTimeFormat(s.dateLocale, { day: "numeric", month: "long", year: "numeric" });
+const url = `https://cyclopnotch.app${p}/blog/${slug(post.id)}/`;
+const jsonld = {
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  headline: post.data.title,
+  description: post.data.description,
+  datePublished: post.data.date.toISOString().slice(0, 10),
+  inLanguage: lang,
+  mainEntityOfPage: url,
+  image: "https://cyclopnotch.app/panel.png",
+  author: { "@type": "Person", name: "Adil Kalikbergenov", url: "https://github.com/akalikbergenov" },
+  publisher: { "@type": "Organization", name: "Cyclop", url: "https://cyclopnotch.app/" },
+};
+---
+<Base lang={lang} title={`${post.data.title} — Cyclop`} description={post.data.description} alternates={alternates} jsonld={jsonld} ogType="article">
+  <article class="prose">
+    <p class="back"><a href={`${p}/blog/`}>← {s.blogTitle}</a></p>
+    <h1>{post.data.title}</h1>
+    <p class="muted"><time datetime={post.data.date.toISOString().slice(0, 10)}>{fmt.format(post.data.date)}</time></p>
+    <Content />
+  </article>
+  <aside class="cta">
+    <h2>Cyclop</h2>
+    <p class="muted">{s.lede}</p>
+    <a class="btn" href={release.url} download>{s.download}</a>
+    <p class="meta">{s.meta(release)}</p>
+  </aside>
+</Base>
+<style>
+article { padding-top: 24px; }
+.back a { color: var(--muted); text-decoration: none; font-size: 15px; }
+article h1 { font-size: clamp(32px, 5vw, 46px); }
+.cta { margin-top: 56px; max-width: var(--text); background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 26px; }
+.cta h2 { font-size: 24px; }
+.meta { color: var(--muted); font-size: 14px; margin: 12px 0 0; }
+</style>

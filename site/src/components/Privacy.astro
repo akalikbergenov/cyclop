@@ -1,0 +1,45 @@
+---
+import Base from "../layouts/Base.astro";
+import { t } from "../i18n.js";
+const { lang = "en" } = Astro.props;
+const s = t[lang];
+// Счётчик включается ключом при сборке (см. components/Analytics.astro), и
+// страница говорит правду о том, что именно сейчас включено.
+const counting = Boolean(import.meta.env.PUBLIC_POSTHOG_KEY);
+---
+<Base lang={lang} title={`${s.privacyTitle} — Cyclop`} description={lang === "ru" ? "Что приложение Cyclop и этот сайт знают о вас." : "What the Cyclop app and this site know about you."} alternates={{ en: "/privacy/", ru: "/ru/privacy/" }}>
+  <article class="prose">
+    {lang === "ru" ? (
+      <>
+        <h1>Приватность</h1>
+        <h2>Приложение</h2>
+        <p>{s.promise}</p>
+        <p>В приложении нет телеметрии, аналитики и аккаунтов. История буфера живёт только в памяти, заготовки и заметки лежат файлами на вашем маке. Полный список того, что приложение читает, хранит и куда ходит по сети, — в <a href="https://github.com/akalikbergenov/cyclop/blob/main/SECURITY.md">SECURITY.md</a>.</p>
+        <h2>Этот сайт</h2>
+        <p>Сайт не ставит cookie и не хранит ничего в вашем браузере.</p>
+        {counting ? (
+          <p>Чтобы понимать, откуда приходят люди и сколько скачивают приложение, сайт считает посещения и нажатия «Скачать» через PostHog — без cookie и без хранения в браузере, поэтому повторный визит не связывается с прошлым. IP-адрес PostHog использует только для страны и не сохраняет. Записи сеансов и сбор кликов по странице выключены.</p>
+        ) : (
+          <p>Счётчика посещений сейчас нет. Если он появится, он будет работать без cookie, и эта страница скажет, какой именно и что он считает.</p>
+        )}
+        <p>Сайт размещён на Cloudflare Pages; как любой хостинг, Cloudflare видит IP-адрес и адрес страницы при каждом запросе. Скачивание приложения идёт напрямую с GitHub.</p>
+      </>
+    ) : (
+      <>
+        <h1>Privacy</h1>
+        <h2>The app</h2>
+        <p>{s.promise}</p>
+        <p>The app has no telemetry, no analytics and no accounts. Clipboard history lives only in memory; snippets and notes are files on your Mac. The full list of what the app reads, keeps and sends over the network is in <a href="https://github.com/akalikbergenov/cyclop/blob/main/SECURITY.md">SECURITY.md</a>.</p>
+        <h2>This site</h2>
+        <p>The site sets no cookies and stores nothing in your browser.</p>
+        {counting ? (
+          <p>To see where people come from and how many download the app, the site counts visits and clicks on “Download” with PostHog — without cookies or browser storage, so a return visit is not linked to an earlier one. PostHog uses the IP address only to derive the country and does not keep it. Session recording and click autocapture are off.</p>
+        ) : (
+          <p>There is no visit counter at the moment. If one is added, it will work without cookies, and this page will say which one and what it counts.</p>
+        )}
+        <p>The site is hosted on Cloudflare Pages; like any host, Cloudflare sees the IP address and the page address of each request. The app is downloaded directly from GitHub.</p>
+      </>
+    )}
+  </article>
+</Base>
+<style>article { padding-top: 24px; }</style>

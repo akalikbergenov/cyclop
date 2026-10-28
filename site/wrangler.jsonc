@@ -1,0 +1,21 @@
+// cyclopnotch.app: статический сайт из dist/ на Cloudflare (Workers Static
+// Assets — нынешняя форма Pages). Своего кода на сервере нет: только файлы,
+// _redirects и _headers. Выкладка: npm run build && npx wrangler deploy.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "cyclopnotch",
+  "compatibility_date": "2026-10-23",
+  "assets": {
+    "directory": "dist",
+    "not_found_handling": "404-page",
+    "html_handling": "auto-trailing-slash"
+  },
+  // Только свой домен: копия на workers.dev была бы вторым адресом тех же
+  // страниц для поисковиков.
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [
+    { "pattern": "cyclopnotch.app", "custom_domain": true },
+    { "pattern": "www.cyclopnotch.app", "custom_domain": true }
+  ]
+}

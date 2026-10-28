@@ -1,0 +1,133 @@
+---
+import Base from "../layouts/Base.astro";
+import { t, prefix } from "../i18n.js";
+import release from "../data/release.json";
+
+const { lang = "en" } = Astro.props;
+const s = t[lang];
+const p = prefix(lang);
+
+const jsonld = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "SoftwareApplication",
+      name: "Cyclop",
+      operatingSystem: "macOS 15 or newer",
+      applicationCategory: "UtilitiesApplication",
+      description: s.description,
+      url: `https://cyclopnotch.app${p}/`,
+      downloadUrl: release.url,
+      softwareVersion: release.version,
+      fileSize: `${release.sizeMB} MB`,
+      license: "https://opensource.org/licenses/MIT",
+      offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+      image: "https://cyclopnotch.app/panel.png",
+      author: { "@type": "Person", name: "Adil Kalikbergenov", url: "https://github.com/akalikbergenov" },
+    },
+    {
+      "@type": "FAQPage",
+      mainEntity: s.faq.map(([q, a]) => ({
+        "@type": "Question",
+        name: q,
+        acceptedAnswer: { "@type": "Answer", text: a },
+      })),
+    },
+  ],
+};
+---
+<Base lang={lang} title={s.title} description={s.description} alternates={{ en: "/", ru: "/ru/" }} jsonld={jsonld}>
+  <section class="hero">
+    <h1>{s.h1}</h1>
+    <p class="lede">{s.lede}</p>
+    <div class="cta">
+      <a class="btn" href={release.url} download>
+        <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 3a1 1 0 0 1 1 1v9.6l3.3-3.3a1 1 0 1 1 1.4 1.4l-5 5a1 1 0 0 1-1.4 0l-5-5a1 1 0 1 1 1.4-1.4l3.3 3.3V4a1 1 0 0 1 1-1zM5 19h14a1 1 0 1 1 0 2H5a1 1 0 1 1 0-2z"/></svg>
+        {s.download}
+      </a>
+      <a class="btn ghost" href="/github">{s.source}</a>
+    </div>
+    <p class="meta">{s.meta(release)}</p>
+  </section>
+
+  <figure class="shot">
+    <img src="/panel.png" width="1400" height="504" alt={s.shotAlt} fetchpriority="high">
+    <figcaption>{s.shotCaption}</figcaption>
+  </figure>
+
+  <section class="promise">
+    <h2>{s.promiseTitle}</h2>
+    <p>{s.promise}</p>
+    <dl class="facts">
+      {s.facts.map(([v, k]) => (<div><dt>{v}</dt><dd>{k}</dd></div>))}
+    </dl>
+  </section>
+
+  <section>
+    <h2>{s.tabsTitle}</h2>
+    <p class="muted sub">{s.tabsLede}</p>
+    <ul class="grid tabs">
+      {s.tabs.map(([name, text]) => (<li><h3>{name}</h3><p>{text}</p></li>))}
+    </ul>
+  </section>
+
+  <section>
+    <h2>{s.whyTitle}</h2>
+    <ul class="grid why">
+      {s.why.map(([name, text]) => (<li><h3>{name}</h3><p>{text}</p></li>))}
+    </ul>
+  </section>
+
+  <section class="install">
+    <h2>{s.installTitle}</h2>
+    <ol>
+      {s.install.map((step) => (<li>{step}</li>))}
+    </ol>
+  </section>
+
+  <section class="faq">
+    <h2>{s.faqTitle}</h2>
+    {s.faq.map(([q, a]) => (<details><summary>{q}</summary><p>{a}</p></details>))}
+  </section>
+
+  <section class="final">
+    <h2>{s.ctaTitle}</h2>
+    <a class="btn" href={release.url} download>{s.download}</a>
+    <p class="meta">{s.meta(release)}</p>
+  </section>
+</Base>
+
+<style>
+.hero { padding-block: 56px 28px; text-align: center; }
+.hero .lede { font-size: clamp(18px, 2.2vw, 21px); color: var(--muted); max-width: 640px; margin: 0 auto 28px; }
+.cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+.meta { color: var(--muted); font-size: 14px; margin-top: 14px; font-variant-numeric: tabular-nums; }
+.shot { margin: 28px 0 0; }
+.shot img { display: block; width: 100%; border-radius: 18px; border: 1px solid var(--line); }
+.shot figcaption { color: var(--muted); font-size: 14px; text-align: center; margin-top: 12px; }
+section { margin-top: 80px; }
+.sub { margin: -4px 0 24px; max-width: 640px; }
+.promise { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 32px; }
+.promise > p { font-size: 19px; max-width: 760px; margin: 0; }
+.facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin: 28px 0 0; }
+.facts div { border-top: 1px solid var(--line); padding-top: 12px; }
+.facts dt { font-size: 28px; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.facts dd { margin: 0; color: var(--muted); font-size: 14px; }
+.grid { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; }
+.grid li { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; min-width: 0; }
+.grid p { margin: 0; color: var(--muted); font-size: 15px; line-height: 1.5; }
+.why { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+.install ol { padding-left: 1.3em; max-width: 680px; }
+.install li { margin: 8px 0; }
+.faq { max-width: 760px; }
+.faq details { border-top: 1px solid var(--line); padding: 14px 0; }
+.faq details:last-child { border-bottom: 1px solid var(--line); }
+.faq summary { cursor: pointer; font-weight: 600; font-size: 17px; }
+.faq details p { color: var(--muted); margin: 10px 0 0; }
+.final { text-align: center; }
+@media (max-width: 720px) {
+  .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .promise { padding: 22px; }
+  .hero { padding-top: 32px; }
+}
+</style>
