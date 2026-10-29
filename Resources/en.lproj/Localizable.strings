@@ -3,13 +3,10 @@
    a phrase can be reworded here without touching the code. */
 
 /* Tabs */
-"Music" = "Music";
 "Shelf" = "Shelf";
 "Clipboard" = "Clipboard";
 "Snippets" = "Snippets";
-"Calendar" = "Calendar";
 "Translate" = "Translate";
-"Currency" = "Currency";
 "Settings" = "Settings";
 
 /* Menu bar */
@@ -54,10 +51,6 @@
 "Show in Finder" = "Show in Finder";
 "Remove from Shelf" = "Remove from Shelf";
 
-/* Media */
-"No artwork" = "No artwork";
-"Nothing is playing" = "Nothing is playing";
-
 /* Snippets */
 "Add a snippet" = "Add a snippet";
 "Name" = "Name";
@@ -77,37 +70,6 @@
 "Retry" = "Retry";
 "The %@ → %@ language pack is not installed." = "The %@ → %@ language pack is not installed.";
 "macOS does not translate this pair of languages." = "macOS does not translate this pair of languages.";
-
-/* Currency */
-"Search currency" = "Search currency";
-"Swap currencies" = "Swap currencies";
-"No currencies match" = "No currencies match";
-
-/* Calendar */
-"Join" = "Join";
-"Join · %@" = "Join · %@";
-"No other meetings this week" = "No other meetings this week";
-"See your next meetings" = "See your next meetings";
-"Cyclop needs access to Calendar. It is the only permission\nthe app asks for, and only for this tab." = "Cyclop needs access to Calendar. It is the only permission\nthe app asks for, and only for this tab.";
-"Continue" = "Continue";
-"Calendar access is off" = "Calendar access is off";
-"Settings → Privacy → Calendars" = "Settings → Privacy → Calendars";
-"No more meetings" = "No more meetings";
-"Nothing on the calendar for the next day" = "Nothing on the calendar for the next day";
-"Untitled" = "Untitled";
-"Calendars" = "Calendars";
-"Done" = "Done";
-
-/* Countdown, lower-case: the capital is added where the label is built.
-   Abbreviated on purpose: a panel header has room for "in 12 min"
-   and not for a spelled-out plural, and abbreviations decline in no language. */
-"now" = "now";
-"any moment" = "any moment";
-"tomorrow" = "tomorrow";
-"in %d min" = "in %d min";
-"in %d h" = "in %d h";
-"in %d h %d min" = "in %d h %d min";
-"in %d d" = "in %d d";
 
 /* Saved screenshots. The key is the date format itself, so a language can put
    the parts in its own order. */

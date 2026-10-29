@@ -12,6 +12,16 @@ let package = Package(
         .executableTarget(
             name: "Cyclop",
             path: "Sources/Cyclop",
+            exclude: [
+                "Services/CalendarStore.swift",
+                "Services/CurrencyStore.swift",
+                "Services/MediaController.swift",
+                "Services/NowPlayingFeed.swift",
+                "Services/PlayerBridge.swift",
+                "UI/CalendarPane.swift",
+                "UI/CurrencyPane.swift",
+                "UI/MediaPane.swift",
+            ],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         // Только чистые сторы — разбор файла, дедупликация, порядок. Панель

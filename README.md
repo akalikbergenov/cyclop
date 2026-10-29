@@ -2,37 +2,27 @@
 
 *English · [Русский](README.ru.md)*
 
-The MacBook notch as a working tool. A native SwiftUI/AppKit app: invisible at
-rest, and on hover it unfolds downwards into a panel with a player, a shelf for
-files, clipboard history and your next meetings.
+The MacBook notch as a working tool. This fork's local build is a native
+SwiftUI/AppKit panel for files, clipboard history, snippets, translation, notes,
+a teleprompter and utilities. Music, Calendar and Currency are excluded from
+the application build; see [SECURITY.md](SECURITY.md) for the local-only scope.
 
 [![build](https://github.com/akalikbergenov/cyclop/actions/workflows/build.yml/badge.svg)](https://github.com/akalikbergenov/cyclop/actions/workflows/build.yml)
 [![Buy Me a Coffee](https://img.shields.io/badge/buy%20me%20a%20coffee-%E2%98%95-FFDD00?style=flat-square&labelColor=000000)](https://buymeacoffee.com/akalikbergenov)
 
 ![The Cyclop panel](docs/panel.png)
 
-**[Download the latest version](https://github.com/akalikbergenov/cyclop/releases/latest)** —
-macOS 15 or newer. Signed and notarised, so it opens on the first try.
-
-```
-0.0 % CPU at rest  ·  ≈40 MB + 14 MB helper  ·  3.7 MB bundle  ·  nothing asked at launch
-```
-
-The track in the screenshot is playing in a browser tab — Cyclop reads it from
-macOS itself, with no permissions and nothing to configure in the browser. How
-that works is below.
+Build this fork with `./Scripts/bundle.sh` on macOS 15 or newer. The upstream
+release linked from the original project includes features that this fork omits.
 
 ## What it does
 
 | Tab | What it does |
 |---|---|
-| **Music** | Artwork, track, artist, a scrubber that seeks, prev / play-pause / next. The source is **anything**: a player, a browser tab, any app macOS itself can see |
 | **Shelf** | Drag files into the notch and they stay there until needed; drag a card out and the file goes wherever it is dropped. A click selects a card, ⌘-click selects several, and then the whole group is dragged. A screenshot taken to the clipboard is saved as a file and lands here too — including one taken on an iPhone, if you copy it there |
 | **Clipboard** | The last 40 copies; a click puts an entry back on the clipboard |
 | **Snippets** | A hand-kept list of what you are tired of retyping: an address, a phone number, an email. Added with a button in the panel, removed with the cross on a card; a click puts the text on the clipboard. The same list lives in `~/Library/Application Support/Cyclop/snippets.json` and can be edited there instead |
-| **Calendar** | The next meeting a week ahead: how long until it starts and a button that joins the call — Zoom, Meet, Teams and others. The rest of the meetings as a list |
 | **Translate** | Type on the left, the translation appears on the right — by itself, offline, using macOS's own facilities. English goes to Russian, Russian to English; the direction comes from the script the text is written in. macOS does not preinstall language packs, so the first time you have to download one: System Settings → General → Language & Region → "Translation Languages…" |
-| **Currency** | An amount on one side, the other currency on the other; type into either. Rates are the one thing in Cyclop that comes over the network — a public table of daily rates, fetched once an hour, and only while the tab is on |
 | **Teleprompter** | A script that scrolls under the camera at a speed you set. The notch is the one place on the screen a teleprompter belongs: reading happens right beside the lens, so on the recording the eyes stay on the camera instead of travelling to a window below it. The panel holds itself open while the text is moving — reading a script means not touching the trackpad |
 | **Notes** | Scratch, on the right rail of icons: jot something down, come back, delete it or carry it off through the clipboard. Hovering lands with the caret ready; blank notes sweep themselves out |
 
@@ -44,12 +34,8 @@ hides every tab's contents at once, and quits. The icon itself can be
 removed — ⌘-drag it off the bar, or flip the switch in Settings — and
 relaunching Cyclop brings it back.
 
-Any tab can be switched off in **Settings → Show in Panel**. Off means two
-things: the icon leaves the rail, and the tab's background work stops with
-it — the clipboard poll, the calendar watch, the Now Playing helper, the
-rate fetch. The rail is for what gets a glance between other things; a mode
-used once a month may live there, but only as long as the people who never
-use it can take it off.
+Any included tab can be switched off in **Settings → Show in Panel**. Its icon
+leaves the rail, and its background work stops with it.
 
 ## Requirements
 
@@ -62,7 +48,7 @@ area at the top centre of the screen as one.
 ## Building
 
 ```bash
-git clone https://github.com/akalikbergenov/cyclop.git
+git clone https://github.com/geraskinalekseysergeevich/cyclop.git
 cd cyclop
 ./Scripts/bundle.sh          # swift build + assemble the .app + ad-hoc sign
 open build/Cyclop.app
@@ -76,99 +62,46 @@ swift Scripts/make-icon.swift "$PWD/Resources/AppIcon.icns"
 
 ## Installation
 
-Open `Cyclop-<version>.dmg` and drag the app into Applications. It opens on
-the first try: since 0.8.0 the image is signed with a Developer ID and
-notarised by Apple, so there is nothing to allow and nothing to type.
+The local build is ad-hoc signed and not notarised. Gatekeeper may require
+**System Settings → Privacy & Security → Open Anyway** on another Mac. For
+corporate distribution, set `CODESIGN_IDENTITY` to your organization's
+Developer ID certificate; notarization is a separate step.
 
-Updating works the same way: open the new image and replace the app. Coming
-from a version before 0.8.0, macOS may ask for the calendar permission once
-more — the app's signature changed, and that is what the permission was tied
-to. The version is the first line of the menu bar menu.
-
-A build from source (`Scripts/bundle.sh`) is ad-hoc signed and is not
-notarised, so on any Mac but the one that built it the first launch goes
-through **System Settings → Privacy & Security → "Open Anyway"**. Releases do
-not have this step.
-
-Releases come often, and a star does not announce them — it is a bookmark, not a
-subscription. To hear about updates: the **Watch** button at the top right →
-**Custom** → tick **Releases**. Only releases will arrive, no issues or pushes.
-
-### Building the image yourself
+To package a DMG locally:
 
 ```bash
 ./Scripts/dmg.sh
 ```
 
-Puts `build/Cyclop-<version>.dmg` next to the app, with an `/Applications`
-shortcut inside. The version number comes from `Scripts/version`.
-
-### Cutting a release
-
-```bash
-./Scripts/release.sh
-```
-
-Builds the image, tags `v<version>` and creates a GitHub release with the `.dmg`
-attached. The notes are two parts: a few lines written by hand, kept in
-`docs/releases/<version>.md`, followed by the commit list GitHub assembles. The
-script refuses to run without the hand-written part — a list of commits answers
-"what changed in the code", while whoever arrives is asking "what does this give
-me", and no generator turns the first answer into the second.
-
-The number is written in **one place**, `Scripts/version`. From there it goes
-into the app's `Info.plist`, into the image name and into the tag, so they cannot
-drift apart. The script also refuses to run on a dirty tree, on unpushed commits,
-or when the tag already exists.
-
-Built images live on the [releases page](https://github.com/akalikbergenov/cyclop/releases) —
-that is the link to hand to people instead of a file.
+The original project's release builds include Music, Calendar and Currency,
+which this fork removes. Use an app built from this checkout.
 
 ## Permissions
 
 **Nothing at launch, and nothing until you press the button that needs it.**
-That is the promise, and it is narrower than "no permissions": Cyclop asks for
-two, each one only when a tab that cannot work without it is used.
+The local build has no Apple Events or Calendar entitlement.
 
-**Calendar**, for the Calendar tab. The system dialog appears neither at launch
-nor when the tab is opened, but on an explicit press of a button on a screen
-that explains why.
+**Accessibility**, for the keyboard lock in Utilities. It deserves to be named
+plainly: it lets an app see and swallow system key
+presses while the keyboard lock is active. It is requested only after the user
+presses the lock button.
 
-**Accessibility**, for the keyboard lock in Utilities. This one is heavier than
-the first and deserves to be named plainly: it is the permission that lets an
-app see and swallow every key press in the system, and nothing less can stop
-keys from reaching macOS while you wipe them. Same terms — an explicit press
-after an explanation — and switching the tab off in Settings means it is never
-asked for.
-
-Use neither tab and the app stays without permissions entirely. Nothing is asked
-for at launch in any case, and nothing needs configuring in the browser. The
-pointer position is read through `NSEvent.mouseLocation`, the clipboard through
-the public `NSPasteboard`, Now Playing through a helper (see below).
+If keyboard lock is not used, the app does not request Accessibility. Nothing
+is asked for at launch. The pointer position is read through
+`NSEvent.mouseLocation`, and the clipboard through the public `NSPasteboard`.
 
 A file put on the shelf from Downloads, Documents or the Desktop is the one thing
 macOS asks about separately, and it asks when the shelf is opened, not at launch.
 Refusing breaks nothing: the card stays, just without a preview.
 
-The fallback path, if the main one ever stops working, would need more:
-Automation for Apple Music and Spotify, and Accessibility for the media keys —
-the same Accessibility as above.
-
 ## How it works
 
 Why the window is shaped the way it is, why the pointer is polled on a
-timer, why Now Playing lives inside `/usr/bin/perl`, what sitting idle
-costs — eighteen notes on decisions the code does not show:
+timer, and what sitting idle costs — see the architecture notes:
 **[docs/architecture.md](docs/architecture.md)**.
 
 ## Limitations
 
-- Now Playing rests on a private framework and on `/usr/bin/perl` remaining a
-  platform binary without library validation. Apple can close this in any update
-  — the Music and Spotify fallback takes over then. For the same reason the app
-  is unfit for the App Store.
-- Apple has deprecated the scripting runtimes (perl among them) and will remove
-  them from the system one day. The helper survives exactly until that moment.
 - The shelf references files rather than copying them: move the original and the
   card disappears on the next launch. The exception is clipboard screenshots,
   which are saved into `~/Pictures/Cyclop` and are never deleted automatically,
@@ -177,9 +110,6 @@ costs — eighteen notes on decisions the code does not show:
   a hand too, not a schedule.
 - Entries typed `org.nspasteboard.ConcealedType` (password managers) never enter
   the clipboard history.
-- The join button appears only if the call link is in the event itself — in the
-  location field, the notes or the URL. Meet, Zoom, Teams, Webex, Whereby, Jitsi,
-  Telemost and Discord are recognised.
 - A screenshot from the iPhone arrives through Universal Clipboard, so it needs
   what that needs: one Apple ID, Bluetooth and Wi-Fi on, Handoff enabled and the
   devices near each other. And it overwrites the clipboard on the Mac — what was
@@ -207,10 +137,7 @@ Sources/Cyclop
 ├── Model/
 │   ├── NotchViewModel.swift
 │   └── PrivacyMode.swift      hiding contents: sections and reveals
-├── Services/
-│   ├── MediaController.swift  picks the Now Playing source
-│   ├── NowPlayingFeed.swift   runs the helper in perl, parses its stdout
-│   ├── PlayerBridge.swift     fallback: AppleScript + media keys
+├── Services/                    Calendar, Currency and Music sources are excluded
 │   ├── ShelfStore.swift
 │   ├── ClipboardStore.swift
 │   ├── ScreenshotVault.swift  clipboard screenshots onto disk
@@ -220,22 +147,18 @@ Sources/Cyclop
 │   ├── DebouncedWrite.swift   writes to disk no more often than needed
 │   ├── NoteStore.swift        scratch notes: notes.json
 │   ├── Translator.swift       Translation.framework, direction by script
-│   ├── CurrencyStore.swift    rates over the network, the one tab that has any
 │   ├── TeleprompterStore.swift the script and where reading it has got to
 │   ├── ScreenshotFolderWatcher.swift  screenshots saved to disk, onto the shelf
-│   └── CalendarStore.swift    EventKit: next meetings and the call link
 └── UI/                        NotchShape, tab panes, theme
-
-Sources/CyclopMediaHelper
-└── helper.m                   dylib for /usr/bin/perl: MediaRemote -> JSON
 ```
+
+The excluded feature source files remain in the checkout, but are not compiled
+into this app target.
 
 ## Contributing
 
-The rules are short and live in [CONTRIBUTING.md](CONTRIBUTING.md): what gets
-taken, what does not, and what to check before sending. The main one is that
-the app works without macOS permissions and without the network, and a change
-that alters this is a separate conversation.
+The rules are short and live in [CONTRIBUTING.md](CONTRIBUTING.md). This build
+makes no app-initiated network requests and asks for no permission at launch.
 
 What the app reads, what it keeps and where, where it goes on the network —
 [SECURITY.md](SECURITY.md). The channel for vulnerabilities is there too:

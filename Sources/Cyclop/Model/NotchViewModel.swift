@@ -4,18 +4,15 @@ import Combine
 @MainActor
 final class NotchViewModel: ObservableObject {
     enum Tab: String, CaseIterable, Identifiable {
-        case media, shelf, clipboard, snippets, calendar, translate, currency, notes, teleprompter, utilities, settings
+        case shelf, clipboard, snippets, translate, notes, teleprompter, utilities, settings
         var id: String { rawValue }
 
         var symbol: String {
             switch self {
-            case .media: return "music.note"
             case .shelf: return "tray.full.fill"
             case .clipboard: return "list.clipboard.fill"
             case .snippets: return "pin.fill"
-            case .calendar: return "calendar"
             case .translate: return "translate"
-            case .currency: return "dollarsign.circle"
             case .notes: return "note.text"
             case .teleprompter: return "text.viewfinder"
             case .utilities: return "wrench.and.screwdriver.fill"
@@ -25,13 +22,10 @@ final class NotchViewModel: ObservableObject {
 
         var title: String {
             switch self {
-            case .media: return localized("Music")
             case .shelf: return localized("Shelf")
             case .clipboard: return localized("Clipboard")
             case .snippets: return localized("Snippets")
-            case .calendar: return localized("Calendar")
             case .translate: return localized("Translate")
-            case .currency: return localized("Currency")
             case .notes: return localized("Notes")
             case .teleprompter: return localized("Teleprompter")
             case .utilities: return localized("Utilities")
@@ -42,7 +36,7 @@ final class NotchViewModel: ObservableObject {
         /// Tabs with a field in them. Landing on one hands it the keyboard, so
         /// that arriving and typing is a single move.
         var needsKeyboard: Bool {
-            self == .translate || self == .currency || self == .snippets || self == .notes
+            self == .translate || self == .snippets || self == .notes
         }
 
         /// Tabs whose content needs more than the standard 208 pt.
@@ -59,21 +53,8 @@ final class NotchViewModel: ObservableObject {
         /// live on: with Settings gone there would be no way back.
         var canHide: Bool { self != .settings }
 
-        /// Which rail the icon sits on. The left one carries the original six
-        /// and is full — icon height is a ceiling now, not a constant (#26,
-        /// #27), so a seventh icon would not overflow the panel, but it would
-        /// shrink every icon on the rail to make room, which is the same
-        /// objection in a quieter voice. Growth continues in a second column
-        /// on the right, which the scratch notes open: they are the daily tab
-        /// of that column, so they sit where the pointer lands first. The rare
-        /// modes — the converter, the teleprompter — come after them, by the
-        /// rule from #43 that the rail is ordered by how often a tab is
-        /// glanced at. Settings joins that column rather than the content
-        /// rail: it is not something to hover past on the way to a track or a
-        /// calendar, so it sits last, furthest from the tabs people actually
-        /// rest on.
-        static let leftRail: [Tab] = [.media, .shelf, .clipboard, .snippets, .calendar, .translate]
-        static let rightRail: [Tab] = [.notes, .currency, .teleprompter, .utilities, .settings]
+        static let leftRail: [Tab] = [.shelf, .clipboard, .snippets, .translate]
+        static let rightRail: [Tab] = [.notes, .teleprompter, .utilities, .settings]
     }
 
     /// What every screen's panel adds up to, kept by `NotchController`: this
@@ -90,8 +71,7 @@ final class NotchViewModel: ObservableObject {
     /// if the people who never use it can take it off (#43). Off means two
     /// things, and the second is what makes the switch worth having: the icon
     /// leaves the rail, and the tab's background work stops with it — the
-    /// clipboard poll, the calendar watch, the Now Playing helper. A hidden
-    /// tab costs nothing, or it is not hidden.
+    /// clipboard poll. A hidden tab costs nothing, or it is not hidden.
     ///
     /// Kept as the set of what is off rather than what is on, so a tab added
     /// in a later version shows up for everyone instead of arriving hidden.
@@ -130,27 +110,15 @@ final class NotchViewModel: ObservableObject {
     }
 
     /// What a tab keeps running while nobody is looking at it. Only a few have
-    /// anything: the rest are a file read on the way in, or a field. Currency
-    /// is one of them — its timer must not keep asking the network after the
-    /// icon has left the rail.
+    /// anything: the rest are a file read on the way in, or a field.
     private func startBackground(of target: Tab) {
         switch target {
-        case .media:
-            media.start()
-            if isPanelActive { media.setActive(true) }
         case .clipboard:
             clipboard.start()
-        case .calendar:
-            // Only picks up where it left off if access was granted earlier;
-            // it never prompts on its own.
-            calendar.start()
-            if isPanelActive { calendar.setActive(true) }
         case .shelf:
             // Off until the user grants a folder through `requestAccess`;
             // this only re-arms a watch already approved on a previous launch.
             screenshotFolder.resumeIfEnabled()
-        case .currency:
-            currencies.start()
         case .snippets, .translate, .notes, .teleprompter, .utilities, .settings:
             break
         }
@@ -158,11 +126,8 @@ final class NotchViewModel: ObservableObject {
 
     private func stopBackground(of target: Tab) {
         switch target {
-        case .media: media.stop()
         case .clipboard: clipboard.stop()
-        case .calendar: calendar.stop()
         case .shelf: screenshotFolder.stop()
-        case .currency: currencies.stop()
         // Taking the tab off the rail with the screen still covered would
         // leave the tap installed and no way back to it.
         case .utilities: keyboardLock.unlock()
@@ -176,8 +141,6 @@ final class NotchViewModel: ObservableObject {
     func setPanelActive(_ active: Bool) {
         guard active != isPanelActive else { return }
         isPanelActive = active
-        if isVisible(.media) { media.setActive(active) }
-        if isVisible(.calendar) { calendar.setActive(active) }
     }
 
     private var started = false
@@ -193,13 +156,8 @@ final class NotchViewModel: ObservableObject {
         tab.needsKeyboard || (tab == .teleprompter && teleprompter.script.isEmpty)
     }
 
-    @Published var tab: Tab = .media {
+    @Published var tab: Tab = .shelf {
         didSet {
-            // Opening the tab only re-checks the status. The permission prompt
-            // is the user's own press on the button inside the pane: this is
-            // the one permission Cyclop asks for at all, and it deserves an
-            // explanation before the system dialog, not after.
-            if tab == .calendar { calendar.refreshAccess() }
             // The snippets file is edited from outside the app, so it is read
             // on the way in rather than held from launch.
             if tab == .snippets { snippets.reload() }
@@ -208,9 +166,6 @@ final class NotchViewModel: ObservableObject {
             // prompt. It is asked here, with the shelf on screen, rather than
             // at launch with nothing to explain it.
             if tab == .shelf { shelf.refreshFromDisk() }
-            // Rates update on a timer already; opening the tab asks once more
-            // so a stale cache from the last few hours does not sit there.
-            if tab == .currency { currencies.refreshIfNeeded() }
             // Leaving the notes sweeps out the blank ones — they cost one
             // hover to recreate, and a trail of empty cards is the clutter a
             // scratchpad exists to avoid.
@@ -235,13 +190,10 @@ final class NotchViewModel: ObservableObject {
     /// script runs out, Escape, or a click anywhere outside the panel.
     var holdsOpen: Bool { tab == .teleprompter && teleprompter.isRunning }
 
-    let media: MediaController
     let shelf: ShelfStore
     let clipboard: ClipboardStore
     let screenshotFolder: ScreenshotFolderWatcher
-    let calendar: CalendarStore
     let translator: Translator
-    let currencies: CurrencyStore
     let snippets: SnippetStore
     let notes: NoteStore
     let teleprompter: TeleprompterStore
@@ -255,13 +207,10 @@ final class NotchViewModel: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
 
     init() {
-        self.media = MediaController()
         self.shelf = ShelfStore()
         self.clipboard = ClipboardStore()
         self.screenshotFolder = ScreenshotFolderWatcher()
-        self.calendar = CalendarStore()
         self.translator = Translator()
-        self.currencies = CurrencyStore()
         self.snippets = SnippetStore()
         self.notes = NoteStore()
         self.teleprompter = TeleprompterStore()
@@ -279,7 +228,7 @@ final class NotchViewModel: ObservableObject {
         // `isOpen` is itself @Published and its own send does that.
         //
         // The stores with a text field in their pane — the translator, the
-        // currency converter, the snippets and the notes — are deliberately
+        // snippets and the notes — are deliberately
         // absent. They change on every keystroke, and redrawing the whole
         // panel per letter costs more than a stale counter: it rebuilds the
         // field, which drops the focus, so the first letter typed is also the
@@ -287,10 +236,8 @@ final class NotchViewModel: ObservableObject {
         // header counter refreshes anyway, because the list is only ever
         // re-read on the way into the tab.
         for child in [
-            media.objectWillChange,
             shelf.objectWillChange,
             clipboard.objectWillChange,
-            calendar.objectWillChange,
         ] {
             child
                 .sink { [weak self] _ in

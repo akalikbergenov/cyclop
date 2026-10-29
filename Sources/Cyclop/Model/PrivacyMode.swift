@@ -6,7 +6,7 @@ import Combine
 ///
 /// Chosen per section rather than one switch for everything: the tabs hold
 /// different things, and somebody streaming their desk may care about the
-/// clipboard and not about the calendar, or the other way round. The menu still
+/// clipboard and not about the notes, or the other way round. The menu still
 /// offers "All" first, because that is the answer most of the time and the one
 /// nobody has to think about.
 ///
@@ -20,7 +20,7 @@ import Combine
 @MainActor
 final class PrivacyMode: ObservableObject {
     enum Section: String, CaseIterable, Identifiable {
-        case clipboard, snippets, calendar, notes
+        case clipboard, snippets, notes
 
         var id: String { rawValue }
 
@@ -30,7 +30,6 @@ final class PrivacyMode: ObservableObject {
             switch self {
             case .clipboard: return localized("Clipboard")
             case .snippets: return localized("Snippets")
-            case .calendar: return localized("Calendar")
             case .notes: return localized("Notes")
             }
         }

@@ -40,12 +40,6 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>NSHighResolutionCapable</key><true/>
     <key>NSSupportsAutomaticTermination</key><false/>
     <key>NSSupportsSuddenTermination</key><false/>
-    <key>NSAppleEventsUsageDescription</key>
-    <string>Cyclop читает название текущего трека и управляет воспроизведением в Apple Music и Spotify.</string>
-    <key>NSCalendarsFullAccessUsageDescription</key>
-    <string>Cyclop показывает ближайшие встречи и кнопку подключения к ним.</string>
-    <key>NSCalendarsUsageDescription</key>
-    <string>Cyclop показывает ближайшие встречи и кнопку подключения к ним.</string>
     <key>NSHumanReadableCopyright</key><string>MIT License</string>
 </dict>
 </plist>
@@ -64,15 +58,6 @@ for lproj in "$ROOT"/Resources/*.lproj; do
     cp -R "$lproj" "$APP/Contents/Resources/"
     echo "    $(basename "$lproj")"
 done
-
-# Now Playing helper. Built here rather than by SwiftPM because it is not linked
-# into the app: it is loaded into /usr/bin/perl at runtime. See helper.m.
-echo "==> building Now Playing helper"
-clang -dynamiclib -fobjc-arc -O2 \
-    -mmacosx-version-min=15.0 \
-    -framework Foundation \
-    -o "$APP/Contents/Resources/libcyclopmedia.dylib" \
-    "$ROOT/Sources/CyclopMediaHelper/helper.m"
 
 # Подпись. Кем — решает CODESIGN_IDENTITY: пусто или «-» — ad-hoc, как для
 # любой локальной сборки; «Developer ID Application: …» — настоящая, с
@@ -93,15 +78,7 @@ fi
 # репозитория там перестает подписываться, стоило его туда перенести.
 xattr -cr "$APP"
 
-# Сначала вложенное, потом бандл, и без --deep: Apple объявила его устаревшим,
-# он подписывает вложенное теми же условиями, что и бандл, и молча пропускает
-# часть случаев. Подпись бандла запечатывает Resources целиком, dylib в том
-# числе: подменённый хелпер с настоящей подписью не пройдёт Gatekeeper, и
-# отдельная сверка хеша из #1 становится не нужна.
-#
-# Hardened runtime — только с настоящей подписью. Связка «ad-hoc + runtime +
-# чужой perl» ломала Now Playing без единого сообщения (#20), а даёт она
-# ad-hoc-сборке ничего: нотаризовать её всё равно нельзя.
+# Hardened runtime is only useful with a real Developer ID signature.
 #
 # Ошибка не глушится и не понижается до предупреждения. Раньше отказ печатал
 # мягкую строку и возвращал ноль: скрипт доходил до «done», а в build лежал
@@ -109,13 +86,9 @@ xattr -cr "$APP"
 # Заметить это можно было только по возвращающимся запросам TCC — то есть у
 # того, кто уже поставил приложение.
 if [ "$IDENTITY" = "-" ]; then
-    codesign --force --sign - "$APP/Contents/Resources/libcyclopmedia.dylib"
     codesign --force --sign - "$APP"
 else
-    codesign --force --timestamp --sign "$IDENTITY" \
-        "$APP/Contents/Resources/libcyclopmedia.dylib"
     codesign --force --timestamp --options runtime \
-        --entitlements "$ROOT/Resources/Cyclop.entitlements" \
         --sign "$IDENTITY" "$APP"
 fi || {
     echo "!!! codesign не смог подписать бандл — см. вывод выше" >&2
