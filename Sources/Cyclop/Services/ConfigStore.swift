@@ -56,8 +56,14 @@ final class ConfigStore: ObservableObject {
 
     static let shared = ConfigStore()
 
-    /// `~/Library/Application Support/Cyclop/config.json`.
-    static let file = Support.file("config.json")
+    /// `~/Library/Application Support/Cyclop/config.json`, and the old
+    /// `UserDefaults` migration reads from. Both are injectable so the rules
+    /// in this file can be tested at all: with a fixed path and
+    /// `UserDefaults.standard` the only way to see what a missing key or a
+    /// broken file does is to try it on somebody's real settings. The app
+    /// builds `shared` and passes neither.
+    let file: URL
+    private let defaults: UserDefaults
 
     /// True when the file exists but cannot be parsed — same meaning and the
     /// same consequence as `SnippetStore.fileBroken` (#7): reading stays
@@ -67,8 +73,10 @@ final class ConfigStore: ObservableObject {
 
     private var value: File
 
-    private init() {
-        if let data = try? Data(contentsOf: Self.file) {
+    init(file: URL = Support.file("config.json"), defaults: UserDefaults = .standard) {
+        self.file = file
+        self.defaults = defaults
+        if let data = try? Data(contentsOf: file) {
             do {
                 value = try JSONDecoder().decode(File.self, from: data)
             } catch {
@@ -79,7 +87,7 @@ final class ConfigStore: ObservableObject {
         } else {
             // Nothing on disk yet, so nothing to protect — assembled from
             // whatever the old keys already say and written straight away.
-            value = Self.migrated()
+            value = Self.migrated(from: defaults)
             write(value)
         }
     }
@@ -160,8 +168,7 @@ final class ConfigStore: ObservableObject {
     /// exactly what that setting's own `object(forKey:) != nil` check used to
     /// do, so a Mac with none of these keys set gets the same defaults as
     /// before and a Mac with some of them set keeps exactly those.
-    private static func migrated() -> File {
-        let defaults = UserDefaults.standard
+    private static func migrated(from defaults: UserDefaults) -> File {
         var file = File()
         if defaults.object(forKey: "showOnAllDisplays") != nil {
             file.showOnAllDisplays = defaults.bool(forKey: "showOnAllDisplays")
@@ -207,7 +214,7 @@ final class ConfigStore: ObservableObject {
     /// and a mended one lowers it.
     func reload() {
         guard !writePending else { return }
-        guard let data = try? Data(contentsOf: Self.file) else { return }
+        guard let data = try? Data(contentsOf: file) else { return }
         do {
             value = try JSONDecoder().decode(File.self, from: data)
             fileBroken = false
@@ -243,15 +250,15 @@ final class ConfigStore: ObservableObject {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .withoutEscapingSlashes]
         do {
-            try encoder.encode(file).write(to: Self.file, options: .atomic)
+            try encoder.encode(file).write(to: self.file, options: .atomic)
         } catch {
             NSLog("Cyclop: cannot write config.json: \(error.localizedDescription)")
         }
     }
 
-    static func reveal() {
+    func reveal() {
         if !FileManager.default.fileExists(atPath: file.path) {
-            shared.write(shared.value)
+            write(value)
         }
         NSWorkspace.shared.activateFileViewerSelecting([file])
     }
