@@ -107,7 +107,7 @@ struct SettingsPane: View {
                 section(localized("Configuration")) {
                     if config.fileBroken { configBrokenNotice }
                     actionRow(symbol: "gearshape", title: localized("Show Config File")) {
-                        ConfigStore.reveal()
+                        ConfigStore.shared.reveal()
                     }
                 }
 
@@ -341,7 +341,7 @@ struct SettingsPane: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
-        .onTapGesture { ConfigStore.reveal() }
+        .onTapGesture { ConfigStore.shared.reveal() }
         .padding(.horizontal, 8)
         .frame(height: 26)
     }

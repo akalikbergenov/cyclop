@@ -30,11 +30,16 @@ final class NoteStore: ObservableObject {
     /// `SnippetStore.fileBroken` (#7).
     @Published private(set) var fileBroken = false
 
-    private static let file = Support.file("notes.json")
+    /// Where the notes live. Injectable for the same reason as
+    /// `SnippetStore.file`: a fixed path means the only way to test loading
+    /// and writing is to write into the real support folder — somebody's
+    /// actual notes. The app never passes anything but the default.
+    let file: URL
 
     private let saves = DebouncedWrite()
 
-    init() {
+    init(file: URL = Support.file("notes.json")) {
+        self.file = file
         load()
     }
 
@@ -78,7 +83,7 @@ final class NoteStore: ObservableObject {
 
     private func load() {
         // No file is an honest empty list.
-        guard let data = try? Data(contentsOf: Self.file) else { return }
+        guard let data = try? Data(contentsOf: file) else { return }
         do {
             notes = try JSONDecoder().decode([Note].self, from: data)
             fileBroken = false
@@ -104,7 +109,7 @@ final class NoteStore: ObservableObject {
     }
 
     func reveal() {
-        NSWorkspace.shared.activateFileViewerSelecting([Self.file])
+        NSWorkspace.shared.activateFileViewerSelecting([file])
     }
 
     /// A moment after the typing pauses, not on every keystroke: the text
@@ -122,7 +127,7 @@ final class NoteStore: ObservableObject {
             return
         }
         do {
-            try JSONEncoder().encode(notes).write(to: Self.file, options: .atomic)
+            try JSONEncoder().encode(notes).write(to: file, options: .atomic)
         } catch {
             NSLog("Cyclop: cannot write notes.json: \(error.localizedDescription)")
         }
