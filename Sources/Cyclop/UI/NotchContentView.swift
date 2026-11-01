@@ -12,31 +12,18 @@ struct NotchContentView: View {
 
     /// Whether the shape is painted at all.
     ///
-    /// Folded over a real notch there is nothing to paint: the notch is a hole,
-    /// and a hole is already black. The filled shape on top of it is invisible
-    /// — but only for as long as what is behind it stays black, and that is not
-    /// something the panel gets to assume. The window is `.stationary` and
-    /// joins every space, so it stands still while the desktop moves: in
-    /// Mission Control and mid-swipe between spaces the desktop shrinks away
-    /// and the "notch" is left hanging in the air as a black rectangle over the
-    /// Spaces bar. It reads as a second, squarer notch, which is exactly what
-    /// it is — a picture of a hole with no hole behind it.
+    /// A folded physical notch is already a hole, so painting over it would
+    /// only turn it into a rectangle during a Space transition. A simulated
+    /// notch normally remains the familiar black visual handle, but Settings
+    /// can make it transparent for video playback. Its hover target remains,
+    /// so moving the pointer to that spot still opens the panel.
     ///
-    /// A drawn notch is the opposite case: there the shape *is* the notch, and
-    /// it has to be visible wherever the panel stands. So the rule is narrow —
-    /// only the display that has a real cutout, and only while the panel has
-    /// nothing of its own to show.
-    ///
-    /// "Nothing of its own" is asked of the body rather than of `isOpen`, and
-    /// the difference is not stylistic. On a hole the body is the notch exactly
-    /// when there is nothing to show — folded, `bodySize` is `collapsedSize`,
-    /// and on a hole that is the notch itself —
-    /// so any future state that grows the folded strip paints itself without
-    /// anyone remembering to come back here. Keyed on `isOpen`, the next such
-    /// state would draw its text onto a transparent background: white letters
-    /// standing on the desktop with nothing behind them.
+    /// Once open, the shape is the panel's background and is always painted.
+    /// The same rule keeps a real notch from becoming a black rectangle over
+    /// Mission Control or a Space transition, where there is no longer a
+    /// physical cutout behind the stationary window.
     private var paintsShape: Bool {
-        !panel.geometry.isPhysical || size != panel.geometry.notchSize
+        isOpen || (!panel.geometry.isPhysical && !panel.geometry.drawsTransparent)
     }
 
     var body: some View {

@@ -13,6 +13,8 @@ struct NotchGeometry {
     /// True when a notch we drew keeps the full menu bar height while
     /// collapsed, the way it used to. Off by default — see `collapsedDepth`.
     let drawsFullSize: Bool
+    /// Whether a collapsed simulated notch is transparent rather than black.
+    let drawsTransparent: Bool
 
     /// Metrics of the tab rail that do not depend on the notch. `railIconHeight`
     /// is not among them — see below.
@@ -108,6 +110,18 @@ struct NotchGeometry {
         }
     }
 
+    /// Persisted in `config.json` as `transparentDrawnNotch`. Off by default:
+    /// the simulated notch remains the familiar black visual handle unless
+    /// someone explicitly asks for transparent video playback.
+    @MainActor
+    static var drawsTransparentNotch: Bool {
+        get { ConfigStore.shared.transparentDrawnNotch }
+        set {
+            ConfigStore.shared.transparentDrawnNotch = newValue
+            NotificationCenter.default.post(name: settingsChanged, object: nil)
+        }
+    }
+
     /// Every display the panel should stand on.
     ///
     /// Switched off, that is the screen with a physical notch if one is
@@ -120,14 +134,15 @@ struct NotchGeometry {
         // place, with a second pointer timer behind it.
         let screens = NSScreen.screens.filter { !$0.isMirroring }
         let fullSize = drawsFullSizeNotch
+        let transparent = drawsTransparentNotch
         guard showsOnAllDisplays else {
             let primary = screens.first { $0.safeAreaInsets.top > 0 } ?? NSScreen.main ?? screens.first
-            return primary.map { [current(on: $0, drawsFullSize: fullSize)] } ?? []
+            return primary.map { [current(on: $0, drawsFullSize: fullSize, drawsTransparent: transparent)] } ?? []
         }
-        return screens.map { current(on: $0, drawsFullSize: fullSize) }
+        return screens.map { current(on: $0, drawsFullSize: fullSize, drawsTransparent: transparent) }
     }
 
-    static func current(on screen: NSScreen, drawsFullSize: Bool) -> NotchGeometry {
+    static func current(on screen: NSScreen, drawsFullSize: Bool, drawsTransparent: Bool) -> NotchGeometry {
         if screen.safeAreaInsets.top > 0,
            let left = screen.auxiliaryTopLeftArea,
            let right = screen.auxiliaryTopRightArea {
@@ -137,7 +152,8 @@ struct NotchGeometry {
                 notchSize: CGSize(width: width, height: screen.safeAreaInsets.top),
                 notchCenterX: screen.frame.minX + left.width + width / 2,
                 isPhysical: true,
-                drawsFullSize: false
+                drawsFullSize: false,
+                drawsTransparent: false
             )
         }
 
@@ -159,7 +175,8 @@ struct NotchGeometry {
             notchSize: CGSize(width: 180, height: max(menuBarHeight, NSStatusBar.system.thickness, 24)),
             notchCenterX: screen.frame.midX,
             isPhysical: false,
-            drawsFullSize: drawsFullSize
+            drawsFullSize: drawsFullSize,
+            drawsTransparent: drawsTransparent
         )
     }
 
@@ -173,6 +190,7 @@ struct NotchGeometry {
             && notchCenterX == other.notchCenterX
             && isPhysical == other.isPhysical
             && drawsFullSize == other.drawsFullSize
+            && drawsTransparent == other.drawsTransparent
     }
 
     // MARK: - Derived frames
