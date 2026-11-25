@@ -4,7 +4,8 @@ import AppKit
 ///
 /// A screenshot taken to the clipboard exists only in memory: paste it once and
 /// it is gone. The vault writes it to disk so the shelf can hold on to it.
-/// Nothing here is ever deleted automatically — the folder is the user's.
+/// Files stay unless the user clears the folder, or opts into trashing a
+/// screenshot file when explicitly removing its card from the Shelf.
 enum ScreenshotVault {
     /// `~/Pictures/Cyclop` when it can be created — it is findable, and unlike
     /// Desktop or Documents it is not behind a TCC prompt. Falls back to the
@@ -38,11 +39,28 @@ enum ScreenshotVault {
         }
         do {
             try png.write(to: url, options: .atomic)
+            if !ScreenshotFiles(legacyFolders: legacyFolders).markScreenshot(url) {
+                NSLog("Cyclop: could not mark saved screenshot; legacy vault recognition remains available")
+            }
             return url
         } catch {
             NSLog("Cyclop: failed to save image: \(error.localizedDescription)")
             return nil
         }
+    }
+
+    /// Both historical locations, computed without creating or reading either.
+    private static var legacyFolders: [URL] {
+        let fm = FileManager.default
+        return [
+            fm.homeDirectoryForCurrentUser.appendingPathComponent("Pictures/Cyclop", isDirectory: true),
+            fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent("Cyclop/Screenshots", isDirectory: true),
+        ]
+    }
+
+    static func trashIfScreenshot(_ url: URL) throws {
+        try ScreenshotFiles(legacyFolders: legacyFolders).trashIfScreenshot(url)
     }
 
     static func reveal() {

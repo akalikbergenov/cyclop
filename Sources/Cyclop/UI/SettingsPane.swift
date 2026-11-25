@@ -15,6 +15,7 @@ struct SettingsPane: View {
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var menuBarIconVisible = AppDelegate.isMenuBarIconVisible
     @State private var saveClipboardImages = NotchViewModel.saveClipboardImagesEnabled
+    @State private var trashScreenshotsOnRemoval = ConfigStore.shared.trashScreenshotsOnRemoval
     @State private var allDisplays = NotchGeometry.showsOnAllDisplays
     @State private var fullSizeNotch = NotchGeometry.drawsFullSizeNotch
     @State private var openDelay = ConfigStore.shared.openDelay
@@ -71,6 +72,11 @@ struct SettingsPane: View {
                         symbol: "photo.on.rectangle",
                         title: localized("Save Clipboard Screenshots"),
                         isOn: saveClipboardImagesBinding
+                    )
+                    toggleRow(
+                        symbol: "trash",
+                        title: localized("Trash Screenshot Files on Removal"),
+                        isOn: trashScreenshotsOnRemovalBinding
                     )
                     toggleRow(
                         symbol: "eye",
@@ -135,6 +141,7 @@ struct SettingsPane: View {
             // below it — re-read for the same reason as the rest of this block.
             menuBarIconVisible = AppDelegate.isMenuBarIconVisible
             saveClipboardImages = NotchViewModel.saveClipboardImagesEnabled
+            trashScreenshotsOnRemoval = ConfigStore.shared.trashScreenshotsOnRemoval
             allDisplays = NotchGeometry.showsOnAllDisplays
             fullSizeNotch = NotchGeometry.drawsFullSizeNotch
             // `config.json` is meant to be edited by hand too.
@@ -191,6 +198,16 @@ struct SettingsPane: View {
             set: { wants in
                 saveClipboardImages = wants
                 NotchViewModel.saveClipboardImagesEnabled = wants
+            }
+        )
+    }
+
+    private var trashScreenshotsOnRemovalBinding: Binding<Bool> {
+        Binding(
+            get: { trashScreenshotsOnRemoval },
+            set: { wants in
+                trashScreenshotsOnRemoval = wants
+                ConfigStore.shared.trashScreenshotsOnRemoval = wants
             }
         )
     }

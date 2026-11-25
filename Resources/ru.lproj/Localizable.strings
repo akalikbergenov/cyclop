@@ -28,6 +28,10 @@
 
 "Screenshots" = "Скриншоты";
 "Save Clipboard Screenshots" = "Сохранять скриншоты из буфера";
+"Trash Screenshot Files on Removal" = "Удалять файл вместе со снимком";
+"Could Not Move Screenshot to Trash" = "Не удалось отправить снимок в Корзину";
+"The screenshot is still on the shelf. Try again or turn off file removal in Settings." = "Снимок остался на полке. Попробуй ещё раз или отключи удаление файлов в настройках.";
+"OK" = "ОК";
 "Watch Screenshots Folder" = "Отслеживать папку снимков";
 "Choose Screenshots Folder" = "Выбор папки для снимков";
 "Cyclop will watch this folder for new screenshots and add them to the shelf." = "Cyclop будет следить за этой папкой и класть новые снимки на полку.";

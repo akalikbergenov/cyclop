@@ -28,6 +28,7 @@ final class ConfigStore: ObservableObject {
     private struct File: Codable, Equatable {
         var showOnAllDisplays = true
         var saveClipboardImages = true
+        var trashScreenshotsOnRemoval = false
         var privacy: [String] = []
         var teleprompter = Teleprompter()
         var hiddenTabs: [String] = []
@@ -46,6 +47,7 @@ final class ConfigStore: ObservableObject {
             let d = File()
             showOnAllDisplays = try c.decodeIfPresent(Bool.self, forKey: .showOnAllDisplays) ?? d.showOnAllDisplays
             saveClipboardImages = try c.decodeIfPresent(Bool.self, forKey: .saveClipboardImages) ?? d.saveClipboardImages
+            trashScreenshotsOnRemoval = try c.decodeIfPresent(Bool.self, forKey: .trashScreenshotsOnRemoval) ?? d.trashScreenshotsOnRemoval
             privacy = try c.decodeIfPresent([String].self, forKey: .privacy) ?? d.privacy
             teleprompter = try c.decodeIfPresent(Teleprompter.self, forKey: .teleprompter) ?? d.teleprompter
             hiddenTabs = try c.decodeIfPresent([String].self, forKey: .hiddenTabs) ?? d.hiddenTabs
@@ -66,9 +68,11 @@ final class ConfigStore: ObservableObject {
     @Published private(set) var fileBroken = false
 
     private var value: File
+    private let fileURL: URL
 
-    private init() {
-        if let data = try? Data(contentsOf: Self.file) {
+    init(file: URL = ConfigStore.file, defaults: UserDefaults = .standard) {
+        self.fileURL = file
+        if let data = try? Data(contentsOf: file) {
             do {
                 value = try JSONDecoder().decode(File.self, from: data)
             } catch {
@@ -79,7 +83,7 @@ final class ConfigStore: ObservableObject {
         } else {
             // Nothing on disk yet, so nothing to protect — assembled from
             // whatever the old keys already say and written straight away.
-            value = Self.migrated()
+            value = Self.migrated(from: defaults)
             write(value)
         }
     }
@@ -128,6 +132,13 @@ final class ConfigStore: ObservableObject {
         set { value.saveClipboardImages = newValue; persist() }
     }
 
+    /// Only explicit card removal / Clear, never eviction or background work.
+    /// Off by default, including configuration files written by older versions.
+    var trashScreenshotsOnRemoval: Bool {
+        get { value.trashScreenshotsOnRemoval }
+        set { value.trashScreenshotsOnRemoval = newValue; persist() }
+    }
+
     /// Raw `PrivacyMode.Section` values. Kept as strings here rather than that
     /// type so this store does not need to know about it — the same reason
     /// `hiddenTabs` below is `[String]` and not `[NotchViewModel.Tab]`.
@@ -160,8 +171,7 @@ final class ConfigStore: ObservableObject {
     /// exactly what that setting's own `object(forKey:) != nil` check used to
     /// do, so a Mac with none of these keys set gets the same defaults as
     /// before and a Mac with some of them set keeps exactly those.
-    private static func migrated() -> File {
-        let defaults = UserDefaults.standard
+    private static func migrated(from defaults: UserDefaults) -> File {
         var file = File()
         if defaults.object(forKey: "showOnAllDisplays") != nil {
             file.showOnAllDisplays = defaults.bool(forKey: "showOnAllDisplays")
@@ -202,7 +212,7 @@ final class ConfigStore: ObservableObject {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .withoutEscapingSlashes]
         do {
-            try encoder.encode(file).write(to: Self.file, options: .atomic)
+            try encoder.encode(file).write(to: fileURL, options: .atomic)
         } catch {
             NSLog("Cyclop: cannot write config.json: \(error.localizedDescription)")
         }
