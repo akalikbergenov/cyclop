@@ -27,11 +27,27 @@ final class ShelfStore: ObservableObject {
     /// Cards picked for a group drag. Empty means "drag whatever is grabbed".
     @Published private(set) var selection: Set<UUID> = []
 
+    let imageIndex = ShelfImageIndex()
+    private let defaults: UserDefaults
+    private let fingerprintsKey = "shelf.imageFingerprints.v1"
+
     private let defaultsKey = "shelf.urls"
     /// Generous, because saved screenshots accumulate here and nothing is
     /// deleted behind the user's back. Cards past the limit leave the shelf,
     /// but their files stay in the folder.
     private let limit = 60
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        imageIndex.onChange = { [weak self] in
+            guard let self, let data = try? JSONEncoder().encode(self.imageIndex.snapshot) else { return }
+            self.defaults.set(data, forKey: self.fingerprintsKey)
+        }
+    }
+
+    private var imageReferences: [ShelfImageReference] {
+        items.map { ShelfImageReference(id: $0.id, url: $0.url) }
+    }
 
     /// Rebuilds the cards from the stored paths without reading a single file.
     ///
@@ -52,10 +68,13 @@ final class ShelfStore: ObservableObject {
         // the ids it holds now name nothing. Kept, they showed as a phantom
         // "Selected: N" in the footer with no card marked (#10).
         selection.removeAll()
-        let paths = UserDefaults.standard.stringArray(forKey: defaultsKey) ?? []
+        let paths = defaults.stringArray(forKey: defaultsKey) ?? []
         items = paths
             .map(URL.init(fileURLWithPath:))
             .map { ShelfItem(url: $0, icon: Self.icon(forName: $0)) }
+        let cache = defaults.data(forKey: fingerprintsKey)
+            .flatMap { try? JSONDecoder().decode(ShelfImageIndex.Snapshot.self, from: $0) } ?? [:]
+        imageIndex.restore(imageReferences, cache: cache)
     }
 
     /// An icon for a path, derived from its extension alone.
@@ -80,6 +99,7 @@ final class ShelfStore: ObservableObject {
             persist()
         }
         items.forEach(loadThumbnail)
+        imageIndex.refresh()
     }
 
     /// Whether the file is actually gone, as opposed to merely out of reach.
@@ -97,14 +117,20 @@ final class ShelfStore: ObservableObject {
         }
     }
 
-    func add(_ urls: [URL]) {
+    func add(_ urls: [URL], fingerprints: [URL: ImageFingerprint] = [:]) {
         for url in urls where !items.contains(where: { $0.url == url }) {
             let item = ShelfItem(url: url, icon: NSWorkspace.shared.icon(forFile: url.path))
             items.insert(item, at: 0)
             loadThumbnail(item)
         }
         if items.count > limit { items.removeLast(items.count - limit) }
-        persist()
+        persist(fingerprints: fingerprints)
+    }
+
+    @discardableResult
+    func addClipboardImage(_ url: URL, fingerprint: ImageFingerprint) -> Bool {
+        add([url], fingerprints: [url: fingerprint])
+        return items.contains { $0.url == url }
     }
 
     private func loadThumbnail(_ item: ShelfItem) {
@@ -248,7 +274,11 @@ final class ShelfStore: ObservableObject {
         NSWorkspace.shared.open(item.url)
     }
 
-    private func persist() {
-        UserDefaults.standard.set(items.map(\.url.path), forKey: defaultsKey)
+    private func persist(fingerprints: [URL: ImageFingerprint] = [:]) {
+        defaults.set(items.map(\.url.path), forKey: defaultsKey)
+        let known = Dictionary(uniqueKeysWithValues: items.compactMap { item in
+            fingerprints[item.url].map { (item.id, $0) }
+        })
+        imageIndex.synchronize(imageReferences, known: known)
     }
 }
