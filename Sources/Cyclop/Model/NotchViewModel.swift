@@ -159,7 +159,10 @@ final class NotchViewModel: ObservableObject {
     private func stopBackground(of target: Tab) {
         switch target {
         case .media: media.stop()
-        case .clipboard: clipboard.stop()
+        case .clipboard:
+            clipboard.stop()
+            clipboardImageImports.values.forEach { $0.cancel() }
+            clipboardImageImports.removeAll()
         case .calendar: calendar.stop()
         case .shelf: screenshotFolder.stop()
         case .currency: currencies.stop()
@@ -245,6 +248,19 @@ final class NotchViewModel: ObservableObject {
     let snippets: SnippetStore
     let notes: NoteStore
     let teleprompter: TeleprompterStore
+    private var clipboardImageImports: [UUID: Task<Void, Never>] = [:]
+    private lazy var clipboardImageImporter = ClipboardImageImporter(
+        index: shelf.imageIndex,
+        save: { ScreenshotVault.save($0) },
+        insert: { [weak self] url, fingerprint in
+            self?.shelf.addClipboardImage(url, fingerprint: fingerprint) ?? false
+        },
+        rollback: { url in try? FileManager.default.removeItem(at: url) },
+        isEnabled: { [weak self] in
+            guard let self else { return false }
+            return self.started && self.isVisible(.clipboard) && Self.saveClipboardImagesEnabled
+        }
+    )
     /// Shared by every pane that shows something worth not showing.
     let privacy = PrivacyMode()
     /// Here rather than in the controller, which now rebuilds a window per
@@ -318,13 +334,18 @@ final class NotchViewModel: ObservableObject {
         // pasteboard, carried over by Continuity.
         //
         // The switch is asked by the store before it touches image data, not
-        // here after the fact: turned off, a copied picture used to be encoded
-        // to PNG in full just to be dropped on this doorstep — pure heat on
-        // exactly the machines whose owners turned the feature off.
+        // here after the fact: turned off, image data is not read or decoded.
         clipboard.wantsImages = { Self.saveClipboardImagesEnabled }
-        clipboard.onImage = { [weak self] png in
-            guard let self, let url = ScreenshotVault.save(png) else { return }
-            self.receivedScreenshot(at: url)
+        clipboard.onImage = { [weak self] image, onInvalidImage in
+            guard let self else { return }
+            let id = UUID()
+            let importer = self.clipboardImageImporter
+            self.clipboardImageImports[id] = Task { [weak self] in
+                let url = await importer.importImage(image, onInvalidImage: onInvalidImage)
+                guard let self else { return }
+                self.clipboardImageImports.removeValue(forKey: id)
+                if url != nil { self.showReceivedScreenshot() }
+            }
         }
 
         // Same destination as a clipboard screenshot, and the same reason:
@@ -342,6 +363,8 @@ final class NotchViewModel: ObservableObject {
     }
 
     func stop() {
+        clipboardImageImports.values.forEach { $0.cancel() }
+        clipboardImageImports.removeAll()
         started = false
         for target in Tab.allCases { stopBackground(of: target) }
         // Whatever was typed makes it to disk even when quitting mid-thought.
@@ -362,6 +385,10 @@ final class NotchViewModel: ObservableObject {
     /// back — but the panel does not jump to a tab that is not on the rail.
     func receivedScreenshot(at url: URL) {
         shelf.add([url])
+        showReceivedScreenshot()
+    }
+
+    private func showReceivedScreenshot() {
         guard !isTyping, isVisible(.shelf) else { return }
         tab = .shelf
     }
