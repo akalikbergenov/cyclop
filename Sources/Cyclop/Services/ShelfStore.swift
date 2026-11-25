@@ -189,6 +189,7 @@ final class ShelfStore: ObservableObject {
         removalError = nil
         let trashEnabled = shouldTrashScreenshots()
         var removed: Set<UUID> = []
+        var goneURLs: Set<URL> = []
         for item in candidates {
             do {
                 if trashEnabled {
@@ -196,12 +197,18 @@ final class ShelfStore: ObservableObject {
                         $0 == ScreenshotFiles.fileIdentity(of: item.url)
                     } ?? true
                     if sameFile { try trashScreenshot(item.url) }
+                    if Self.isGone(item.url) { goneURLs.insert(item.url.standardizedFileURL) }
                 }
                 removed.insert(item.id)
             } catch {
                 removalError = error.localizedDescription
                 NSLog("Cyclop: could not trash screenshot: %@", error.localizedDescription)
             }
+        }
+        // Restored preferences may contain repeated paths. Drop every reference
+        // only after its file has actually disappeared, keeping live cards intact.
+        for item in items where goneURLs.contains(item.url.standardizedFileURL) {
+            removed.insert(item.id)
         }
         items.removeAll { removed.contains($0.id) }
         selection.subtract(removed)

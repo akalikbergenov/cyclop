@@ -152,6 +152,54 @@ struct ScreenshotRecognitionTests {
 @MainActor
 struct ScreenshotShelfRemovalTests {
     @Test(arguments: [false, true])
+    func removingSharedRestoredScreenshotKeepsOnlyLiveReferences(trashEnabled: Bool) throws {
+        let f = try ScreenshotRemovalFixture()
+        defer { f.cleanUp() }
+        let file = try f.write("screen.png")
+        try f.nativeScreenshot(file)
+        f.defaults.set([file.path, file.path], forKey: "shelf.urls")
+        let files = f.files()
+        let shelf = ShelfStore(defaults: f.defaults, shouldTrashScreenshots: { trashEnabled }, trashScreenshot: files.trashIfScreenshot)
+        shelf.load()
+        #expect(shelf.items.count == 2)
+        shelf.remove(try #require(shelf.items.first))
+        #expect(shelf.items.count == (trashEnabled ? 0 : 1))
+        #expect(FileManager.default.fileExists(atPath: file.path) == !trashEnabled)
+        #expect(f.defaults.stringArray(forKey: "shelf.urls") == (trashEnabled ? [] : [file.path]))
+        #expect(try FileManager.default.contentsOfDirectory(atPath: f.trash.path).count == (trashEnabled ? 1 : 0))
+    }
+
+    @Test func failedTrashKeepsEverySharedRestoredCard() throws {
+        let f = try ScreenshotRemovalFixture()
+        defer { f.cleanUp() }
+        let file = try f.write("screen.png")
+        f.defaults.set([file.path, file.path], forKey: "shelf.urls")
+        let shelf = ShelfStore(defaults: f.defaults, shouldTrashScreenshots: { true }, trashScreenshot: { _ in
+            throw CocoaError(.fileWriteNoPermission)
+        })
+        shelf.load()
+        shelf.remove(try #require(shelf.items.first))
+        #expect(shelf.items.count == 2)
+        #expect(shelf.removalError != nil)
+        #expect(FileManager.default.fileExists(atPath: file.path))
+        #expect(f.defaults.stringArray(forKey: "shelf.urls") == [file.path, file.path])
+    }
+
+    @Test func sharedPhotoReferencesStayWhilePhotoFileExists() throws {
+        let f = try ScreenshotRemovalFixture()
+        defer { f.cleanUp() }
+        let file = try f.write("photo.png")
+        f.defaults.set([file.path, file.path], forKey: "shelf.urls")
+        let files = f.files()
+        let shelf = ShelfStore(defaults: f.defaults, shouldTrashScreenshots: { true }, trashScreenshot: files.trashIfScreenshot)
+        shelf.load()
+        shelf.remove(try #require(shelf.items.first))
+        #expect(shelf.items.count == 1)
+        #expect(FileManager.default.fileExists(atPath: file.path))
+        #expect(try FileManager.default.contentsOfDirectory(atPath: f.trash.path).isEmpty)
+    }
+
+    @Test(arguments: [false, true])
     func replacingFileAtLiveCardPathNeverTrashesReplacement(afterRestart: Bool) throws {
         let f = try ScreenshotRemovalFixture()
         defer { f.cleanUp() }
