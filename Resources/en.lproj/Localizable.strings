@@ -29,6 +29,10 @@
 
 "Screenshots" = "Screenshots";
 "Save Clipboard Screenshots" = "Save Clipboard Screenshots";
+"Trash Screenshot Files on Removal" = "Trash Screenshot Files on Removal";
+"Could Not Move Screenshot to Trash" = "Could Not Move Screenshot to Trash";
+"The screenshot is still on the shelf. Try again or turn off file removal in Settings." = "The screenshot is still on the shelf. Try again or turn off file removal in Settings.";
+"OK" = "OK";
 "Watch Screenshots Folder" = "Watch Screenshots Folder";
 "Choose Screenshots Folder" = "Choose Screenshots Folder";
 "Cyclop will watch this folder for new screenshots and add them to the shelf." = "Cyclop will watch this folder for new screenshots and add them to the shelf.";

@@ -26,6 +26,23 @@ final class ShelfStore: ObservableObject {
     @Published private(set) var items: [ShelfItem] = []
     /// Cards picked for a group drag. Empty means "drag whatever is grabbed".
     @Published private(set) var selection: Set<UUID> = []
+    @Published private(set) var removalError: String?
+
+    private let defaults: UserDefaults
+    private let shouldTrashScreenshots: () -> Bool
+    private let trashScreenshot: (URL) throws -> Void
+    private var fileIdentities: [UUID: ScreenshotFiles.FileIdentity] = [:]
+    private let fileIdentitiesKey = "shelf.fileIdentities.v1"
+
+    init(
+        defaults: UserDefaults = .standard,
+        shouldTrashScreenshots: @escaping () -> Bool = { ConfigStore.shared.trashScreenshotsOnRemoval },
+        trashScreenshot: @escaping (URL) throws -> Void = { try ScreenshotVault.trashIfScreenshot($0) }
+    ) {
+        self.defaults = defaults
+        self.shouldTrashScreenshots = shouldTrashScreenshots
+        self.trashScreenshot = trashScreenshot
+    }
 
     private let defaultsKey = "shelf.urls"
     /// Generous, because saved screenshots accumulate here and nothing is
@@ -52,10 +69,15 @@ final class ShelfStore: ObservableObject {
         // the ids it holds now name nothing. Kept, they showed as a phantom
         // "Selected: N" in the footer with no card marked (#10).
         selection.removeAll()
-        let paths = UserDefaults.standard.stringArray(forKey: defaultsKey) ?? []
+        let paths = defaults.stringArray(forKey: defaultsKey) ?? []
         items = paths
             .map(URL.init(fileURLWithPath:))
             .map { ShelfItem(url: $0, icon: Self.icon(forName: $0)) }
+        let saved = defaults.data(forKey: fileIdentitiesKey)
+            .flatMap { try? JSONDecoder().decode([String: ScreenshotFiles.FileIdentity].self, from: $0) } ?? [:]
+        fileIdentities = Dictionary(uniqueKeysWithValues: items.compactMap { item in
+            saved[item.url.path].map { (item.id, $0) }
+        })
     }
 
     /// An icon for a path, derived from its extension alone.
@@ -79,7 +101,15 @@ final class ShelfStore: ObservableObject {
             selection.subtract(gone)
             persist()
         }
+        var learnedIdentity = false
+        for item in items where fileIdentities[item.id] == nil {
+            if let identity = ScreenshotFiles.fileIdentity(of: item.url) {
+                fileIdentities[item.id] = identity
+                learnedIdentity = true
+            }
+        }
         items.forEach(loadThumbnail)
+        if learnedIdentity { persist() }
     }
 
     /// Whether the file is actually gone, as opposed to merely out of reach.
@@ -100,6 +130,7 @@ final class ShelfStore: ObservableObject {
     func add(_ urls: [URL]) {
         for url in urls where !items.contains(where: { $0.url == url }) {
             let item = ShelfItem(url: url, icon: NSWorkspace.shared.icon(forFile: url.path))
+            fileIdentities[item.id] = ScreenshotFiles.fileIdentity(of: url)
             items.insert(item, at: 0)
             loadThumbnail(item)
         }
@@ -141,14 +172,46 @@ final class ShelfStore: ObservableObject {
     }
 
     func remove(_ item: ShelfItem) {
-        items.removeAll { $0.id == item.id }
-        selection.remove(item.id)
-        persist()
+        removeItems([item.id])
     }
 
     func clear() {
-        items.removeAll()
-        selection.removeAll()
+        removeItems(Set(items.map(\.id)))
+    }
+
+    func dismissRemovalError() { removalError = nil }
+
+    /// Only user-requested removals come through here. Eviction and refresh
+    /// continue to remove cards without deleting the files they reference.
+    private func removeItems(_ ids: Set<UUID>) {
+        let candidates = items.filter { ids.contains($0.id) }
+        guard !candidates.isEmpty else { return }
+        removalError = nil
+        let trashEnabled = shouldTrashScreenshots()
+        var removed: Set<UUID> = []
+        var goneURLs: Set<URL> = []
+        for item in candidates {
+            do {
+                if trashEnabled {
+                    let sameFile = fileIdentities[item.id].map {
+                        $0 == ScreenshotFiles.fileIdentity(of: item.url)
+                    } ?? true
+                    if sameFile { try trashScreenshot(item.url) }
+                    if Self.isGone(item.url) { goneURLs.insert(item.url.standardizedFileURL) }
+                }
+                removed.insert(item.id)
+            } catch {
+                removalError = error.localizedDescription
+                NSLog("Cyclop: could not trash screenshot: %@", error.localizedDescription)
+            }
+        }
+        // Restored preferences may contain repeated paths. Drop every reference
+        // only after its file has actually disappeared, keeping live cards intact.
+        for item in items where goneURLs.contains(item.url.standardizedFileURL) {
+            removed.insert(item.id)
+        }
+        items.removeAll { removed.contains($0.id) }
+        selection.subtract(removed)
         persist()
     }
 
@@ -249,6 +312,13 @@ final class ShelfStore: ObservableObject {
     }
 
     private func persist() {
-        UserDefaults.standard.set(items.map(\.url.path), forKey: defaultsKey)
+        defaults.set(items.map(\.url.path), forKey: defaultsKey)
+        let active = Set(items.map(\.id))
+        fileIdentities = fileIdentities.filter { active.contains($0.key) }
+        var saved: [String: ScreenshotFiles.FileIdentity] = [:]
+        for item in items { saved[item.url.path] = fileIdentities[item.id] }
+        if let data = try? JSONEncoder().encode(saved) {
+            defaults.set(data, forKey: fileIdentitiesKey)
+        }
     }
 }

@@ -61,6 +61,14 @@ struct ShelfPane: View {
             }
         }
         .padding(.top, 2)
+        .alert(localized("Could Not Move Screenshot to Trash"), isPresented: Binding(
+            get: { shelf.removalError != nil },
+            set: { if !$0 { shelf.dismissRemovalError() } }
+        )) {
+            Button(localized("OK"), role: .cancel) { shelf.dismissRemovalError() }
+        } message: {
+            Text(localized("The screenshot is still on the shelf. Try again or turn off file removal in Settings."))
+        }
     }
 
     /// The one decision both signals feed: which frame holds the last known

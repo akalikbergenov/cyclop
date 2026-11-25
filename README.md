@@ -171,10 +171,12 @@ costs — eighteen notes on decisions the code does not show:
   them from the system one day. The helper survives exactly until that moment.
 - The shelf references files rather than copying them: move the original and the
   card disappears on the next launch. The exception is clipboard screenshots,
-  which are saved into `~/Pictures/Cyclop` and are never deleted automatically,
-  even when the card leaves the shelf. Only the user clears that folder: the
-  “Clear Screenshots Folder” in Settings sends its contents to the Trash —
-  a hand too, not a schedule.
+  which are saved into `~/Pictures/Cyclop` and kept after card removal by
+  default. Enable “Trash Screenshot Files on Removal” in Settings to send
+  recognized screenshots and Cyclop's saved clipboard copies to the Trash
+  when removing their cards or clearing the shelf. Ordinary photos and other
+  files added to the shelf stay on disk. Automatic card eviction never deletes
+  files. “Clear Screenshots Folder” still clears the entire folder explicitly.
 - Entries typed `org.nspasteboard.ConcealedType` (password managers) never enter
   the clipboard history.
 - The join button appears only if the call link is in the event itself — in the
